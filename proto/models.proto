@@ -1,0 +1,65 @@
+syntax = "proto3";
+option go_package = "github.com/crystal-construct/shar/model";
+
+//import "google/protobuf/timestamp.proto";
+//import "google/protobuf/duration.proto";
+//import "google/protobuf/any.proto";
+
+message Process {
+  repeated Element elements = 1;
+  string Name      = 2;
+}
+
+message Element {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  string documentation =4;
+  string execute =5;
+  Targets outbound = 6;
+  Process process = 7;
+}
+
+message Target {
+  string id          = 1;
+  repeated string conditions =2;
+  string target     =3;
+}
+
+message Targets {
+  repeated Target target = 1;
+  bool exclusive = 2;
+}
+
+message Job {
+  string Id = 1;
+  string WfiID = 2;
+  bytes vars = 3;
+  string jobType = 4;
+  string elementId = 5;
+  string execute = 6;
+}
+
+message JobComplete {
+
+}
+
+message Traversal {
+  string elementId = 1;
+  string workflowInstanceId = 2;
+  bytes vars =3;
+}
+
+message WorkflowState {
+  string WorkflowInstanceId = 1;
+  string elementId = 2;
+  string elementType = 3;
+  bytes vars = 4;
+}
+
+message WorkflowInstance {
+  string workflowInstanceId = 1;
+  string parentWorkflowInstanceId = 2;
+  string parentElementId = 3;
+  string workflowId = 4;
+}

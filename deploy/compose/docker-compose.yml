@@ -1,0 +1,25 @@
+services:
+  nats:
+    ports:
+      - '4222:4222'
+    image: nats
+    command: ["--js","--server_name","compose_nats"]
+  shar:
+    build: ../../server
+    ports:
+      - '50000:50000'
+    environment:
+      - OTEL_EXPORTER_JAEGER_AGENT_HOST=jaeger
+      - NATS_URL=nats://nats:4222
+      - JAEGER_URL=http://jaeger:14268/api/traces
+    links:
+      - nats
+      - jaeger
+    depends_on:
+      - nats
+      - jaeger
+  jaeger:
+    image: jaegertracing/all-in-one
+    ports:
+      - '16686:16686'
+      - '14268:14268'
