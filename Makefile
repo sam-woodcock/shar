@@ -16,7 +16,7 @@ proto: .FORCE
 	@echo "\033[92mBuild proto\033[0m"
 	#protoc -Iproto --go-grpc_out=paths=source_relative:./goproto $(shell find proto -iname "*.proto");
 	protoc -Iproto --go_out=paths=source_relative:./model $(shell find proto -iname "*.proto");
-	protoc -Iproto --go_grpc_out=paths=source_relative:./model $(shell find proto -iname "*.proto");
+	protoc -Iproto --go-grpc_out=paths=source_relative:./model $(shell find proto -iname "*.proto");
 
 server: .FORCE
 	mkdir -p build/server
