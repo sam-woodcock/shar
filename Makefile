@@ -1,4 +1,3 @@
-
 default: clean proto server
 
 configure:
@@ -20,10 +19,13 @@ proto: .FORCE
 	protoc -Iproto --go_grpc_out=paths=source_relative:./model $(shell find proto -iname "*.proto");
 
 server: .FORCE
+	mkdir -p build/server
 	cd server/cmd/shar; go build
+	cp server/cmd/shar/shar build/server/
+	cp server/Dockerfile build/server/
 
 docker: clean proto server .FORCE
-	cd server; docker build -t shar .
+	cd build/server; docker build -t shar .
 clean: .FORCE
 	cd server/cmd/shar; go clean
 	rm -f server/cmd/shar/shar
