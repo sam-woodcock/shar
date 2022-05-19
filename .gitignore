@@ -20,4 +20,7 @@
 examples/private
 
 # avoid checking in binaries
-server/cmd/shar
+server/cmd/shar/shar
+
+build/
+/deploy/compose/.docker-compose.yml.swp

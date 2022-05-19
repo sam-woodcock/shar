@@ -6,6 +6,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"github.com/antonmedv/expr"
+	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
 	"github.com/crystal-construct/shar/server/errors"
 	"github.com/crystal-construct/shar/server/services"
@@ -112,7 +113,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 		elIDAttr := attribute.KeyValue{Key: keys.ElementID, Value: attribute.StringValue(el.Id)}
 		elTypeAttr := attribute.KeyValue{Key: keys.ElementType, Value: attribute.StringValue(el.Type)}
 		ctx, span := tracer.Start(ctx, "ElementStart", trace.WithAttributes(elNameAttr, elIDAttr, elTypeAttr, wfIDAttr))
-		if err := c.queue.PublishWorkflowState(ctx, "Workflow.Start", &model.WorkflowState{
+		if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowInstanceStart, &model.WorkflowState{
 			WorkflowInstanceId: wfi.WorkflowInstanceId,
 			ElementId:          el.Id,
 			ElementType:        el.Type,
@@ -199,7 +200,7 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, outb
 
 		// If the conditions passed commit a traversal
 		if ok {
-			if err := c.queue.PublishWorkflowState(ctx, "Activity.Traverse", &model.WorkflowState{
+			if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowAcivityTraverse, &model.WorkflowState{
 				ElementType:        el[t.Target].Type,
 				ElementId:          t.Target,
 				WorkflowInstanceId: wfi.WorkflowInstanceId,
@@ -250,7 +251,7 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId string,
 	elTypeAttr := attribute.KeyValue{Key: keys.ElementType, Value: attribute.StringValue(el.Type)}
 	wfNameAttr := attribute.KeyValue{Key: keys.WorkflowName, Value: attribute.StringValue(process.Name)}
 	span.SetAttributes(elTypeAttr, elNameAttr, elIDAttr, wfNameAttr)
-	if err := c.queue.PublishWorkflowState(ctx, "Activity.Execute", &model.WorkflowState{
+	if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowActivityExecute, &model.WorkflowState{
 		ElementType:        el.Type,
 		ElementId:          elementId,
 		WorkflowInstanceId: wfiId,
@@ -260,8 +261,16 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId string,
 	}
 
 	switch el.Type {
-	case "serviceTask", "userTask", "manualTask":
-		if err := c.startJob(ctx, wfiId, el, vars); err != nil {
+	case "serviceTask":
+		if err := c.startJob(ctx, messages.WorkflowJobExecuteServiceTask, wfiId, el, vars); err != nil {
+			return c.engineErr(ctx, span, "failed to start job", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+		}
+	case "UserTask":
+		if err := c.startJob(ctx, messages.WorkflowJobExecuteUserTask, wfiId, el, vars); err != nil {
+			return c.engineErr(ctx, span, "failed to start job", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+		}
+	case "ManualTask":
+		if err := c.startJob(ctx, messages.WorkflowJobExecuteManualTask, wfiId, el, vars); err != nil {
 			return c.engineErr(ctx, span, "failed to start job", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
 		}
 	case "callActivity":
@@ -372,16 +381,16 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobId string, vars []
 	return nil
 }
 
-func (c *Engine) startJob(ctx context.Context, wfiId string, el *model.Element, vars []byte) error {
-	jobType := titleCaser.String(el.Type)
+func (c *Engine) startJob(ctx context.Context, subject string, wfiId string, el *model.Element, vars []byte) error {
+
 	elIDAttr := attribute.KeyValue{Key: keys.ElementID, Value: attribute.StringValue(el.Id)}
 	elNameAttr := attribute.KeyValue{Key: keys.ElementName, Value: attribute.StringValue(el.Name)}
 	elTypeAttr := attribute.KeyValue{Key: keys.ElementType, Value: attribute.StringValue(el.Type)}
-	jobTypeAttr := attribute.KeyValue{Key: keys.JobType, Value: attribute.StringValue(jobType)}
+	jobTypeAttr := attribute.KeyValue{Key: keys.JobType, Value: attribute.StringValue(subject)}
 	wfiIDAttr := attribute.KeyValue{Key: keys.WorkflowInstanceID, Value: attribute.StringValue(wfiId)}
 	ctx, span := tracer.Start(ctx, "JobStart", trace.WithAttributes(elNameAttr, elIDAttr, elTypeAttr, jobTypeAttr, wfiIDAttr))
 	defer span.End()
-	job := &model.Job{WfiID: wfiId, Vars: vars, JobType: jobType, ElementId: el.Id, Execute: el.Execute}
+	job := &model.Job{WfiID: wfiId, Vars: vars, JobType: subject, ElementId: el.Id, Execute: el.Execute}
 	jobId, err := c.store.CreateJob(ctx, job)
 
 	jobIDAttr := attribute.KeyValue{Key: keys.JobID, Value: attribute.StringValue(jobId)}
