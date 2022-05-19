@@ -23,3 +23,4 @@ examples/private
 server/cmd/shar
 
 build/
+/deploy/compose/.docker-compose.yml.swp

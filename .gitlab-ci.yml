@@ -62,4 +62,4 @@ package_stage:
   script:
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n ${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD} | base64)\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context build/$PROJECT_NAME --dockerfile build/$PROJECT_NAME/Dockerfile --destination $CI_REGISTRY_IMAGE/$CI_PROJECT_NAME:${VER}.$CI_VERSION
+    - /kaniko/executor --context build/server --dockerfile build/server/Dockerfile --destination $CI_REGISTRY_IMAGE/server:${VER}.$CI_VERSION
