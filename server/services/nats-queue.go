@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
 	"github.com/crystal-construct/shar/telemetry/ctxutil"
 	"github.com/nats-io/nats.go"
@@ -54,7 +55,7 @@ func (q *NatsQueue) Traverse(ctx context.Context, workflowInstanceId, elementId 
 	if err != nil {
 		return fmt.Errorf("failed to marshal traversal: %w", err)
 	}
-	msg := nats.NewMsg("WORKFLOW.Traversal")
+	msg := nats.NewMsg(messages.WorkflowTraversal)
 	msg.Data = b
 	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	if _, err = q.js.PublishMsg(msg); err != nil {
@@ -67,11 +68,11 @@ func (q *NatsQueue) StartProcessing(ctx context.Context) error {
 	scfg := &nats.StreamConfig{
 		Name: "WORKFLOW",
 		Subjects: []string{
-			"WORKFLOW.Traversal",
-			"WORKFLOW.Job.Execute.*",
-			"WORKFLOW.Job.Complete.*",
-			"WORKFLOW.Workflow.*",
-			"WORKFLOW.Activity.*",
+			messages.WorkflowTraversal,
+			messages.WorkflowJobExecuteAll,
+			messages.WorkFlowJobCompleteAll,
+			messages.WorkflowInstanceAll,
+			messages.WorkflowActivityAll,
 		},
 		Storage: q.storageType,
 	}
@@ -79,7 +80,7 @@ func (q *NatsQueue) StartProcessing(ctx context.Context) error {
 	ccfg := &nats.ConsumerConfig{
 		Durable:       "Traversal",
 		AckPolicy:     nats.AckExplicitPolicy,
-		FilterSubject: "WORKFLOW.Traversal",
+		FilterSubject: messages.WorkflowTraversal,
 	}
 
 	if _, err := q.js.StreamInfo(scfg.Name); err == nats.ErrStreamNotFound {
@@ -116,7 +117,7 @@ func (q *NatsQueue) PublishJob(ctx context.Context, stateName string, el *model.
 }
 
 func (q *NatsQueue) PublishWorkflowState(ctx context.Context, stateName string, message proto.Message) error {
-	msg := nats.NewMsg("WORKFLOW." + stateName)
+	msg := nats.NewMsg(stateName)
 	if b, err := proto.Marshal(message); err != nil {
 		return err
 	} else {
@@ -130,7 +131,7 @@ func (q *NatsQueue) PublishWorkflowState(ctx context.Context, stateName string, 
 }
 
 func (q *NatsQueue) processTraversals(ctx context.Context) {
-	q.process(ctx, "WORKFLOW.Traversal", "Traversal", func(ctx context.Context, msg *nats.Msg) error {
+	q.process(ctx, messages.WorkflowTraversal, "Traversal", func(ctx context.Context, msg *nats.Msg) error {
 		var traversal model.Traversal
 		if err := proto.Unmarshal(msg.Data, &traversal); err != nil {
 			return fmt.Errorf("could not unmarshal traversal proto: %w", err)
@@ -146,7 +147,7 @@ func (q *NatsQueue) processTraversals(ctx context.Context) {
 }
 
 func (q *NatsQueue) processCompletedJobs(ctx context.Context) {
-	q.process(ctx, "WORKFLOW.Job.Complete.*", "JobCompleteConsumer", func(ctx context.Context, msg *nats.Msg) error {
+	q.process(ctx, messages.WorkFlowJobCompleteAll, "JobCompleteConsumer", func(ctx context.Context, msg *nats.Msg) error {
 		var job model.Job
 		if err := proto.Unmarshal(msg.Data, &job); err != nil {
 			return err

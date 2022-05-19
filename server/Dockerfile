@@ -1,4 +1,4 @@
 FROM ubuntu
-ADD cmd/shar/shar /bin/
+ADD shar /bin/
 RUN chmod +x /bin/shar
 CMD "/bin/shar"

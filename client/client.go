@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/crystal-construct/shar/client/parser"
 	"github.com/crystal-construct/shar/client/services"
+	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
 	"github.com/crystal-construct/shar/telemetry"
 	"github.com/crystal-construct/shar/telemetry/ctxutil"
@@ -105,12 +106,12 @@ func (c *Client) listen(ctx context.Context, taskType string, fn func(msg *nats.
 	if _, err := c.js.AddConsumer("WORKFLOW", &nats.ConsumerConfig{
 		Durable:       "JobExecuteConsumer",
 		Description:   "",
-		FilterSubject: "WORKFLOW.Job.Execute.*",
+		FilterSubject: messages.WorkflowJobExecuteAll,
 		AckPolicy:     nats.AckExplicitPolicy,
 	}); err != nil {
 		return fmt.Errorf("failed to add consumer: %w", err)
 	}
-	sub, err := c.js.PullSubscribe("WORKFLOW.Job.Execute.*", "JobExecuteConsumer")
+	sub, err := c.js.PullSubscribe(messages.WorkflowJobExecuteAll, "JobExecuteConsumer")
 	if err != nil {
 		return fmt.Errorf("failed to pull subscribe: %w", err)
 	}
@@ -195,7 +196,7 @@ func (c *Client) CompleteUserTask(ctx context.Context, jobId string, newVars mod
 	if err != nil {
 		return fmt.Errorf("failed to marshal completed user task: %w", err)
 	}
-	msg := nats.NewMsg("WORKFLOW.Job.Complete.UserTask")
+	msg := nats.NewMsg(messages.WorkflowJobCompleteUserTask)
 	msg.Data = b
 	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	_, err = c.js.PublishMsg(msg)
@@ -211,7 +212,7 @@ func (c *Client) CompleteServiceTask(ctx context.Context, jobId string, newVars 
 	if err != nil {
 		return fmt.Errorf("failed to marshal complete service task: %w", err)
 	}
-	msg := nats.NewMsg("WORKFLOW.Job.Complete.ServiceTask")
+	msg := nats.NewMsg(messages.WorkflowJobCompleteServiceTask)
 	msg.Data = b
 	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	_, err = c.js.PublishMsg(msg)
@@ -227,7 +228,7 @@ func (c *Client) CompleteManualTask(ctx context.Context, jobId string, newVars m
 	if err != nil {
 		return fmt.Errorf("failed to marshal complete manual task: %w", err)
 	}
-	msg := nats.NewMsg("WORKFLOW.Job.Complete.ManualTask")
+	msg := nats.NewMsg(messages.WorkflowJobCompleteManualTask)
 	msg.Data = b
 	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	_, err = c.js.PublishMsg(msg)
