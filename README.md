@@ -52,7 +52,7 @@ func main() {
 		}
 	}()
 
-	// Create a client provider
+	// Create a api provider
 	store, err := services.NewNatsClientProvider(log, nats.DefaultURL, nats.MemoryStorage)
 	if err != nil {
 		panic(err)

@@ -8,6 +8,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -170,4 +171,32 @@ func (s *NatsKVStore) GetJob(ctx context.Context, id string) (*model.Job, error)
 		return nil, err
 	}
 	return job, nil
+}
+
+func (s *NatsKVStore) ListWorkflowInstance(workflowId string) (chan *model.WorkflowInstance, chan error) {
+
+	wch := make(chan *model.WorkflowInstance, 100)
+	errs := make(chan error, 1)
+	keys, err := s.wfInstance.Keys()
+	if err != nil {
+		s.log.Error("error obtaining keys", zap.Error(err))
+		return nil, errs
+	}
+	go func(keys []string) {
+		for _, k := range keys {
+			v := &model.WorkflowInstance{}
+			err := LoadObj(s.wfInstance, k, v)
+			if err != nil && err != nats.ErrKeyNotFound {
+				errs <- err
+				s.log.Error("error loading object", zap.Error(err))
+				close(errs)
+				return
+			}
+			if workflowId == "" || v.WorkflowId == workflowId {
+				wch <- v
+			}
+		}
+		close(wch)
+	}(keys)
+	return wch, errs
 }

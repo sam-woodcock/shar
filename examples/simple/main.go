@@ -27,7 +27,7 @@ func main() {
 		}
 	}()
 
-	// Create a client provider
+	// Create a api provider
 	store, err := services.NewNatsClientProvider(log, nats.DefaultURL, nats.MemoryStorage)
 	if err != nil {
 		panic(err)
@@ -59,7 +59,7 @@ func main() {
 			panic(err)
 		}
 	}()
-	time.Sleep(1 * time.Second)
+	time.Sleep(1 * time.Hour)
 }
 
 // A "Hello World" service task

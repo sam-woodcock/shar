@@ -26,6 +26,8 @@ const _ = grpc.SupportPackageIsVersion7
 type SharClient interface {
 	StoreWorkflow(ctx context.Context, in *Process, opts ...grpc.CallOption) (*wrappers.StringValue, error)
 	LaunchWorkflow(ctx context.Context, in *LaunchWorkflowRequest, opts ...grpc.CallOption) (*wrappers.StringValue, error)
+	ListWorkflowInstance(ctx context.Context, in *ListWorkflowInstanceRequest, opts ...grpc.CallOption) (Shar_ListWorkflowInstanceClient, error)
+	GetWorkflowInstanceStatus(ctx context.Context, in *GetWorkflowInstanceStatusRequest, opts ...grpc.CallOption) (*WorkflowInstanceStatus, error)
 	CancelWorkflowInstance(ctx context.Context, in *CancelWorkflowInstanceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 }
 
@@ -55,6 +57,47 @@ func (c *sharClient) LaunchWorkflow(ctx context.Context, in *LaunchWorkflowReque
 	return out, nil
 }
 
+func (c *sharClient) ListWorkflowInstance(ctx context.Context, in *ListWorkflowInstanceRequest, opts ...grpc.CallOption) (Shar_ListWorkflowInstanceClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Shar_ServiceDesc.Streams[0], "/Shar/ListWorkflowInstance", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &sharListWorkflowInstanceClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Shar_ListWorkflowInstanceClient interface {
+	Recv() (*WorkflowInstanceInfo, error)
+	grpc.ClientStream
+}
+
+type sharListWorkflowInstanceClient struct {
+	grpc.ClientStream
+}
+
+func (x *sharListWorkflowInstanceClient) Recv() (*WorkflowInstanceInfo, error) {
+	m := new(WorkflowInstanceInfo)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *sharClient) GetWorkflowInstanceStatus(ctx context.Context, in *GetWorkflowInstanceStatusRequest, opts ...grpc.CallOption) (*WorkflowInstanceStatus, error) {
+	out := new(WorkflowInstanceStatus)
+	err := c.cc.Invoke(ctx, "/Shar/GetWorkflowInstanceStatus", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *sharClient) CancelWorkflowInstance(ctx context.Context, in *CancelWorkflowInstanceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/Shar/CancelWorkflowInstance", in, out, opts...)
@@ -70,6 +113,8 @@ func (c *sharClient) CancelWorkflowInstance(ctx context.Context, in *CancelWorkf
 type SharServer interface {
 	StoreWorkflow(context.Context, *Process) (*wrappers.StringValue, error)
 	LaunchWorkflow(context.Context, *LaunchWorkflowRequest) (*wrappers.StringValue, error)
+	ListWorkflowInstance(*ListWorkflowInstanceRequest, Shar_ListWorkflowInstanceServer) error
+	GetWorkflowInstanceStatus(context.Context, *GetWorkflowInstanceStatusRequest) (*WorkflowInstanceStatus, error)
 	CancelWorkflowInstance(context.Context, *CancelWorkflowInstanceRequest) (*empty.Empty, error)
 	mustEmbedUnimplementedSharServer()
 }
@@ -83,6 +128,12 @@ func (UnimplementedSharServer) StoreWorkflow(context.Context, *Process) (*wrappe
 }
 func (UnimplementedSharServer) LaunchWorkflow(context.Context, *LaunchWorkflowRequest) (*wrappers.StringValue, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LaunchWorkflow not implemented")
+}
+func (UnimplementedSharServer) ListWorkflowInstance(*ListWorkflowInstanceRequest, Shar_ListWorkflowInstanceServer) error {
+	return status.Errorf(codes.Unimplemented, "method ListWorkflowInstance not implemented")
+}
+func (UnimplementedSharServer) GetWorkflowInstanceStatus(context.Context, *GetWorkflowInstanceStatusRequest) (*WorkflowInstanceStatus, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWorkflowInstanceStatus not implemented")
 }
 func (UnimplementedSharServer) CancelWorkflowInstance(context.Context, *CancelWorkflowInstanceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CancelWorkflowInstance not implemented")
@@ -136,6 +187,45 @@ func _Shar_LaunchWorkflow_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Shar_ListWorkflowInstance_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ListWorkflowInstanceRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SharServer).ListWorkflowInstance(m, &sharListWorkflowInstanceServer{stream})
+}
+
+type Shar_ListWorkflowInstanceServer interface {
+	Send(*WorkflowInstanceInfo) error
+	grpc.ServerStream
+}
+
+type sharListWorkflowInstanceServer struct {
+	grpc.ServerStream
+}
+
+func (x *sharListWorkflowInstanceServer) Send(m *WorkflowInstanceInfo) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Shar_GetWorkflowInstanceStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWorkflowInstanceStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SharServer).GetWorkflowInstanceStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/Shar/GetWorkflowInstanceStatus",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SharServer).GetWorkflowInstanceStatus(ctx, req.(*GetWorkflowInstanceStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Shar_CancelWorkflowInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CancelWorkflowInstanceRequest)
 	if err := dec(in); err != nil {
@@ -170,10 +260,20 @@ var Shar_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Shar_LaunchWorkflow_Handler,
 		},
 		{
+			MethodName: "GetWorkflowInstanceStatus",
+			Handler:    _Shar_GetWorkflowInstanceStatus_Handler,
+		},
+		{
 			MethodName: "CancelWorkflowInstance",
 			Handler:    _Shar_CancelWorkflowInstance_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "ListWorkflowInstance",
+			Handler:       _Shar_ListWorkflowInstance_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "server.proto",
 }

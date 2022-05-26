@@ -22,6 +22,7 @@ server: .FORCE
 	mkdir -p build/server
 	cd server/cmd/shar; go build
 	cp server/cmd/shar/shar build/server/
+	cp server/cmd/shar/shar server/
 	cp server/Dockerfile build/server/
 
 docker: clean proto server .FORCE

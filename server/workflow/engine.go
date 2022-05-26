@@ -151,6 +151,9 @@ func (c *Engine) encodeVars(ctx context.Context, vars model.Vars) []byte {
 // decodeVars decodes a go binary object containing workflow variables.
 func (c *Engine) decodeVars(ctx context.Context, vars []byte) model.Vars {
 	ret := make(map[string]interface{})
+	if vars == nil {
+		return ret
+	}
 	r := bytes.NewReader(vars)
 	d := gob.NewDecoder(r)
 	if err := d.Decode(&ret); err != nil {
@@ -200,7 +203,7 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, outb
 
 		// If the conditions passed commit a traversal
 		if ok {
-			if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowAcivityTraverse, &model.WorkflowState{
+			if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowTraversalExecute, &model.WorkflowState{
 				ElementType:        el[t.Target].Type,
 				ElementId:          t.Target,
 				WorkflowInstanceId: wfi.WorkflowInstanceId,
@@ -209,10 +212,10 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, outb
 				c.log.Ctx(ctx).Error("failed to publish workflow state", zap.Error(err))
 				return err
 			}
-			if err := c.queue.Traverse(ctx, wfi.WorkflowInstanceId, t.Target, vars); err != nil {
-				c.log.Ctx(ctx).Error("failed to traverse to "+el[t.Target].Name, zap.Error(err))
-				return err
-			}
+			//if err := c.queue.Traverse(ctx, wfi.WorkflowInstanceId, t.Target, vars); err != nil {
+			//	c.log.Ctx(ctx).Error("failed to traverse to "+el[t.Target].Name, zap.Error(err))
+			//	return err
+			//}
 			if outbound.Exclusive {
 				break
 			}
@@ -262,15 +265,15 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId string,
 
 	switch el.Type {
 	case "serviceTask":
-		if err := c.startJob(ctx, messages.WorkflowJobExecuteServiceTask, wfiId, el, vars); err != nil {
+		if err := c.startJob(ctx, messages.WorkflowJobServiceTaskExecute, wfiId, el, vars); err != nil {
 			return c.engineErr(ctx, span, "failed to start job", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
 		}
 	case "UserTask":
-		if err := c.startJob(ctx, messages.WorkflowJobExecuteUserTask, wfiId, el, vars); err != nil {
+		if err := c.startJob(ctx, messages.WorkflowJobUserTaskExecute, wfiId, el, vars); err != nil {
 			return c.engineErr(ctx, span, "failed to start job", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
 		}
 	case "ManualTask":
-		if err := c.startJob(ctx, messages.WorkflowJobExecuteManualTask, wfiId, el, vars); err != nil {
+		if err := c.startJob(ctx, messages.WorkflowJobManualTaskExecute, wfiId, el, vars); err != nil {
 			return c.engineErr(ctx, span, "failed to start job", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
 		}
 	case "callActivity":
@@ -386,11 +389,11 @@ func (c *Engine) startJob(ctx context.Context, subject string, wfiId string, el 
 	elIDAttr := attribute.KeyValue{Key: keys.ElementID, Value: attribute.StringValue(el.Id)}
 	elNameAttr := attribute.KeyValue{Key: keys.ElementName, Value: attribute.StringValue(el.Name)}
 	elTypeAttr := attribute.KeyValue{Key: keys.ElementType, Value: attribute.StringValue(el.Type)}
-	jobTypeAttr := attribute.KeyValue{Key: keys.JobType, Value: attribute.StringValue(subject)}
+	jobTypeAttr := attribute.KeyValue{Key: keys.JobType, Value: attribute.StringValue(el.Type)}
 	wfiIDAttr := attribute.KeyValue{Key: keys.WorkflowInstanceID, Value: attribute.StringValue(wfiId)}
 	ctx, span := tracer.Start(ctx, "JobStart", trace.WithAttributes(elNameAttr, elIDAttr, elTypeAttr, jobTypeAttr, wfiIDAttr))
 	defer span.End()
-	job := &model.Job{WfiID: wfiId, Vars: vars, JobType: subject, ElementId: el.Id, Execute: el.Execute}
+	job := &model.Job{WfiID: wfiId, Vars: vars, JobType: el.Type, ElementId: el.Id, Execute: el.Execute}
 	jobId, err := c.store.CreateJob(ctx, job)
 
 	jobIDAttr := attribute.KeyValue{Key: keys.JobID, Value: attribute.StringValue(jobId)}
@@ -400,8 +403,7 @@ func (c *Engine) startJob(ctx context.Context, subject string, wfiId string, el 
 		return c.engineErr(ctx, span, "failed to start manual task", err, elNameAttr, elIDAttr, elTypeAttr, jobIDAttr, jobTypeAttr, wfiIDAttr)
 	}
 	job.Id = jobId
-	subj := "Job.Execute." + titleCaser.String(el.Type)
-	return c.queue.PublishJob(ctx, subj, el, job)
+	return c.queue.PublishJob(ctx, subject, el, job)
 }
 
 // elementTable indexes an entire process for quick Id lookups

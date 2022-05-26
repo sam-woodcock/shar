@@ -46,45 +46,41 @@ func NewNatsQueue(log *otelzap.Logger, conn *nats.Conn, storageType nats.Storage
 	}, nil
 }
 
-func (q *NatsQueue) Traverse(ctx context.Context, workflowInstanceId, elementId string, vars []byte) error {
-	b, err := proto.Marshal(&model.Traversal{
-		ElementId:          elementId,
-		WorkflowInstanceId: workflowInstanceId,
-		Vars:               vars,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to marshal traversal: %w", err)
-	}
-	msg := nats.NewMsg(messages.WorkflowTraversal)
-	msg.Data = b
-	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
-	if _, err = q.js.PublishMsg(msg); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (q *NatsQueue) StartProcessing(ctx context.Context) error {
 	scfg := &nats.StreamConfig{
-		Name: "WORKFLOW",
-		Subjects: []string{
-			messages.WorkflowTraversal,
-			messages.WorkflowJobExecuteAll,
-			messages.WorkFlowJobCompleteAll,
-			messages.WorkflowInstanceAll,
-			messages.WorkflowActivityAll,
+		Name:     "WORKFLOW",
+		Subjects: messages.AllMessages,
+		Storage:  q.storageType,
+	}
+
+	bscfg := &nats.StreamConfig{
+		Name:      "WORKFLOWTX",
+		Storage:   q.storageType,
+		Retention: nats.InterestPolicy,
+
+		Sources: []*nats.StreamSource{
+			{
+				Name: "WORKFLOW",
+			},
 		},
-		Storage: q.storageType,
 	}
 
 	ccfg := &nats.ConsumerConfig{
 		Durable:       "Traversal",
 		AckPolicy:     nats.AckExplicitPolicy,
-		FilterSubject: messages.WorkflowTraversal,
+		FilterSubject: messages.WorkflowTraversalExecute,
 	}
 
 	if _, err := q.js.StreamInfo(scfg.Name); err == nats.ErrStreamNotFound {
 		if _, err := q.js.AddStream(scfg); err != nil {
+			panic(err)
+		}
+	} else if err != nil {
+		panic(err)
+	}
+
+	if _, err := q.js.StreamInfo(bscfg.Name); err == nats.ErrStreamNotFound {
+		if _, err := q.js.AddStream(bscfg); err != nil {
 			panic(err)
 		}
 	} else if err != nil {
@@ -131,8 +127,8 @@ func (q *NatsQueue) PublishWorkflowState(ctx context.Context, stateName string, 
 }
 
 func (q *NatsQueue) processTraversals(ctx context.Context) {
-	q.process(ctx, messages.WorkflowTraversal, "Traversal", func(ctx context.Context, msg *nats.Msg) error {
-		var traversal model.Traversal
+	q.process(ctx, messages.WorkflowTraversalExecute, "Traversal", func(ctx context.Context, msg *nats.Msg) error {
+		var traversal model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &traversal); err != nil {
 			return fmt.Errorf("could not unmarshal traversal proto: %w", err)
 		}

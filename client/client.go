@@ -130,7 +130,7 @@ func (c *Client) listen(ctx context.Context, taskType string, fn func(msg *nats.
 				fmt.Println(err)
 			}
 			switch ut.JobType {
-			case "ServiceTask":
+			case "serviceTask":
 				job, err := c.storage.GetJob(xctx, ut.Id)
 				if err != nil {
 					c.log.Ctx(xctx).Error("failed to get job", zap.Error(err), zap.String("JobId", ut.Id))
@@ -182,6 +182,9 @@ func (c *Client) encodeVars(vars map[string]interface{}) []byte {
 
 func (c *Client) decodeVars(vars []byte) model.Vars {
 	ret := make(map[string]interface{})
+	if vars == nil {
+		return ret
+	}
 	r := bytes.NewReader(vars)
 	d := gob.NewDecoder(r)
 	if err := d.Decode(&ret); err != nil {
@@ -196,7 +199,7 @@ func (c *Client) CompleteUserTask(ctx context.Context, jobId string, newVars mod
 	if err != nil {
 		return fmt.Errorf("failed to marshal completed user task: %w", err)
 	}
-	msg := nats.NewMsg(messages.WorkflowJobCompleteUserTask)
+	msg := nats.NewMsg(messages.WorkflowJobUserTaskComplete)
 	msg.Data = b
 	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	_, err = c.js.PublishMsg(msg)
@@ -212,7 +215,7 @@ func (c *Client) CompleteServiceTask(ctx context.Context, jobId string, newVars 
 	if err != nil {
 		return fmt.Errorf("failed to marshal complete service task: %w", err)
 	}
-	msg := nats.NewMsg(messages.WorkflowJobCompleteServiceTask)
+	msg := nats.NewMsg(messages.WorkflowJobServiceTaskComplete)
 	msg.Data = b
 	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	_, err = c.js.PublishMsg(msg)
@@ -228,7 +231,7 @@ func (c *Client) CompleteManualTask(ctx context.Context, jobId string, newVars m
 	if err != nil {
 		return fmt.Errorf("failed to marshal complete manual task: %w", err)
 	}
-	msg := nats.NewMsg(messages.WorkflowJobCompleteManualTask)
+	msg := nats.NewMsg(messages.WorkflowJobManualTaskComplete)
 	msg.Data = b
 	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	_, err = c.js.PublishMsg(msg)

@@ -44,12 +44,6 @@ message JobComplete {
 
 }
 
-message Traversal {
-  string elementId = 1;
-  string workflowInstanceId = 2;
-  bytes vars =3;
-}
-
 message WorkflowState {
   string WorkflowInstanceId = 1;
   string elementId = 2;

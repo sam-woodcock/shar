@@ -18,7 +18,7 @@ func main() {
 
 	var exp traceSdk.SpanExporter
 	if cfg.JaegerURL != "" {
-		exp = telemetry.GetJaegerExporterOrNoop(cfg.JaegerURL)
+		exp = telemetry.GetJaegerExporterOrNoop("")
 		telemetry.RegisterOpenTelemetry(exp, serviceName)
 	}
 

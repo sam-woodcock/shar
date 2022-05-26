@@ -72,7 +72,7 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
 	if err != nil {
-		log.Fatal("failed to listen", zap.Field{Key: "grpcPort", Type: zapcore.Int64Type, Integer: int64(grpcPort)})
+		log.Fatal("failed to listen", zap.Field{Key: "grpcPort", Type: zapcore.Int64Type, Integer: int64(grpcPort)}, zap.Error(err))
 	}
 
 	strmInt := make([]gogrpc.StreamServerInterceptor, 0, 3)
@@ -87,7 +87,7 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 
 	unaryInt = append(unaryInt, grpcRecovery.UnaryServerInterceptor())
 	strmInt = append(strmInt, grpcRecovery.StreamServerInterceptor())
-	
+
 	// Create grpc
 	s.grpcServer = gogrpc.NewServer(
 		gogrpc.StreamInterceptor(grpcMiddleware.ChainStreamServer(strmInt...)),

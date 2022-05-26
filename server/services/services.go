@@ -24,6 +24,7 @@ type Storage interface {
 	GetLatestVersion(ctx context.Context, workflowName string) (string, error)
 	CreateJob(ctx context.Context, job *model.Job) (string, error)
 	GetJob(ctx context.Context, id string) (*model.Job, error)
+	ListWorkflowInstance(workflowId string) (chan *model.WorkflowInstance, chan error)
 }
 
 type EventProcessorFunc func(ctx context.Context, workflowInstanceId, elementId string, vars []byte) error
@@ -32,8 +33,6 @@ type CompleteJobProcessorFunc func(ctx context.Context, jobId string, vars []byt
 type Queue interface {
 	StartProcessing(ctx context.Context) error
 	// Traverse places a traversal instruction onto the queue
-	Traverse(ctx context.Context, workflowInstanceId, elementId string, vars []byte) error
-	// SetEventProcessor sets the engine receiver for events
 	SetEventProcessor(processor EventProcessorFunc)
 	// SetCompleteJobProcessor sets the engine receiver for job completions
 	SetCompleteJobProcessor(processor CompleteJobProcessorFunc)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/crystal-construct/shar/client"
 	"github.com/crystal-construct/shar/client/services"
+	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
 	"github.com/nats-io/nats.go"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
@@ -27,7 +28,7 @@ func main() {
 		}
 	}()
 
-	// Create a client provider
+	// Create a api provider
 	store, err := services.NewNatsClientProvider(log, nats.DefaultURL, nats.MemoryStorage)
 	if err != nil {
 		panic(err)
@@ -57,7 +58,33 @@ func main() {
 			panic(err)
 		}
 	}()
-	time.Sleep(1 * time.Second)
+	go func() {
+		con, err := nats.Connect(nats.DefaultURL)
+		if err != nil {
+			panic(err)
+		}
+		js, err := con.JetStream()
+		js.AddConsumer("WORKFLOWTX", &nats.ConsumerConfig{
+			Durable:       "wtxcon",
+			AckPolicy:     nats.AckExplicitPolicy,
+			FilterSubject: "WORKFLOW.>",
+		})
+		if err != nil {
+			panic(err)
+		}
+		sub, err := js.PullSubscribe(messages.WorkflowJobUserTaskExecute, "wtxcon")
+		if err != nil {
+			panic(err)
+		}
+		for {
+			msg, err := sub.Fetch(1)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println(msg)
+		}
+	}()
+	time.Sleep(1 * time.Hour)
 }
 
 func afterCallingSubProcess(ctx context.Context, vars model.Vars) (model.Vars, error) {

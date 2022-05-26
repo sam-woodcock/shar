@@ -9,6 +9,8 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"sync"
 )
 
@@ -52,6 +54,31 @@ func (s *SharServer) CancelWorkflowInstance(ctx context.Context, req *model.Canc
 		return nil, err
 	}
 	return &empty.Empty{}, err
+}
+
+func (s *SharServer) ListWorkflowInstance(req *model.ListWorkflowInstanceRequest, svr model.Shar_ListWorkflowInstanceServer) error {
+	wch, errs := s.store.ListWorkflowInstance(req.WorkflowId)
+	var done bool
+	for !done {
+		select {
+		case winf := <-wch:
+			if winf == nil {
+				return nil
+			}
+			if err := svr.Send(&model.WorkflowInstanceInfo{
+				Id:         winf.WorkflowInstanceId,
+				WorkflowId: winf.WorkflowId,
+			}); err != nil {
+				return err
+			}
+		case err := <-errs:
+			return err
+		}
+	}
+	return nil
+}
+func (s *SharServer) GetWorkflowInstanceStatus(ctx context.Context, req *model.GetWorkflowInstanceStatusRequest) (*model.WorkflowInstanceStatus, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWorkflowInstanceStatus not implemented")
 }
 
 var shutdownOnce sync.Once
