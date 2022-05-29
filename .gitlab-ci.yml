@@ -1,8 +1,3 @@
-variables:
-  VER: "0.1"
-  PROJECT_NAME: "shar"
-  CI_VERSION: "${CI_PIPELINE_IID}"
-  TAG_KEY: "${TAG_KEY}"
 # You can override the included template(s) by including variable overrides
 # SAST customization: https://docs.gitlab.com/ee/user/application_security/sast/#customizing-the-sast-settings
 # Secret Detection customization: https://docs.gitlab.com/ee/user/application_security/secret_detection/#customizing-settings
@@ -10,6 +5,11 @@ variables:
 # Container Scanning customization: https://docs.gitlab.com/ee/user/application_security/container_scanning/#customizing-the-container-scanning-settings
 # Note that environment variables can be set in several places
 # See https://docs.gitlab.com/ee/ci/variables/#cicd-variable-precedence
+variables:
+  VER: '0.1'
+  PROJECT_NAME: shar
+  CI_VERSION: "${CI_PIPELINE_IID}"
+  TAG_KEY: "${TAG_KEY}"
 stages:
 - test
 - build
@@ -19,47 +19,52 @@ sast:
   stage: test
 include:
 - template: Security/SAST.gitlab-ci.yml
+- template: Security/Dependency-Scanning.gitlab-ci.yml
 build_stage:
-  image: "registry.gitlab.com/shar-workflow/build-go/build-go:1.0.1"
+  image: registry.gitlab.com/shar-workflow/build-go/build-go:1.0.1
   stage: build
   rules:
-    - if: $CI_COMMIT_TAG
-      when: never
-    - if: $CI_PIPELINE_IID
+  - if: "$CI_COMMIT_TAG"
+    when: never
+  - if: "$CI_PIPELINE_IID"
   script:
-    - make
+  - make
   artifacts:
     paths:
-      - build
+    - build
 tag_stage:
   stage: tag
   rules:
-    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
-      when: never
-    - if: $CI_COMMIT_TAG
-      when: never
-    - if: $CI_PIPELINE_IID
+  - if: "$CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH"
+    when: never
+  - if: "$CI_COMMIT_TAG"
+    when: never
+  - if: "$CI_PIPELINE_IID"
   script:
-    - git config --global url."https://gitlab-ci-token:${TAG_KEY}@gitlab.com/shar-workflow".insteadOf "git@gitlab:com:shar-workflow"
-    - echo -e "machine gitlab.com\nlogin gitlab-ci-token\npassword ${TAG_KEY}" > ~/.netrc
-    - project_url=$(echo $CI_PROJECT_URL | sed 's/https:\/\///')
-    - git remote set-url origin https://oauth2:${TAG_KEY}@${project_url}
-    - tag=v${VER}.${CI_VERSION}
-    - echo Build number is v${VER}.${CI_VERSION}
-    - git tag $tag
-    - git push origin $tag
+  - git config --global url."https://gitlab-ci-token:${TAG_KEY}@gitlab.com/shar-workflow".insteadOf
+    "git@gitlab:com:shar-workflow"
+  - echo -e "machine gitlab.com\nlogin gitlab-ci-token\npassword ${TAG_KEY}" > ~/.netrc
+  - project_url=$(echo $CI_PROJECT_URL | sed 's/https:\/\///')
+  - git remote set-url origin https://oauth2:${TAG_KEY}@${project_url}
+  - tag=v${VER}.${CI_VERSION}
+  - echo Build number is v${VER}.${CI_VERSION}
+  - git tag $tag
+  - git push origin $tag
 package_stage:
   stage: package
   rules:
-    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
-      when: never
-    - if: $CI_COMMIT_TAG
-      when: never
-    - if: $CI_PIPELINE_IID
+  - if: "$CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH"
+    when: never
+  - if: "$CI_COMMIT_TAG"
+    when: never
+  - if: "$CI_PIPELINE_IID"
   image:
     name: gcr.io/kaniko-project/executor:debug
-    entrypoint: [""]
+    entrypoint:
+    - ''
   script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n ${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD} | base64)\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context build/server --dockerfile build/server/Dockerfile --destination $CI_REGISTRY_IMAGE/server:${VER}.$CI_VERSION
+  - mkdir -p /kaniko/.docker
+  - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n ${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD}
+    | base64)\"}}}" > /kaniko/.docker/config.json
+  - "/kaniko/executor --context build/server --dockerfile build/server/Dockerfile
+    --destination $CI_REGISTRY_IMAGE/server:${VER}.$CI_VERSION"
