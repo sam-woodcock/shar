@@ -65,9 +65,9 @@ func (s *SharServer) ListWorkflowInstance(req *model.ListWorkflowInstanceRequest
 			if winf == nil {
 				return nil
 			}
-			if err := svr.Send(&model.WorkflowInstanceInfo{
-				Id:         winf.WorkflowInstanceId,
-				WorkflowId: winf.WorkflowId,
+			if err := svr.Send(&model.ListWorkflowInstanceResult{
+				Id:      winf.Id,
+				Version: winf.Version,
 			}); err != nil {
 				return err
 			}

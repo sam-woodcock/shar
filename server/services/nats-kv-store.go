@@ -30,7 +30,9 @@ func (s *NatsKVStore) ListWorkflows() (chan *model.ListWorkflowResult, chan erro
 	res := make(chan *model.ListWorkflowResult, 100)
 	errs := make(chan error, 1)
 	keys, err := s.wfVersion.Keys()
-	if err != nil {
+	if err == nats.ErrNoKeysFound {
+		keys = []string{}
+	} else if err != nil {
 		errs <- err
 		return res, errs
 	}
@@ -255,11 +257,11 @@ func (s *NatsKVStore) GetJob(ctx context.Context, id string) (*model.Job, error)
 	return job, nil
 }
 
-func (s *NatsKVStore) ListWorkflowInstance(workflowName string) (chan *model.WorkflowInstance, chan error) {
+func (s *NatsKVStore) ListWorkflowInstance(workflowName string) (chan *model.ListWorkflowInstanceResult, chan error) {
 	errs := make(chan error, 1)
-	wch := make(chan *model.WorkflowInstance, 100)
+	wch := make(chan *model.ListWorkflowInstanceResult, 100)
 
-	var wfv *model.WorkflowVersions
+	wfv := &model.WorkflowVersions{}
 	if err := LoadObj(s.wfVersion, workflowName, wfv); err != nil {
 		errs <- err
 		return wch, errs
@@ -271,22 +273,27 @@ func (s *NatsKVStore) ListWorkflowInstance(workflowName string) (chan *model.Wor
 	}
 
 	keys, err := s.wfInstance.Keys()
-	if err != nil {
+	if err == nats.ErrNoKeysFound {
+		keys = []string{}
+	} else if err != nil {
 		s.log.Error("error obtaining keys", zap.Error(err))
 		return nil, errs
 	}
 	go func(keys []string) {
 		for _, k := range keys {
-			if _, ok := ver[k]; ok {
-				v := &model.WorkflowInstance{}
-				err := LoadObj(s.wfInstance, k, v)
+			v := &model.WorkflowInstance{}
+			err := LoadObj(s.wfInstance, k, v)
+			if wv, ok := ver[v.WorkflowId]; ok {
 				if err != nil && err != nats.ErrKeyNotFound {
 					errs <- err
 					s.log.Error("error loading object", zap.Error(err))
 					close(errs)
 					return
 				}
-				wch <- v
+				wch <- &model.ListWorkflowInstanceResult{
+					Id:      k,
+					Version: wv.Number,
+				}
 			}
 		}
 		close(wch)

@@ -5,9 +5,9 @@ Copyright © 2022 NAME HERE <EMAIL ADDRESS>
 package instance
 
 import (
+	"github.com/crystal-construct/shar/cli/commands/instance/cancel"
 	"github.com/crystal-construct/shar/cli/commands/instance/list"
 	"github.com/crystal-construct/shar/cli/commands/instance/status"
-	"github.com/crystal-construct/shar/cli/commands/instance/stop"
 	"github.com/spf13/cobra"
 )
 
@@ -31,5 +31,5 @@ func init() {
 	// when this action is called directly.
 	Cmd.AddCommand(list.Cmd)
 	Cmd.AddCommand(status.Cmd)
-	Cmd.AddCommand(stop.Cmd)
+	Cmd.AddCommand(cancel.Cmd)
 }

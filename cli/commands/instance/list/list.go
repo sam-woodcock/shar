@@ -50,7 +50,7 @@ func run(cmd *cobra.Command, args []string) error {
 		} else if err != nil {
 			return err
 		}
-		fmt.Println("workflow: ", wfinf.WorkflowId, "instance:", wfinf.Id)
+		fmt.Println("instance:", wfinf.Id, "version: ", wfinf.Version)
 	}
 	return nil
 }

@@ -106,7 +106,7 @@ func (c *sharClient) ListWorkflowInstance(ctx context.Context, in *ListWorkflowI
 }
 
 type Shar_ListWorkflowInstanceClient interface {
-	Recv() (*WorkflowInstanceInfo, error)
+	Recv() (*ListWorkflowInstanceResult, error)
 	grpc.ClientStream
 }
 
@@ -114,8 +114,8 @@ type sharListWorkflowInstanceClient struct {
 	grpc.ClientStream
 }
 
-func (x *sharListWorkflowInstanceClient) Recv() (*WorkflowInstanceInfo, error) {
-	m := new(WorkflowInstanceInfo)
+func (x *sharListWorkflowInstanceClient) Recv() (*ListWorkflowInstanceResult, error) {
+	m := new(ListWorkflowInstanceResult)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -254,7 +254,7 @@ func _Shar_ListWorkflowInstance_Handler(srv interface{}, stream grpc.ServerStrea
 }
 
 type Shar_ListWorkflowInstanceServer interface {
-	Send(*WorkflowInstanceInfo) error
+	Send(*ListWorkflowInstanceResult) error
 	grpc.ServerStream
 }
 
@@ -262,7 +262,7 @@ type sharListWorkflowInstanceServer struct {
 	grpc.ServerStream
 }
 
-func (x *sharListWorkflowInstanceServer) Send(m *WorkflowInstanceInfo) error {
+func (x *sharListWorkflowInstanceServer) Send(m *ListWorkflowInstanceResult) error {
 	return x.ServerStream.SendMsg(m)
 }
 

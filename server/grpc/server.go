@@ -64,7 +64,7 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 	zlog, err := zap.NewDevelopment(zap.IncreaseLevel(zapcore.DebugLevel))
 	s.log = otelzap.New(zlog, otelzap.WithMinLevel(zapcore.DebugLevel))
 
-	// Capture errors and stop signals
+	// Capture errors and cancel signals
 	errs := make(chan error)
 
 	// Capture SIGTERM and SIGINT

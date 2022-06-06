@@ -9,7 +9,7 @@ service Shar {
   rpc StoreWorkflow(Process) returns (google.protobuf.StringValue);
   rpc LaunchWorkflow(LaunchWorkflowRequest) returns (google.protobuf.StringValue);
   rpc ListWorkflows(google.protobuf.Empty) returns (stream ListWorkflowResult);
-  rpc ListWorkflowInstance(ListWorkflowInstanceRequest) returns (stream WorkflowInstanceInfo);
+  rpc ListWorkflowInstance(ListWorkflowInstanceRequest) returns (stream ListWorkflowInstanceResult);
   rpc GetWorkflowInstanceStatus(GetWorkflowInstanceStatusRequest) returns (WorkflowInstanceStatus);
   rpc CancelWorkflowInstance(CancelWorkflowInstanceRequest) returns (google.protobuf.Empty);
 }
@@ -30,6 +30,12 @@ message GetWorkflowInstanceStatusRequest {
 message ListWorkflowInstanceRequest {
   string workflowName = 1;
 }
+
+message ListWorkflowInstanceResult {
+  string id = 1;
+  int32 version = 2;
+}
+
 message WorkflowInstanceInfo {
   string id = 1;
   string workflowId = 2;
