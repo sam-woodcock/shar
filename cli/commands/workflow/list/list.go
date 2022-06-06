@@ -2,21 +2,22 @@
 Copyright © 2022 NAME HERE <EMAIL ADDRESS>
 
 */
-package start
+package list
 
 import (
 	"context"
 	"fmt"
 	"github.com/crystal-construct/shar/cli/api"
 	"github.com/crystal-construct/shar/cli/flag"
-	"github.com/crystal-construct/shar/model"
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/spf13/cobra"
+	"io"
 )
 
 // rootCmd represents the base command when called without any subcommands
 var Cmd = &cobra.Command{
-	Use:   "start",
-	Short: "Starts a new workflow instance",
+	Use:   "list",
+	Short: "Lists available workflows",
 	Long:  ``,
 	RunE:  run,
 	// Uncomment the following line if your bare application
@@ -29,14 +30,20 @@ func run(cmd *cobra.Command, args []string) error {
 	if err := shar.Dial(); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	wfiid, err := shar.LaunchWorkflow(ctx, &model.LaunchWorkflowRequest{
-		Name: args[0],
-		Vars: nil,
-	})
+	strm, err := shar.ListWorkflows(ctx, &empty.Empty{})
 	if err != nil {
-		return fmt.Errorf("workflow launch failed: %w", err)
+		return fmt.Errorf("list workflow failed: %w", err)
 	}
-	fmt.Println("workflow instance started. instance-id:", wfiid.Value)
+	for {
+		v, err := strm.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			panic(err)
+		}
+		fmt.Println(v.Name, v.Version)
+	}
 	return nil
 }
 

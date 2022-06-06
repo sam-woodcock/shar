@@ -44,7 +44,7 @@ func (s *SharServer) StoreWorkflow(ctx context.Context, process *model.Process) 
 	return &wrappers.StringValue{Value: res}, err
 }
 func (s *SharServer) LaunchWorkflow(ctx context.Context, req *model.LaunchWorkflowRequest) (*wrappers.StringValue, error) {
-	res, err := s.engine.Launch(ctx, req.Id, req.Vars)
+	res, err := s.engine.Launch(ctx, req.Name, req.Vars)
 	return &wrappers.StringValue{Value: res}, err
 }
 
@@ -57,7 +57,7 @@ func (s *SharServer) CancelWorkflowInstance(ctx context.Context, req *model.Canc
 }
 
 func (s *SharServer) ListWorkflowInstance(req *model.ListWorkflowInstanceRequest, svr model.Shar_ListWorkflowInstanceServer) error {
-	wch, errs := s.store.ListWorkflowInstance(req.WorkflowId)
+	wch, errs := s.store.ListWorkflowInstance(req.WorkflowName)
 	var done bool
 	for !done {
 		select {
@@ -79,6 +79,28 @@ func (s *SharServer) ListWorkflowInstance(req *model.ListWorkflowInstanceRequest
 }
 func (s *SharServer) GetWorkflowInstanceStatus(ctx context.Context, req *model.GetWorkflowInstanceStatusRequest) (*model.WorkflowInstanceStatus, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWorkflowInstanceStatus not implemented")
+}
+
+func (s *SharServer) ListWorkflows(p *empty.Empty, svr model.Shar_ListWorkflowsServer) error {
+	res, errs := s.store.ListWorkflows()
+	var done bool
+	for !done {
+		select {
+		case winf := <-res:
+			if winf == nil {
+				return nil
+			}
+			if err := svr.Send(&model.ListWorkflowResult{
+				Name:    winf.Name,
+				Version: winf.Version,
+			}); err != nil {
+				return err
+			}
+		case err := <-errs:
+			return err
+		}
+	}
+	return nil
 }
 
 var shutdownOnce sync.Once

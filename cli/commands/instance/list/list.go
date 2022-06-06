@@ -30,16 +30,16 @@ func run(cmd *cobra.Command, args []string) error {
 	if len(args) > 1 {
 		return errors.New("too many arguments")
 	}
-	var wfid string
+	var wfName string
 	if len(args) == 1 {
-		wfid = args[0]
+		wfName = args[0]
 	}
 
 	shar := api.New(api.Logger, flag.Value.Server)
 	if err := shar.Dial(); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	stream, err := shar.ListWorkflowInstance(ctx, &model.ListWorkflowInstanceRequest{WorkflowId: wfid})
+	stream, err := shar.ListWorkflowInstance(ctx, &model.ListWorkflowInstanceRequest{WorkflowName: wfName})
 	if err != nil {
 		return fmt.Errorf("failed to list workflows: %w", err)
 	}

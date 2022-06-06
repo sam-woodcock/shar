@@ -263,8 +263,8 @@ func (c *Client) LoadBMPNWorkflowFromBytes(ctx context.Context, b []byte) (strin
 
 }
 
-func (c *Client) LaunchWorkflow(ctx context.Context, workflowID string, vars model.Vars) (string, error) {
-	res, err := c.svr.LaunchWorkflow(ctx, &model.LaunchWorkflowRequest{Id: workflowID, Vars: c.encodeVars(vars)})
+func (c *Client) LaunchWorkflow(ctx context.Context, workflowName string, vars model.Vars) (string, error) {
+	res, err := c.svr.LaunchWorkflow(ctx, &model.LaunchWorkflowRequest{Name: workflowName, Vars: c.encodeVars(vars)})
 	if err != nil {
 		return "", fmt.Errorf("failed to launch workflow: %w", err)
 	}

@@ -10,6 +10,16 @@ message Process {
   string Name      = 2;
 }
 
+message WorkflowVersions {
+  repeated WorkflowVersion version = 1;
+}
+
+message WorkflowVersion {
+  string id = 1;
+  bytes sha256 = 2;
+  int32 number = 3;
+}
+
 message Element {
   string id = 1;
   string name = 2;

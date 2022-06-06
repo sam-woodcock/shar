@@ -8,13 +8,14 @@ import "google/protobuf/wrappers.proto";
 service Shar {
   rpc StoreWorkflow(Process) returns (google.protobuf.StringValue);
   rpc LaunchWorkflow(LaunchWorkflowRequest) returns (google.protobuf.StringValue);
+  rpc ListWorkflows(google.protobuf.Empty) returns (stream ListWorkflowResult);
   rpc ListWorkflowInstance(ListWorkflowInstanceRequest) returns (stream WorkflowInstanceInfo);
   rpc GetWorkflowInstanceStatus(GetWorkflowInstanceStatusRequest) returns (WorkflowInstanceStatus);
   rpc CancelWorkflowInstance(CancelWorkflowInstanceRequest) returns (google.protobuf.Empty);
 }
 
 message LaunchWorkflowRequest {
-  string id = 1;
+  string name = 1;
   bytes vars = 2;
 }
 
@@ -27,7 +28,7 @@ message GetWorkflowInstanceStatusRequest {
 }
 
 message ListWorkflowInstanceRequest {
-  string workflowId = 1;
+  string workflowName = 1;
 }
 message WorkflowInstanceInfo {
   string id = 1;
@@ -36,4 +37,9 @@ message WorkflowInstanceInfo {
 
 message WorkflowInstanceStatus {
   string id = 1;
+}
+
+message ListWorkflowResult {
+  string name = 1;
+  int32 version = 2;
 }

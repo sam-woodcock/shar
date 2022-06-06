@@ -5,6 +5,7 @@ Copyright © 2022 NAME HERE <EMAIL ADDRESS>
 package workflow
 
 import (
+	"github.com/crystal-construct/shar/cli/commands/workflow/list"
 	"github.com/crystal-construct/shar/cli/commands/workflow/start"
 	"github.com/spf13/cobra"
 )
@@ -28,4 +29,5 @@ func init() {
 	// Cobra also supports local flag, which will only run
 	// when this action is called directly.
 	Cmd.AddCommand(start.Cmd)
+	Cmd.AddCommand(list.Cmd)
 }

@@ -25,6 +25,7 @@ type Storage interface {
 	CreateJob(ctx context.Context, job *model.Job) (string, error)
 	GetJob(ctx context.Context, id string) (*model.Job, error)
 	ListWorkflowInstance(workflowId string) (chan *model.WorkflowInstance, chan error)
+	ListWorkflows() (chan *model.ListWorkflowResult, chan error)
 }
 
 type EventProcessorFunc func(ctx context.Context, workflowInstanceId, elementId string, vars []byte) error
