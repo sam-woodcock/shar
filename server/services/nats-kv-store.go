@@ -20,6 +20,7 @@ type NatsKVStore struct {
 	wf         nats.KeyValue
 	wfVersion  nats.KeyValue
 	wfInstance nats.KeyValue
+	wfTracking nats.KeyValue
 	log        *otelzap.Logger
 	job        nats.KeyValue
 	conn       *nats.Conn
@@ -61,7 +62,7 @@ func NewNatsKVStore(log *otelzap.Logger, conn *nats.Conn, storageType nats.Stora
 	if err != nil {
 		return nil, err
 	}
-	if err := ensureBuckets(js, storageType, []string{"WORKFLOW_INSTANCE", "WORKFLOW_DEF", "WORKFLOW_LATEST", "WORKFLOW_JOB", "WORKFLOW_VERSION"}); err != nil {
+	if err := ensureBuckets(js, storageType, []string{"WORKFLOW_INSTANCE", "WORKFLOW_TRACKING", "WORKFLOW_DEF", "WORKFLOW_LATEST", "WORKFLOW_JOB", "WORKFLOW_VERSION"}); err != nil {
 		return nil, err
 	}
 	ms := &NatsKVStore{
@@ -73,6 +74,12 @@ func NewNatsKVStore(log *otelzap.Logger, conn *nats.Conn, storageType nats.Stora
 		return nil, err
 	} else {
 		ms.wfInstance = kv
+	}
+
+	if kv, err := js.KeyValue("WORKFLOW_TRACKING"); err != nil {
+		return nil, err
+	} else {
+		ms.wfTracking = kv
 	}
 
 	if kv, err := js.KeyValue("WORKFLOW_DEF"); err != nil {
@@ -170,7 +177,7 @@ func LoadObj(wf nats.KeyValue, k string, v proto.Message) error {
 }
 
 func UpdateObj(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v proto.Message) (proto.Message, error)) error {
-	if oldk, err := wf.Get(k); err == nats.ErrKeyNotFound || oldk.Value() == nil {
+	if oldk, err := wf.Get(k); err == nats.ErrKeyNotFound || (err == nil && oldk.Value() == nil) {
 		if err := SaveObj(wf, k, &model.WorkflowVersions{Version: []*model.WorkflowVersion{}}); err != nil {
 			return err
 		}
@@ -226,7 +233,13 @@ func (s *NatsKVStore) GetWorkflowInstance(ctx context.Context, workflowInstanceI
 }
 
 func (s *NatsKVStore) DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string) error {
-	return s.wfInstance.Delete(workflowInstanceId)
+	if err := s.wfInstance.Delete(workflowInstanceId); err != nil {
+		return err
+	}
+	if err := s.wfTracking.Delete(workflowInstanceId); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *NatsKVStore) GetLatestVersion(ctx context.Context, workflowName string) (string, error) {
@@ -240,17 +253,17 @@ func (s *NatsKVStore) GetLatestVersion(ctx context.Context, workflowName string)
 	}
 }
 
-func (s *NatsKVStore) CreateJob(ctx context.Context, job *model.Job) (string, error) {
+func (s *NatsKVStore) CreateJob(ctx context.Context, job *model.WorkflowState) (string, error) {
 	jobId := ksuid.New()
-	job.Id = jobId.String()
+	job.TrackingId = jobId.String()
 	if err := SaveObj(s.job, jobId.String(), job); err != nil {
 		return "", err
 	}
 	return jobId.String(), nil
 }
 
-func (s *NatsKVStore) GetJob(ctx context.Context, id string) (*model.Job, error) {
-	job := &model.Job{}
+func (s *NatsKVStore) GetJob(ctx context.Context, id string) (*model.WorkflowState, error) {
+	job := &model.WorkflowState{}
 	if err := LoadObj(s.job, id, job); err != nil {
 		return nil, err
 	}
@@ -299,4 +312,13 @@ func (s *NatsKVStore) ListWorkflowInstance(workflowName string) (chan *model.Lis
 		close(wch)
 	}(keys)
 	return wch, errs
+}
+
+func (s *NatsKVStore) GetWorkflowInstanceStatus(id string) (*model.WorkflowInstanceStatus, error) {
+	v := &model.WorkflowState{}
+	err := LoadObj(s.wfTracking, id, v)
+	if err != nil {
+		return nil, err
+	}
+	return &model.WorkflowInstanceStatus{State: []*model.WorkflowState{v}}, nil
 }

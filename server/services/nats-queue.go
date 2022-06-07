@@ -25,6 +25,7 @@ type NatsQueue struct {
 	concurrency               int
 	tracer                    trace.Tracer
 	closing                   chan struct{}
+	workflowTracking          string
 }
 
 func NewNatsQueue(log *otelzap.Logger, conn *nats.Conn, storageType nats.StorageType, tracer trace.Tracer, concurrency int) (*NatsQueue, error) {
@@ -36,51 +37,44 @@ func NewNatsQueue(log *otelzap.Logger, conn *nats.Conn, storageType nats.Storage
 		return nil, err
 	}
 	return &NatsQueue{
-		concurrency: concurrency,
-		storageType: storageType,
-		con:         conn,
-		js:          js,
-		log:         log,
-		tracer:      tracer,
-		closing:     make(chan struct{}),
+		concurrency:      concurrency,
+		storageType:      storageType,
+		con:              conn,
+		js:               js,
+		log:              log,
+		tracer:           tracer,
+		closing:          make(chan struct{}),
+		workflowTracking: "WORKFLOW_TRACKING",
 	}, nil
 }
 
 func (q *NatsQueue) StartProcessing(ctx context.Context) error {
 	scfg := &nats.StreamConfig{
-		Name:     "WORKFLOW",
-		Subjects: messages.AllMessages,
-		Storage:  q.storageType,
-	}
-
-	bscfg := &nats.StreamConfig{
-		Name:      "WORKFLOWTX",
+		Name:      "WORKFLOW",
+		Subjects:  messages.AllMessages,
 		Storage:   q.storageType,
 		Retention: nats.InterestPolicy,
-
-		Sources: []*nats.StreamSource{
-			{
-				Name: "WORKFLOW",
-			},
-		},
 	}
 
 	ccfg := &nats.ConsumerConfig{
-		Durable:       "Traversal",
-		AckPolicy:     nats.AckExplicitPolicy,
-		FilterSubject: messages.WorkflowTraversalExecute,
+		Durable:         "Traversal",
+		Description:     "Traversal processing queue",
+		AckPolicy:       nats.AckExplicitPolicy,
+		FilterSubject:   messages.WorkflowTraversalExecute,
+		MaxRequestBatch: 1,
+	}
+
+	tcfg := &nats.ConsumerConfig{
+		Durable:         "Tracking",
+		Description:     "Tracking queue for sequential processing",
+		AckPolicy:       nats.AckExplicitPolicy,
+		FilterSubject:   "WORKFLOW.>",
+		MaxAckPending:   1,
+		MaxRequestBatch: 1,
 	}
 
 	if _, err := q.js.StreamInfo(scfg.Name); err == nats.ErrStreamNotFound {
 		if _, err := q.js.AddStream(scfg); err != nil {
-			panic(err)
-		}
-	} else if err != nil {
-		panic(err)
-	}
-
-	if _, err := q.js.StreamInfo(bscfg.Name); err == nats.ErrStreamNotFound {
-		if _, err := q.js.AddStream(bscfg); err != nil {
 			panic(err)
 		}
 	} else if err != nil {
@@ -95,9 +89,22 @@ func (q *NatsQueue) StartProcessing(ctx context.Context) error {
 		panic(err)
 	}
 
+	if _, err := q.js.ConsumerInfo(scfg.Name, tcfg.Durable); err == nats.ErrConsumerNotFound {
+		if _, err := q.js.AddConsumer("WORKFLOW", tcfg); err != nil {
+			panic(err)
+		}
+	} else if err != nil {
+		panic(err)
+	}
+
 	go func() {
 		q.processTraversals(ctx)
 	}()
+
+	go func() {
+		q.processTracking(ctx)
+	}()
+
 	go q.processCompletedJobs(ctx)
 	return nil
 }
@@ -108,13 +115,14 @@ func (q *NatsQueue) SetCompleteJobProcessor(processor CompleteJobProcessorFunc) 
 	q.eventJobCompleteProcessor = processor
 }
 
-func (q *NatsQueue) PublishJob(ctx context.Context, stateName string, el *model.Element, job *model.Job) error {
+func (q *NatsQueue) PublishJob(ctx context.Context, stateName string, el *model.Element, job *model.WorkflowState) error {
 	return q.PublishWorkflowState(ctx, stateName, job)
 }
 
-func (q *NatsQueue) PublishWorkflowState(ctx context.Context, stateName string, message proto.Message) error {
+func (q *NatsQueue) PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState) error {
+	state.UnixTimeNano = time.Now().UnixNano()
 	msg := nats.NewMsg(stateName)
-	if b, err := proto.Marshal(message); err != nil {
+	if b, err := proto.Marshal(state); err != nil {
 		return err
 	} else {
 		msg.Data = b
@@ -133,7 +141,7 @@ func (q *NatsQueue) processTraversals(ctx context.Context) {
 			return fmt.Errorf("could not unmarshal traversal proto: %w", err)
 		}
 		if q.eventProcessor != nil {
-			if err := q.eventProcessor(ctx, traversal.WorkflowInstanceId, traversal.ElementId, traversal.Vars); err != nil {
+			if err := q.eventProcessor(ctx, traversal.WorkflowInstanceId, traversal.ElementId, traversal.TrackingId, traversal.Vars); err != nil {
 				return fmt.Errorf("could not process event: %w", err)
 			}
 		}
@@ -142,14 +150,19 @@ func (q *NatsQueue) processTraversals(ctx context.Context) {
 	return
 }
 
+func (q *NatsQueue) processTracking(ctx context.Context) {
+	q.process(ctx, "WORKFLOW.>", "Tracking", q.track)
+	return
+}
+
 func (q *NatsQueue) processCompletedJobs(ctx context.Context) {
 	q.process(ctx, messages.WorkFlowJobCompleteAll, "JobCompleteConsumer", func(ctx context.Context, msg *nats.Msg) error {
-		var job model.Job
+		var job model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &job); err != nil {
 			return err
 		}
 		if q.eventJobCompleteProcessor != nil {
-			if err := q.eventJobCompleteProcessor(ctx, job.Id, job.Vars); err != nil {
+			if err := q.eventJobCompleteProcessor(ctx, job.TrackingId, job.Vars); err != nil {
 				return err
 			}
 		}
@@ -196,4 +209,35 @@ func (q *NatsQueue) process(ctx context.Context, subject string, durable string,
 			}
 		}()
 	}
+}
+
+func (q *NatsQueue) track(ctx context.Context, msg *nats.Msg) error {
+	kv, err := q.js.KeyValue(q.workflowTracking)
+	if err != nil {
+		return err
+	}
+	switch msg.Subject {
+	case messages.WorkflowInstanceExecute,
+		messages.WorkflowTraversalExecute,
+		messages.WorkflowActivityExecute,
+		messages.WorkflowJobServiceTaskExecute,
+		messages.WorkflowJobManualTaskExecute,
+		messages.WorkflowJobUserTaskExecute:
+		st := &model.WorkflowState{}
+		if err := proto.Unmarshal(msg.Data, st); err != nil {
+			return err
+		}
+		if err := SaveObj(kv, st.WorkflowInstanceId, st); err != nil {
+			return err
+		}
+	case messages.WorkflowInstanceComplete:
+		st := &model.WorkflowState{}
+		if err := proto.Unmarshal(msg.Data, st); err != nil {
+			return err
+		}
+		if err := kv.Delete(st.WorkflowInstanceId); err != nil {
+			return err
+		}
+	}
+	return nil
 }

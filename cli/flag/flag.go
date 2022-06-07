@@ -1,12 +1,15 @@
 package flag
 
 const (
-	Server      = "server"
-	ServerShort = "s"
+	Server        = "server"
+	LogLevel      = "loglevel"
+	ServerShort   = "s"
+	LogLevelShort = "l"
 )
 
-type FlagSet struct {
-	Server string
+type Set struct {
+	Server   string
+	LogLevel string
 }
 
-var Value FlagSet
+var Value Set

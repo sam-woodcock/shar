@@ -19,7 +19,9 @@ func main() {
 	var exp traceSdk.SpanExporter
 	if cfg.JaegerURL != "" {
 		exp = telemetry.GetJaegerExporterOrNoop("")
-		telemetry.RegisterOpenTelemetry(exp, serviceName)
+		if _, err := telemetry.RegisterOpenTelemetry(exp, serviceName); err != nil {
+			panic(err)
+		}
 	}
 
 	svr := grpc.NewSharServer(exp)

@@ -12,6 +12,7 @@ import (
 	"github.com/crystal-construct/shar/server/services"
 	"github.com/crystal-construct/shar/telemetry/keys"
 	"github.com/nats-io/nats.go"
+	"github.com/segmentio/ksuid"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -19,8 +20,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"sync"
 )
 
@@ -37,9 +36,6 @@ type Engine struct {
 }
 
 var tracer = otel.Tracer("shar")
-
-// titleCaser provides the ability to transform camel case to pascal case.
-var titleCaser = cases.Title(language.English, cases.NoLower)
 
 // NewEngine returns an instance of the core workflow engine.
 func NewEngine(log *otelzap.Logger, store services.Storage, queue services.Queue) (*Engine, error) {
@@ -113,7 +109,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 		elIDAttr := attribute.KeyValue{Key: keys.ElementID, Value: attribute.StringValue(el.Id)}
 		elTypeAttr := attribute.KeyValue{Key: keys.ElementType, Value: attribute.StringValue(el.Type)}
 		ctx, span := tracer.Start(ctx, "ElementStart", trace.WithAttributes(elNameAttr, elIDAttr, elTypeAttr, wfIDAttr))
-		if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowInstanceStart, &model.WorkflowState{
+		if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowInstanceExecute, &model.WorkflowState{
 			WorkflowInstanceId: wfi.WorkflowInstanceId,
 			ElementId:          el.Id,
 			ElementType:        el.Type,
@@ -201,12 +197,14 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, outb
 			span1.End()
 		}
 
+		trackingId := ksuid.New().String()
 		// If the conditions passed commit a traversal
 		if ok {
 			if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowTraversalExecute, &model.WorkflowState{
 				ElementType:        el[t.Target].Type,
 				ElementId:          t.Target,
 				WorkflowInstanceId: wfi.WorkflowInstanceId,
+				TrackingId:         trackingId,
 				Vars:               vars,
 			}); err != nil {
 				c.log.Ctx(ctx).Error("failed to publish workflow state", zap.Error(err))
@@ -223,7 +221,7 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, outb
 	}
 	return nil
 }
-func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId string, vars []byte) error {
+func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, trackingId string, vars []byte) error {
 	select {
 	case <-c.closing:
 		return errors.ErrClosing
@@ -263,16 +261,28 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId string,
 		return c.engineErr(ctx, span, "failed to publish workflow state", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
 	}
 
+	if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowTraversalComplete, &model.WorkflowState{
+		ElementType:        el.Type,
+		ElementId:          elementId,
+		WorkflowInstanceId: wfiId,
+		TrackingId:         trackingId,
+		Vars:               vars,
+	}); err != nil {
+		return c.engineErr(ctx, span, "failed to publish workflow state", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+	}
+
+	var workflowComplete bool
+
 	switch el.Type {
 	case "serviceTask":
 		if err := c.startJob(ctx, messages.WorkflowJobServiceTaskExecute, wfiId, el, vars); err != nil {
 			return c.engineErr(ctx, span, "failed to start job", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
 		}
-	case "UserTask":
+	case "userTask":
 		if err := c.startJob(ctx, messages.WorkflowJobUserTaskExecute, wfiId, el, vars); err != nil {
 			return c.engineErr(ctx, span, "failed to start job", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
 		}
-	case "ManualTask":
+	case "manualTask":
 		if err := c.startJob(ctx, messages.WorkflowJobManualTaskExecute, wfiId, el, vars); err != nil {
 			return c.engineErr(ctx, span, "failed to start job", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
 		}
@@ -293,9 +303,29 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId string,
 		if err := c.cleanup(ctx, wfi.WorkflowInstanceId); err != nil {
 			return c.engineErr(ctx, span, "failed to return to remove workflow instance", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
 		}
+		workflowComplete = true
 	default:
 		if err := c.traverse(ctx, wfi, el.Outbound, els, vars); err != nil {
 			return c.engineErr(ctx, span, "failed to return to traverse", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+		}
+	}
+	if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowActivityComplete, &model.WorkflowState{
+		ElementType:        el.Type,
+		ElementId:          elementId,
+		WorkflowInstanceId: wfiId,
+		Vars:               vars,
+	}); err != nil {
+		return c.engineErr(ctx, span, "failed to publish workflow state", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+	}
+
+	if workflowComplete {
+		if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowInstanceComplete, &model.WorkflowState{
+			ElementType:        el.Type,
+			ElementId:          elementId,
+			WorkflowInstanceId: wfiId,
+			Vars:               vars,
+		}); err != nil {
+			return c.engineErr(ctx, span, "failed to publish workflow state", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
 		}
 	}
 	return nil
@@ -351,14 +381,14 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobId string, vars []
 		return c.engineErr(ctx, span, "failed to locate job", err, attribute.KeyValue{Key: keys.JobID, Value: attribute.StringValue(jobId)})
 	}
 
-	jobIdAttr := attribute.KeyValue{Key: keys.JobID, Value: attribute.StringValue(job.Id)}
-	jobTypeAttr := attribute.KeyValue{Key: keys.JobType, Value: attribute.StringValue(job.JobType)}
+	jobIdAttr := attribute.KeyValue{Key: keys.JobID, Value: attribute.StringValue(job.TrackingId)}
+	jobTypeAttr := attribute.KeyValue{Key: keys.JobType, Value: attribute.StringValue(job.ElementType)}
 	span.SetAttributes(jobIdAttr, jobTypeAttr)
 
-	wfi, err := c.store.GetWorkflowInstance(ctx, job.WfiID)
+	wfi, err := c.store.GetWorkflowInstance(ctx, job.WorkflowInstanceId)
 	if err == errors.ErrWorkflowInstanceNotFound {
 		span.SetStatus(codes.Error, "workflow instance not found, cancelling")
-		c.log.Ctx(ctx).Warn("workflow instance not found, cancelling job processing", zap.Error(err), zap.String(keys.WorkflowInstanceID, job.WfiID))
+		c.log.Ctx(ctx).Warn("workflow instance not found, cancelling job processing", zap.Error(err), zap.String(keys.WorkflowInstanceID, job.WorkflowInstanceId))
 		return nil
 	} else if err != nil {
 		return c.engineErr(ctx, span, "failed to get workflow instance for job", err, jobTypeAttr, jobIdAttr)
@@ -385,7 +415,6 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobId string, vars []
 }
 
 func (c *Engine) startJob(ctx context.Context, subject string, wfiId string, el *model.Element, vars []byte) error {
-
 	elIDAttr := attribute.KeyValue{Key: keys.ElementID, Value: attribute.StringValue(el.Id)}
 	elNameAttr := attribute.KeyValue{Key: keys.ElementName, Value: attribute.StringValue(el.Name)}
 	elTypeAttr := attribute.KeyValue{Key: keys.ElementType, Value: attribute.StringValue(el.Type)}
@@ -393,7 +422,7 @@ func (c *Engine) startJob(ctx context.Context, subject string, wfiId string, el 
 	wfiIDAttr := attribute.KeyValue{Key: keys.WorkflowInstanceID, Value: attribute.StringValue(wfiId)}
 	ctx, span := tracer.Start(ctx, "JobStart", trace.WithAttributes(elNameAttr, elIDAttr, elTypeAttr, jobTypeAttr, wfiIDAttr))
 	defer span.End()
-	job := &model.Job{WfiID: wfiId, Vars: vars, JobType: el.Type, ElementId: el.Id, Execute: el.Execute}
+	job := &model.WorkflowState{WorkflowInstanceId: wfiId, Vars: vars, ElementType: el.Type, ElementId: el.Id, Execute: el.Execute}
 	jobId, err := c.store.CreateJob(ctx, job)
 
 	jobIDAttr := attribute.KeyValue{Key: keys.JobID, Value: attribute.StringValue(jobId)}
@@ -402,7 +431,7 @@ func (c *Engine) startJob(ctx context.Context, subject string, wfiId string, el 
 	if err != nil {
 		return c.engineErr(ctx, span, "failed to start manual task", err, elNameAttr, elIDAttr, elTypeAttr, jobIDAttr, jobTypeAttr, wfiIDAttr)
 	}
-	job.Id = jobId
+	job.TrackingId = jobId
 	return c.queue.PublishJob(ctx, subject, el, job)
 }
 

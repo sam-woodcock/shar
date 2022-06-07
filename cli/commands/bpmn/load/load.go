@@ -1,7 +1,3 @@
-/*
-Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-
-*/
 package load
 
 import (
@@ -21,17 +17,6 @@ var Cmd = &cobra.Command{
 	Short: "Loads a BPMN XML file into shar",
 	Long:  ``,
 	RunE:  run,
-}
-
-func init() {
-	// Here you will define your flag and configuration settings.
-	// Cobra supports persistent flag, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.cli.yaml)")
-
-	// Cobra also supports local flag, which will only run
-	// when this action is called directly.
 }
 
 func run(cmd *cobra.Command, args []string) error {

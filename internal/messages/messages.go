@@ -10,10 +10,11 @@ const (
 	WorkflowJobManualTaskExecute   = "WORKFLOW.Job.Execute.ManualTask"
 	WorkflowJobManualTaskComplete  = "WORKFLOW.Job.Complete.ManualTask"
 	WorkflowInstanceAll            = "WORKFLOW.Workflow.*"
-	WorkflowInstanceStart          = "WORKFLOW.Workflow.Start"
+	WorkflowInstanceExecute        = "WORKFLOW.Workflow.Execute"
 	WorkflowInstanceComplete       = "WORKFLOW.Workflow.Complete"
 	WorkflowActivityAll            = "WORKFLOW.Activity.*"
 	WorkflowActivityExecute        = "WORKFLOW.Activity.Execute"
+	WorkflowActivityComplete       = "WORKFLOW.Activity.Complete"
 	WorkflowTraversalExecute       = "WORKFLOW.Traversal.Execute"
 	WorkflowTraversalComplete      = "WORKFLOW.Traversal.Complete"
 )
@@ -25,9 +26,10 @@ var AllMessages = []string{
 	WorkflowJobUserTaskComplete,
 	WorkflowJobManualTaskExecute,
 	WorkflowJobManualTaskComplete,
-	WorkflowInstanceStart,
+	WorkflowInstanceExecute,
 	WorkflowInstanceComplete,
 	WorkflowActivityExecute,
+	WorkflowActivityComplete,
 	WorkflowTraversalExecute,
 	WorkflowTraversalComplete,
 }

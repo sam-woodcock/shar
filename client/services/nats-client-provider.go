@@ -106,8 +106,8 @@ func LoadObj(wf nats.KeyValue, k string, v proto.Message) error {
 	}
 }
 
-func (s *NatsClientProvider) GetJob(ctx context.Context, id string) (*model.Job, error) {
-	job := &model.Job{}
+func (s *NatsClientProvider) GetJob(ctx context.Context, id string) (*model.WorkflowState, error) {
+	job := &model.WorkflowState{}
 	if err := LoadObj(s.job, id, job); err != nil {
 		return nil, err
 	}

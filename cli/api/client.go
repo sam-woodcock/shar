@@ -3,7 +3,7 @@ package api
 import (
 	"fmt"
 	"github.com/crystal-construct/shar/model"
-	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
+	grpcZap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -31,10 +31,10 @@ func (c *Client) Dial(options ...grpc.DialOption) error {
 			grpc.WithBlock(),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 			grpc.WithStreamInterceptor(
-				grpc_zap.StreamClientInterceptor(c.log),
+				grpcZap.StreamClientInterceptor(c.log),
 			),
 			grpc.WithUnaryInterceptor(
-				grpc_zap.UnaryClientInterceptor(c.log),
+				grpcZap.UnaryClientInterceptor(c.log),
 			),
 		}
 	}

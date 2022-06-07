@@ -41,24 +41,19 @@ message Targets {
   bool exclusive = 2;
 }
 
-message Job {
-  string Id = 1;
-  string WfiID = 2;
-  bytes vars = 3;
-  string jobType = 4;
-  string elementId = 5;
-  string execute = 6;
-}
-
 message JobComplete {
 
 }
 
 message WorkflowState {
-  string WorkflowInstanceId = 1;
+  string workflowInstanceId = 1;
   string elementId = 2;
   string elementType = 3;
-  bytes vars = 4;
+  string trackingId = 4;
+  string execute = 5;
+  string state = 6;
+  int64 unixTimeNano = 7;
+  bytes vars = 8;
 }
 
 message WorkflowInstance {
@@ -66,4 +61,10 @@ message WorkflowInstance {
   string parentWorkflowInstanceId = 2;
   string parentElementId = 3;
   string workflowId = 4;
+}
+
+message InstanceState {
+  string id = 1;
+  string state = 2;
+  bytes vars = 3;
 }

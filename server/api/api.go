@@ -9,8 +9,6 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"sync"
 )
 
@@ -78,7 +76,11 @@ func (s *SharServer) ListWorkflowInstance(req *model.ListWorkflowInstanceRequest
 	return nil
 }
 func (s *SharServer) GetWorkflowInstanceStatus(ctx context.Context, req *model.GetWorkflowInstanceStatusRequest) (*model.WorkflowInstanceStatus, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetWorkflowInstanceStatus not implemented")
+	res, err := s.store.GetWorkflowInstanceStatus(req.Id)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func (s *SharServer) ListWorkflows(p *empty.Empty, svr model.Shar_ListWorkflowsServer) error {

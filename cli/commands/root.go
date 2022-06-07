@@ -1,7 +1,3 @@
-/*
-Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-
-*/
 package commands
 
 import (
@@ -36,21 +32,25 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flag and configuration settings.
-	// Cobra supports persistent flag, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.cli.yaml)")
-
-	// Cobra also supports local flag, which will only run
-	// when this action is called directly.
 	rootCmd.AddCommand(bpmn.Cmd)
 	rootCmd.AddCommand(instance.Cmd)
 	rootCmd.AddCommand(workflow.Cmd)
-	//rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+
 	rootCmd.PersistentFlags().StringVarP(&flag.Value.Server, flag.Server, flag.ServerShort, "localhost:50000", "sets the address of a SHAR server")
+	rootCmd.PersistentFlags().StringVarP(&flag.Value.LogLevel, flag.LogLevel, flag.LogLevelShort, "error", "sets the logging level for the CLI")
 	var err error
-	api.Logger, err = zap.NewDevelopment()
+	lev, err := zap.ParseAtomicLevel(flag.Value.LogLevel)
+	if err != nil {
+		panic("could not parse log level")
+	}
+	api.Logger, err = zap.Config{
+		Level:            lev,
+		Development:      true,
+		Encoding:         "console",
+		EncoderConfig:    zap.NewDevelopmentEncoderConfig(),
+		OutputPaths:      []string{"stderr"},
+		ErrorOutputPaths: []string{"stderr"},
+	}.Build()
 	if err != nil {
 		panic(err)
 	}

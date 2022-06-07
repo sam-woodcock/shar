@@ -91,11 +91,11 @@ func (c *Client) Listen(ctx context.Context) error {
 
 func (c *Client) listenUserTasks(ctx context.Context) error {
 	return c.listen(ctx, "UserTaskExecute", func(msg *nats.Msg) error {
-		ut := &model.Job{}
+		ut := &model.WorkflowState{}
 		if err := proto.Unmarshal(msg.Data, ut); err != nil {
 			return fmt.Errorf("failed to unmarshal: %w", err)
 		}
-		if err := c.CompleteUserTask(ctx, ut.Id, model.Vars{}); err != nil {
+		if err := c.CompleteUserTask(ctx, ut.TrackingId, model.Vars{}); err != nil {
 			return fmt.Errorf("failed to complete user task: %w", err)
 		}
 		return nil
@@ -125,15 +125,15 @@ func (c *Client) listen(ctx context.Context, taskType string, fn func(msg *nats.
 				msg = msgs[0]
 			}
 			xctx := ctxutil.LoadContextFromNATSHeader(ctx, msg)
-			ut := &model.Job{}
+			ut := &model.WorkflowState{}
 			if err := proto.Unmarshal(msg.Data, ut); err != nil {
 				fmt.Println(err)
 			}
-			switch ut.JobType {
+			switch ut.ElementType {
 			case "serviceTask":
-				job, err := c.storage.GetJob(xctx, ut.Id)
+				job, err := c.storage.GetJob(xctx, ut.TrackingId)
 				if err != nil {
-					c.log.Ctx(xctx).Error("failed to get job", zap.Error(err), zap.String("JobId", ut.Id))
+					c.log.Ctx(xctx).Error("failed to get job", zap.Error(err), zap.String("JobId", ut.TrackingId))
 					continue
 				}
 				if svcFn, ok := c.SvcTasks[job.Execute]; !ok {
@@ -150,7 +150,7 @@ func (c *Client) listen(ctx context.Context, taskType string, fn func(msg *nats.
 						continue
 					}
 					//TODO: Blend Vars
-					if err := c.CompleteServiceTask(xctx, ut.Id, newVars); err != nil {
+					if err := c.CompleteServiceTask(xctx, ut.TrackingId, newVars); err != nil {
 						if err := msg.Nak(); err != nil {
 							c.log.Ctx(xctx).Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
 						}
@@ -194,7 +194,7 @@ func (c *Client) decodeVars(vars []byte) model.Vars {
 }
 
 func (c *Client) CompleteUserTask(ctx context.Context, jobId string, newVars model.Vars) error {
-	job := &model.Job{Id: jobId, Vars: c.encodeVars(newVars)}
+	job := &model.WorkflowState{TrackingId: jobId, Vars: c.encodeVars(newVars)}
 	b, err := proto.Marshal(job)
 	if err != nil {
 		return fmt.Errorf("failed to marshal completed user task: %w", err)
@@ -210,7 +210,7 @@ func (c *Client) CompleteUserTask(ctx context.Context, jobId string, newVars mod
 }
 
 func (c *Client) CompleteServiceTask(ctx context.Context, jobId string, newVars model.Vars) error {
-	job := &model.Job{Id: jobId, Vars: c.encodeVars(newVars)}
+	job := &model.WorkflowState{TrackingId: jobId, Vars: c.encodeVars(newVars)}
 	b, err := proto.Marshal(job)
 	if err != nil {
 		return fmt.Errorf("failed to marshal complete service task: %w", err)
@@ -226,7 +226,7 @@ func (c *Client) CompleteServiceTask(ctx context.Context, jobId string, newVars 
 }
 
 func (c *Client) CompleteManualTask(ctx context.Context, jobId string, newVars model.Vars) error {
-	job := &model.Job{Id: jobId, Vars: c.encodeVars(newVars)}
+	job := &model.WorkflowState{TrackingId: jobId, Vars: c.encodeVars(newVars)}
 	b, err := proto.Marshal(job)
 	if err != nil {
 		return fmt.Errorf("failed to marshal complete manual task: %w", err)

@@ -42,7 +42,7 @@ message WorkflowInstanceInfo {
 }
 
 message WorkflowInstanceStatus {
-  string id = 1;
+  repeated WorkflowState state = 1;
 }
 
 message ListWorkflowResult {

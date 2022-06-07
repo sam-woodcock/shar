@@ -6,5 +6,5 @@ import (
 )
 
 type Storage interface {
-	GetJob(ctx context.Context, id string) (*model.Job, error)
+	GetJob(ctx context.Context, id string) (*model.WorkflowState, error)
 }

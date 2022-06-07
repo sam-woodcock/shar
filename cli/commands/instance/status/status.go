@@ -1,36 +1,41 @@
-/*
-Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-
-*/
 package status
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"github.com/crystal-construct/shar/cli/api"
+	"github.com/crystal-construct/shar/cli/flag"
+	"github.com/crystal-construct/shar/cli/output"
+	"github.com/crystal-construct/shar/model"
 	"github.com/spf13/cobra"
 )
 
-// rootCmd represents the base command when called without any subcommands
 var Cmd = &cobra.Command{
 	Use:   "status",
 	Short: "Gets the status of a running workflow instance",
 	Long:  ``,
 	RunE:  run,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	return errors.New("Not implemented")
-}
+	ctx := context.Background()
+	if len(args) > 1 {
+		return errors.New("too many arguments")
+	}
+	var wfName string
+	if len(args) == 1 {
+		wfName = args[0]
+	}
 
-func init() {
-	// Here you will define your flag and configuration settings.
-	// Cobra supports persistent flag, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.cli.yaml)")
-
-	// Cobra also supports local flag, which will only run
-	// when this action is called directly.
-
+	shar := api.New(api.Logger, flag.Value.Server)
+	if err := shar.Dial(); err != nil {
+		return fmt.Errorf("error dialling server: %w", err)
+	}
+	status, err := shar.GetWorkflowInstanceStatus(ctx, &model.GetWorkflowInstanceStatusRequest{Id: wfName})
+	if err != nil {
+		return err
+	}
+	c := &output.Console{}
+	return c.OutputWorkflowInstanceStatus(status)
 }

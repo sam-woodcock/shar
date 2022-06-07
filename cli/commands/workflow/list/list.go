@@ -1,7 +1,3 @@
-/*
-Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-
-*/
 package list
 
 import (
@@ -14,14 +10,11 @@ import (
 	"io"
 )
 
-// rootCmd represents the base command when called without any subcommands
 var Cmd = &cobra.Command{
 	Use:   "list",
 	Short: "Lists available workflows",
 	Long:  ``,
 	RunE:  run,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -45,15 +38,4 @@ func run(cmd *cobra.Command, args []string) error {
 		fmt.Println(v.Name, v.Version)
 	}
 	return nil
-}
-
-func init() {
-	// Here you will define your flag and configuration settings.
-	// Cobra supports persistent flag, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.cli.yaml)")
-
-	// Cobra also supports local flag, which will only run
-	// when this action is called directly.
 }
