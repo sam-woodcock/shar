@@ -9,10 +9,6 @@ import (
 	"time"
 )
 
-func inir() {
-
-}
-
 func UpdateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []byte, msg proto.Message) ([]byte, error)) error {
 	for {
 		entry, err := wf.Get(k)
