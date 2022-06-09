@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/crystal-construct/shar/client"
-	"github.com/crystal-construct/shar/client/services"
 	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
 	"github.com/nats-io/nats.go"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
+	"os"
 	"time"
 )
 
@@ -18,38 +17,24 @@ func main() {
 	ctx := context.Background()
 
 	// Create logger
-	dev, _ := zap.NewDevelopment()
-
-	// Wrap logger with open telemetry
-	log := otelzap.New(dev, otelzap.WithMinLevel(-1))
-	otelzap.ReplaceGlobals(log)
-	defer func() {
-		if err := log.Sync(); err != nil {
-		}
-	}()
-
-	// Create a api provider
-	store, err := services.NewNatsClientProvider(log, nats.DefaultURL, nats.MemoryStorage)
-	if err != nil {
-		panic(err)
-	}
+	log, _ := zap.NewDevelopment()
 
 	// Dial shar
-	cl := client.New(store, log, "localhost:50000", nil)
-	if err := cl.Dial(); err != nil {
-		log.Fatal(err.Error())
-	}
+	cl := client.New(log)
+	cl.Dial(nats.DefaultURL)
 
-	if _, err := cl.LoadBPMNWorkflowFromFile(ctx, "examples/sub-workflow/testdata/workflow.bpmn"); err != nil {
+	w1, _ := os.ReadFile("examples/sub-workflow/testdata/workflow.bpmn")
+	w2, _ := os.ReadFile("examples/sub-workflow/testdata/subworkflow.bpmn")
+	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, w1); err != nil {
 		panic(err)
 	}
-	if _, err := cl.LoadBPMNWorkflowFromFile(ctx, "examples/sub-workflow/testdata/subworkflow.bpmn"); err != nil {
+	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, w2); err != nil {
 		panic(err)
 	}
 	cl.RegisterServiceTask("BeforeCallingSubProcess", beforeCallingSubProcess)
 	cl.RegisterServiceTask("DuringSubProcess", duringSubProcess)
 	cl.RegisterServiceTask("AfterCallingSubProcess", afterCallingSubProcess)
-	if _, err = cl.LaunchWorkflow(ctx, "WorkflowDemo", model.Vars{}); err != nil {
+	if _, err := cl.LaunchWorkflow(ctx, "WorkflowDemo", model.Vars{}); err != nil {
 		panic(err)
 	}
 	go func() {

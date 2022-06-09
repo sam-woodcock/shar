@@ -51,8 +51,9 @@ func (s *NatsKVStore) ListWorkflows() (chan *model.ListWorkflowResult, chan erro
 				Name:    k,
 				Version: v.Version[0].Number,
 			}
-			close(res)
+
 		}
+		close(res)
 	}()
 	return res, errs
 }

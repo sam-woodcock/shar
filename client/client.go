@@ -4,21 +4,20 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"github.com/crystal-construct/shar/client/parser"
 	"github.com/crystal-construct/shar/client/services"
 	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
-	"github.com/crystal-construct/shar/telemetry"
 	"github.com/crystal-construct/shar/telemetry/ctxutil"
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/nats-io/nats.go"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
-	"os"
+	"strings"
 	"time"
 )
 
@@ -28,52 +27,20 @@ type Client struct {
 	js       nats.JetStreamContext
 	SvcTasks map[string]serviceFn
 	storage  services.Storage
-	svr      model.SharClient
-	log      *otelzap.Logger
+	log      *zap.Logger
 	tp       *tracesdk.TracerProvider
-	address  string
-	exporter tracesdk.SpanExporter
+	con      *nats.Conn
 }
 
-const serviceName = "shar"
-
-func New(storage services.Storage, log *otelzap.Logger, address string, exporter tracesdk.SpanExporter) *Client {
-
+func New(log *zap.Logger) *Client {
 	return &Client{
 		SvcTasks: make(map[string]serviceFn),
-		storage:  storage,
 		log:      log,
-		address:  address,
-		exporter: exporter,
 	}
 }
 
-func (c *Client) Dial(options ...grpc.DialOption) error {
-	if tp, err := telemetry.RegisterOpenTelemetry(c.exporter, serviceName); err != nil {
-		return err
-	} else {
-		c.tp = tp
-	}
-
-	if len(options) == 0 {
-		options = []grpc.DialOption{grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())}
-	}
-	conn, err := grpc.Dial(c.address, options...)
-	if err != nil {
-		return fmt.Errorf("failed to connect to grpc: %w", err)
-	}
-	c.svr = model.NewSharClient(conn)
-	return nil
-}
-func (c *Client) RegisterServiceTask(taskName string, fn serviceFn) {
-	if _, ok := c.SvcTasks[taskName]; ok {
-		c.log.Fatal("Service task " + taskName + " already registered")
-	}
-	c.SvcTasks[taskName] = fn
-}
-
-func (c *Client) Listen(ctx context.Context) error {
-	n, err := nats.Connect(nats.DefaultURL)
+func (c *Client) Dial(natsURL string) error {
+	n, err := nats.Connect(natsURL)
 	if err != nil {
 		return fmt.Errorf("failed to connect to nats: %w", err)
 	}
@@ -82,27 +49,29 @@ func (c *Client) Listen(ctx context.Context) error {
 		return fmt.Errorf("failed to connect to jetstream: %w", err)
 	}
 	c.js = js
+	c.con = n
+	c.storage, err = services.NewNatsClientProvider(c.log, js, nats.FileStorage)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
-	if err := c.listenUserTasks(ctx); err != nil {
+func (c *Client) RegisterServiceTask(taskName string, fn serviceFn) {
+	if _, ok := c.SvcTasks[taskName]; ok {
+		c.log.Fatal("Service task " + taskName + " already registered")
+	}
+	c.SvcTasks[taskName] = fn
+}
+
+func (c *Client) Listen(ctx context.Context) error {
+	if err := c.listen(ctx); err != nil {
 		return fmt.Errorf("failed to listen for user tasks: %w", err)
 	}
 	return nil
 }
 
-func (c *Client) listenUserTasks(ctx context.Context) error {
-	return c.listen(ctx, "UserTaskExecute", func(msg *nats.Msg) error {
-		ut := &model.WorkflowState{}
-		if err := proto.Unmarshal(msg.Data, ut); err != nil {
-			return fmt.Errorf("failed to unmarshal: %w", err)
-		}
-		if err := c.CompleteUserTask(ctx, ut.TrackingId, model.Vars{}); err != nil {
-			return fmt.Errorf("failed to complete user task: %w", err)
-		}
-		return nil
-	})
-}
-
-func (c *Client) listen(ctx context.Context, taskType string, fn func(msg *nats.Msg) error) error {
+func (c *Client) listen(ctx context.Context) error {
 	if _, err := c.js.AddConsumer("WORKFLOW", &nats.ConsumerConfig{
 		Durable:       "JobExecuteConsumer",
 		Description:   "",
@@ -133,37 +102,36 @@ func (c *Client) listen(ctx context.Context, taskType string, fn func(msg *nats.
 			case "serviceTask":
 				job, err := c.storage.GetJob(xctx, ut.TrackingId)
 				if err != nil {
-					c.log.Ctx(xctx).Error("failed to get job", zap.Error(err), zap.String("JobId", ut.TrackingId))
+					c.log.Error("failed to get job", zap.Error(err), zap.String("JobId", ut.TrackingId))
 					continue
 				}
 				if svcFn, ok := c.SvcTasks[job.Execute]; !ok {
 					if err := msg.Ack(); err != nil {
-						c.log.Ctx(xctx).Error("failed to find service function", zap.Error(err), zap.String("fn", job.Execute))
+						c.log.Error("failed to find service function", zap.Error(err), zap.String("fn", job.Execute))
 					}
 				} else {
 					newVars, err := svcFn(xctx, c.decodeVars(job.Vars))
 					if err != nil {
 						if err := msg.Nak(); err != nil {
-							c.log.Ctx(xctx).Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
+							c.log.Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
 						}
 						fmt.Println(err)
 						continue
 					}
-					//TODO: Blend Vars
 					if err := c.CompleteServiceTask(xctx, ut.TrackingId, newVars); err != nil {
 						if err := msg.Nak(); err != nil {
-							c.log.Ctx(xctx).Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
+							c.log.Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
 						}
 						fmt.Println(err)
 						continue
 					}
 					if err := msg.Ack(); err != nil {
-						c.log.Ctx(xctx).Error("service task ack failed", zap.Error(err), zap.String("subject", msg.Subject))
+						c.log.Error("service task ack failed", zap.Error(err), zap.String("subject", msg.Subject))
 					}
 				}
 			default:
 				if err := msg.Ack(); err != nil {
-					c.log.Ctx(xctx).Error("default ack failed", zap.Error(err), zap.String("subject", msg.Subject))
+					c.log.Error("default ack failed", zap.Error(err), zap.String("subject", msg.Subject))
 				}
 			}
 		}
@@ -241,19 +209,11 @@ func (c *Client) CompleteManualTask(ctx context.Context, jobId string, newVars m
 	return nil
 }
 
-func (c *Client) LoadBPMNWorkflowFromFile(ctx context.Context, filename string) (string, error) {
-	b, err := os.ReadFile(filename)
-	if err != nil {
-		return "", fmt.Errorf("failed to load BPMN workflow: %w", err)
-	}
-	return c.LoadBMPNWorkflowFromBytes(ctx, b)
-}
-
 func (c *Client) LoadBMPNWorkflowFromBytes(ctx context.Context, b []byte) (string, error) {
 	rdr := bytes.NewReader(b)
 	if wf, err := parser.Parse(rdr); err == nil {
-		res, err := c.svr.StoreWorkflow(ctx, wf)
-		if err != nil {
+		res := &wrappers.StringValue{}
+		if err := callAPI(ctx, c.con, messages.ApiStoreWorkflow, wf, res); err != nil {
 			return "", fmt.Errorf("failed to store workflow: %w", err)
 		}
 		return res.Value, nil
@@ -263,10 +223,69 @@ func (c *Client) LoadBMPNWorkflowFromBytes(ctx context.Context, b []byte) (strin
 
 }
 
+func (c *Client) CancelWorkflowInstance(ctx context.Context, instanceID string) error {
+	res := &empty.Empty{}
+	req := &model.CancelWorkflowInstanceRequest{Id: instanceID}
+	if err := callAPI(ctx, c.con, messages.ApiCancelWorkflowInstance, req, res); err != nil {
+		return fmt.Errorf("failed to cancel workflow instance: %w", err)
+	}
+	return nil
+}
+
 func (c *Client) LaunchWorkflow(ctx context.Context, workflowName string, vars model.Vars) (string, error) {
-	res, err := c.svr.LaunchWorkflow(ctx, &model.LaunchWorkflowRequest{Name: workflowName, Vars: c.encodeVars(vars)})
-	if err != nil {
+	req := &model.LaunchWorkflowRequest{Name: workflowName, Vars: c.encodeVars(vars)}
+	res := &wrappers.StringValue{}
+	if err := callAPI(ctx, c.con, messages.ApiLaunchWorkflow, req, res); err != nil {
 		return "", fmt.Errorf("failed to launch workflow: %w", err)
 	}
 	return res.Value, nil
+}
+
+func (c *Client) ListWorkflowInstance(ctx context.Context, name string) ([]*model.ListWorkflowInstanceResult, error) {
+	req := &model.ListWorkflowInstanceRequest{WorkflowName: name}
+	res := &model.ListWorkflowInstanceResponse{}
+	if err := callAPI(ctx, c.con, messages.ApiListWorkflowInstance, req, res); err != nil {
+		return nil, fmt.Errorf("failed to launch workflow: %w", err)
+	}
+	return res.Result, nil
+}
+
+func (c *Client) ListWorkflows(ctx context.Context) ([]*model.ListWorkflowResult, error) {
+	req := &empty.Empty{}
+	res := &model.ListWorkflowsResponse{}
+	if err := callAPI(ctx, c.con, messages.ApiListWorkflows, req, res); err != nil {
+		return nil, fmt.Errorf("failed to launch workflow: %w", err)
+	}
+	return res.Result, nil
+}
+
+func (c *Client) GetWorkflowInstanceStatus(ctx context.Context, id string) ([]*model.WorkflowState, error) {
+	req := &model.GetWorkflowInstanceStatusRequest{Id: id}
+	res := &model.WorkflowInstanceStatus{}
+	if err := callAPI(ctx, c.con, messages.ApiGetWorkflowStatus, req, res); err != nil {
+		return nil, fmt.Errorf("failed to launch workflow: %w", err)
+	}
+	return res.State, nil
+}
+
+func callAPI[T proto.Message, U proto.Message](ctx context.Context, con *nats.Conn, subject string, command T, ret U) error {
+	b, err := proto.Marshal(command)
+	if err != nil {
+		return err
+	}
+	msg := nats.NewMsg(subject)
+	msg.Data = b
+	res, err := con.Request(subject, b, time.Second*30)
+	if err != nil {
+		return err
+	}
+	if len(res.Data) > 4 && string(res.Data[0:3]) == "ERR_" {
+		em := strings.Split(string(res.Data), "_")
+		e := strings.Split(em[1], "|")
+		return errors.New("code " + e[0] + " " + e[1])
+	}
+	if err := proto.Unmarshal(res.Data, ret); err != nil {
+		return err
+	}
+	return nil
 }

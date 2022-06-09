@@ -3,9 +3,9 @@ package start
 import (
 	"context"
 	"fmt"
-	"github.com/crystal-construct/shar/cli/api"
 	"github.com/crystal-construct/shar/cli/flag"
-	"github.com/crystal-construct/shar/model"
+	"github.com/crystal-construct/shar/cli/output"
+	"github.com/crystal-construct/shar/client"
 	"github.com/spf13/cobra"
 )
 
@@ -18,17 +18,14 @@ var Cmd = &cobra.Command{
 
 func run(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
-	shar := api.New(api.Logger, flag.Value.Server)
-	if err := shar.Dial(); err != nil {
+	shar := client.New(output.Logger)
+	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	wfiid, err := shar.LaunchWorkflow(ctx, &model.LaunchWorkflowRequest{
-		Name: args[0],
-		Vars: nil,
-	})
+	wfiid, err := shar.LaunchWorkflow(ctx, args[0], nil)
 	if err != nil {
 		return fmt.Errorf("workflow launch failed: %w", err)
 	}
-	fmt.Println("workflow instance started. instance-id:", wfiid.Value)
+	fmt.Println("workflow instance started. instance-id:", wfiid)
 	return nil
 }

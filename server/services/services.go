@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"github.com/crystal-construct/shar/model"
+	"github.com/nats-io/nats.go"
 )
 
 type Logging interface {
@@ -39,4 +40,5 @@ type Queue interface {
 	// PublishWorkflowState publishes a workflow state message
 	PublishWorkflowState(ctx context.Context, stateName string, message *model.WorkflowState) error
 	PublishJob(ctx context.Context, stateName string, element *model.Element, message *model.WorkflowState) error
+	Conn() *nats.Conn
 }

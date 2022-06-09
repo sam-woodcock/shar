@@ -10,8 +10,8 @@ import (
 type Console struct {
 }
 
-func (c *Console) OutputWorkflowInstanceStatus(status *model.WorkflowInstanceStatus) error {
-	st := status.State[0]
+func (c *Console) OutputWorkflowInstanceStatus(status []*model.WorkflowState) error {
+	st := status[0]
 	fmt.Println("Instance: " + st.WorkflowInstanceId)
 
 	leveledList := pterm.LeveledList{

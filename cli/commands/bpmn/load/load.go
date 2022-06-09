@@ -1,12 +1,11 @@
 package load
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"github.com/crystal-construct/shar/cli/api"
 	"github.com/crystal-construct/shar/cli/flag"
-	"github.com/crystal-construct/shar/client/parser"
+	"github.com/crystal-construct/shar/cli/output"
+	"github.com/crystal-construct/shar/client"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"os"
@@ -28,16 +27,15 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("error reading file: %w", err)
 	}
-	shar := api.New(api.Logger, flag.Value.Server)
-	if err := shar.Dial(); err != nil {
+
+	shar := client.New(output.Logger)
+	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	buf := bytes.NewBuffer(b)
-	wf, err := parser.Parse(buf)
-	iid, err := shar.StoreWorkflow(ctx, wf)
+	wn, err := shar.LoadBMPNWorkflowFromBytes(ctx, b)
 	if err != nil {
 		return fmt.Errorf("workflow could not be loaded: %w", err)
 	}
-	fmt.Println("workflow ("+iid.Value+") loaded. workflow-id:", wf.Name)
+	fmt.Println("workflow " + wn + " loaded.")
 	return nil
 }

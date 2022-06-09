@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/crystal-construct/shar/cli/api"
 	"github.com/crystal-construct/shar/cli/flag"
-	"github.com/crystal-construct/shar/model"
+	"github.com/crystal-construct/shar/cli/output"
+	"github.com/crystal-construct/shar/client"
 	"github.com/spf13/cobra"
-	"io"
 )
 
 var Cmd = &cobra.Command{
@@ -28,22 +27,16 @@ func run(cmd *cobra.Command, args []string) error {
 		wfName = args[0]
 	}
 
-	shar := api.New(api.Logger, flag.Value.Server)
-	if err := shar.Dial(); err != nil {
+	shar := client.New(output.Logger)
+	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	stream, err := shar.ListWorkflowInstance(ctx, &model.ListWorkflowInstanceRequest{WorkflowName: wfName})
+	res, err := shar.ListWorkflowInstance(ctx, wfName)
 	if err != nil {
 		return fmt.Errorf("failed to list workflows: %w", err)
 	}
-	for {
-		wfinf, err := stream.Recv()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-		fmt.Println("instance:", wfinf.Id, "version: ", wfinf.Version)
+	for _, v := range res {
+		fmt.Println("instance:", v.Id, "version: ", v.Version)
 	}
 	return nil
 }

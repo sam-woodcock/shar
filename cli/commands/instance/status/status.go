@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/crystal-construct/shar/cli/api"
 	"github.com/crystal-construct/shar/cli/flag"
 	"github.com/crystal-construct/shar/cli/output"
-	"github.com/crystal-construct/shar/model"
+	"github.com/crystal-construct/shar/client"
 	"github.com/spf13/cobra"
 )
 
@@ -28,11 +27,11 @@ func run(cmd *cobra.Command, args []string) error {
 		wfName = args[0]
 	}
 
-	shar := api.New(api.Logger, flag.Value.Server)
-	if err := shar.Dial(); err != nil {
+	shar := client.New(output.Logger)
+	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	status, err := shar.GetWorkflowInstanceStatus(ctx, &model.GetWorkflowInstanceStatusRequest{Id: wfName})
+	status, err := shar.GetWorkflowInstanceStatus(ctx, wfName)
 	if err != nil {
 		return err
 	}

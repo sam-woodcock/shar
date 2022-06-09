@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/crystal-construct/shar/model"
 	"github.com/nats-io/nats.go"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
@@ -14,28 +13,18 @@ type NatsClientProvider struct {
 	wf         nats.KeyValue
 	latestWf   nats.KeyValue
 	wfInstance nats.KeyValue
-	log        *otelzap.Logger
+	log        *zap.Logger
 	job        nats.KeyValue
-	conn       *nats.Conn
 	js         nats.JetStreamContext
 }
 
-func NewNatsClientProvider(log *otelzap.Logger, natsURL string, storageType nats.StorageType) (*NatsClientProvider, error) {
-	conn, err := nats.Connect(natsURL)
-	if err != nil {
-		log.Fatal("could not connect to NATS", zap.Error(err))
-	}
-	js, err := conn.JetStream()
-	if err != nil {
-		return nil, err
-	}
+func NewNatsClientProvider(log *zap.Logger, js nats.JetStreamContext, storageType nats.StorageType) (*NatsClientProvider, error) {
 	if err := ensureBuckets(js, storageType, []string{"WORKFLOW_INSTANCE", "WORKFLOW_DEF", "WORKFLOW_LATEST", "WORKFLOW_JOB"}); err != nil {
 		return nil, err
 	}
 	ms := &NatsClientProvider{
-		conn: conn,
-		js:   js,
-		log:  log,
+		js:  js,
+		log: log,
 	}
 	if kv, err := js.KeyValue("WORKFLOW_INSTANCE"); err != nil {
 		return nil, err
