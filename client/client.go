@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
-	"errors"
 	"fmt"
 	"github.com/crystal-construct/shar/client/parser"
 	"github.com/crystal-construct/shar/client/services"
@@ -17,6 +16,7 @@ import (
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -282,7 +282,11 @@ func callAPI[T proto.Message, U proto.Message](ctx context.Context, con *nats.Co
 	if len(res.Data) > 4 && string(res.Data[0:3]) == "ERR_" {
 		em := strings.Split(string(res.Data), "_")
 		e := strings.Split(em[1], "|")
-		return errors.New("code " + e[0] + " " + e[1])
+		i, err := strconv.Atoi(e[0])
+		if err != nil {
+			i = 0
+		}
+		return &ApiError{Code: i, Message: e[1]}
 	}
 	if err := proto.Unmarshal(res.Data, ret); err != nil {
 		return err
