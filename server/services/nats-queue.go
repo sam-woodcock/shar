@@ -11,6 +11,7 @@ import (
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"time"
 )
@@ -28,7 +29,7 @@ type NatsQueue struct {
 	workflowTracking          string
 }
 
-func NewNatsQueue(log *otelzap.Logger, conn *nats.Conn, storageType nats.StorageType, tracer trace.Tracer, concurrency int) (*NatsQueue, error) {
+func NewNatsQueue(log *otelzap.Logger, conn *nats.Conn, storageType nats.StorageType, concurrency int) (*NatsQueue, error) {
 	if concurrency < 1 || concurrency > 200 {
 		return nil, errors.New("invalid concurrency set")
 	}
@@ -42,7 +43,6 @@ func NewNatsQueue(log *otelzap.Logger, conn *nats.Conn, storageType nats.Storage
 		con:              conn,
 		js:               js,
 		log:              log,
-		tracer:           tracer,
 		closing:          make(chan struct{}),
 		workflowTracking: "WORKFLOW_TRACKING",
 	}, nil
@@ -73,6 +73,14 @@ func (q *NatsQueue) StartProcessing(ctx context.Context) error {
 		MaxRequestBatch: 1,
 	}
 
+	acfg := &nats.ConsumerConfig{
+		Durable:         "API",
+		Description:     "Api queue",
+		AckPolicy:       nats.AckExplicitPolicy,
+		FilterSubject:   messages.ApiAll,
+		MaxRequestBatch: 1,
+	}
+
 	if _, err := q.js.StreamInfo(scfg.Name); err == nats.ErrStreamNotFound {
 		if _, err := q.js.AddStream(scfg); err != nil {
 			panic(err)
@@ -91,6 +99,14 @@ func (q *NatsQueue) StartProcessing(ctx context.Context) error {
 
 	if _, err := q.js.ConsumerInfo(scfg.Name, tcfg.Durable); err == nats.ErrConsumerNotFound {
 		if _, err := q.js.AddConsumer("WORKFLOW", tcfg); err != nil {
+			panic(err)
+		}
+	} else if err != nil {
+		panic(err)
+	}
+
+	if _, err := q.js.ConsumerInfo(scfg.Name, acfg.Durable); err == nats.ErrConsumerNotFound {
+		if _, err := q.js.AddConsumer("WORKFLOW", acfg); err != nil {
 			panic(err)
 		}
 	} else if err != nil {
@@ -240,4 +256,61 @@ func (q *NatsQueue) track(ctx context.Context, msg *nats.Msg) error {
 		}
 	}
 	return nil
+}
+
+func (q *NatsQueue) Conn() *nats.Conn {
+	return q.con
+}
+
+func Listen[T proto.Message, U proto.Message](con *nats.Conn, log *zap.Logger, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
+	sub, err := con.Subscribe(subject, func(msg *nats.Msg) {
+		ctx := context.Background()
+		if err := callApi(ctx, req, msg, fn); err != nil {
+			log.Error("registering listener for "+subject+" failed", zap.Error(err))
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	return sub, nil
+}
+
+func callApi[T proto.Message, U proto.Message](ctx context.Context, container T, msg *nats.Msg, fn func(ctx context.Context, req T) (U, error)) error {
+	defer recoverAPIpanic(msg)
+	if err := proto.Unmarshal(msg.Data, container); err != nil {
+		errorResponse(msg, codes.Internal, err.Error())
+		return err
+	}
+	resMsg, err := fn(ctx, container)
+	if err != nil {
+		errorResponse(msg, codes.Internal, err.Error())
+		return err
+	}
+	res, err := proto.Marshal(resMsg)
+	if err != nil {
+		errorResponse(msg, codes.Internal, err.Error())
+		return err
+	}
+	if err := msg.Respond(res); err != nil {
+		errorResponse(msg, codes.Internal, err.Error())
+		return err
+	}
+	return nil
+}
+
+func recoverAPIpanic(msg *nats.Msg) {
+	if r := recover(); r != nil {
+		errorResponse(msg, codes.Internal, r)
+		fmt.Println("recovered from ", r)
+	}
+}
+
+func errorResponse(m *nats.Msg, code codes.Code, msg any) {
+	if err := m.Respond(apiError(codes.Internal, msg)); err != nil {
+		fmt.Println("failed to send error response: " + string(apiError(codes.Internal, msg)))
+	}
+}
+
+func apiError(code codes.Code, msg any) []byte {
+	return []byte(fmt.Sprintf("ERR_%d|%+v", code, msg))
 }

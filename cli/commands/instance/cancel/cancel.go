@@ -3,9 +3,9 @@ package cancel
 import (
 	"context"
 	"fmt"
-	"github.com/crystal-construct/shar/cli/api"
 	"github.com/crystal-construct/shar/cli/flag"
-	"github.com/crystal-construct/shar/model"
+	"github.com/crystal-construct/shar/cli/output"
+	"github.com/crystal-construct/shar/client"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -27,12 +27,11 @@ func run(cmd *cobra.Command, args []string) error {
 		wfiid = args[0]
 	}
 
-	shar := api.New(api.Logger, flag.Value.Server)
-	if err := shar.Dial(); err != nil {
+	shar := client.New(output.Logger)
+	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	_, err := shar.CancelWorkflowInstance(ctx, &model.CancelWorkflowInstanceRequest{Id: wfiid})
-	if err != nil {
+	if err := shar.CancelWorkflowInstance(ctx, wfiid); err != nil {
 		return fmt.Errorf("failed to cancel workflow instance: %w", err)
 	}
 	fmt.Println("workflow", wfiid, "cancelled.")

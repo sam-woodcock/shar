@@ -1,22 +1,32 @@
 package messages
 
 const (
-	WorkflowJobExecuteAll          = "WORKFLOW.Job.Execute.*"
-	WorkFlowJobCompleteAll         = "WORKFLOW.Job.Complete.*"
-	WorkflowJobServiceTaskExecute  = "WORKFLOW.Job.Execute.ServiceTask"
-	WorkflowJobServiceTaskComplete = "WORKFLOW.Job.Complete.ServiceTask"
-	WorkflowJobUserTaskExecute     = "WORKFLOW.Job.Execute.UserTask"
-	WorkflowJobUserTaskComplete    = "WORKFLOW.Job.Complete.UserTask"
-	WorkflowJobManualTaskExecute   = "WORKFLOW.Job.Execute.ManualTask"
-	WorkflowJobManualTaskComplete  = "WORKFLOW.Job.Complete.ManualTask"
-	WorkflowInstanceAll            = "WORKFLOW.Workflow.*"
-	WorkflowInstanceExecute        = "WORKFLOW.Workflow.Execute"
-	WorkflowInstanceComplete       = "WORKFLOW.Workflow.Complete"
-	WorkflowActivityAll            = "WORKFLOW.Activity.*"
-	WorkflowActivityExecute        = "WORKFLOW.Activity.Execute"
-	WorkflowActivityComplete       = "WORKFLOW.Activity.Complete"
-	WorkflowTraversalExecute       = "WORKFLOW.Traversal.Execute"
-	WorkflowTraversalComplete      = "WORKFLOW.Traversal.Complete"
+	WorkflowJobExecuteAll          = "WORKFLOW.State.Job.Execute.*"
+	WorkFlowJobCompleteAll         = "WORKFLOW.State.Job.Complete.*"
+	WorkflowJobServiceTaskExecute  = "WORKFLOW.State.Job.Execute.ServiceTask"
+	WorkflowJobServiceTaskComplete = "WORKFLOW.State.Job.Complete.ServiceTask"
+	WorkflowJobUserTaskExecute     = "WORKFLOW.State.Job.Execute.UserTask"
+	WorkflowJobUserTaskComplete    = "WORKFLOW.State.Job.Complete.UserTask"
+	WorkflowJobManualTaskExecute   = "WORKFLOW.State.Job.Execute.ManualTask"
+	WorkflowJobManualTaskComplete  = "WORKFLOW.State.Job.Complete.ManualTask"
+	WorkflowInstanceAll            = "WORKFLOW.State.Workflow.*"
+	WorkflowInstanceExecute        = "WORKFLOW.State.Workflow.Execute"
+	WorkflowInstanceComplete       = "WORKFLOW.State.Workflow.Complete"
+	WorkflowActivityAll            = "WORKFLOW.State.Activity.*"
+	WorkflowActivityExecute        = "WORKFLOW.State.Activity.Execute"
+	WorkflowActivityComplete       = "WORKFLOW.State.Activity.Complete"
+	WorkflowTraversalExecute       = "WORKFLOW.State.Traversal.Execute"
+	WorkflowTraversalComplete      = "WORKFLOW.State.Traversal.Complete"
+)
+
+const (
+	ApiAll                    = "Workflow.Api.*"
+	ApiStoreWorkflow          = "WORKFLOW.Api.StoreWorkflow"
+	ApiLaunchWorkflow         = "WORKFLOW.Api.LaunchWorkflow"
+	ApiListWorkflows          = "WORKFLOW.Api.ListWorkflows"
+	ApiListWorkflowInstance   = "WORKFLOW.Api.ListWorkflowInstance"
+	ApiGetWorkflowStatus      = "WORKFLOW.Api.GetWorkflowInstanceStatus"
+	ApiCancelWorkflowInstance = "WORKFLOW.Api.CancelWorkflowInstance"
 )
 
 var AllMessages = []string{
@@ -32,4 +42,5 @@ var AllMessages = []string{
 	WorkflowActivityComplete,
 	WorkflowTraversalExecute,
 	WorkflowTraversalComplete,
+	ApiAll,
 }

@@ -21,7 +21,6 @@ Many give Go developers a native client to run workflows, but the engines remain
 
 ## How do I use SHAR?
 The following example assumes you have started the SHAR server. A [docker compose file](deploy/compose/docker-compose.yml) is provided to make this simple.
-
 ```go
 package main
 
@@ -29,11 +28,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/crystal-construct/shar/client"
-	"github.com/crystal-construct/shar/client/services"
 	"github.com/crystal-construct/shar/model"
 	"github.com/nats-io/nats.go"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
+	"os"
 	"time"
 )
 
@@ -42,30 +40,23 @@ func main() {
 	ctx := context.Background()
 
 	// Create logger
-	dev, _ := zap.NewDevelopment()
+	log, _ := zap.NewDevelopment()
 
-	// Wrap logger with open telemetry
-	log := otelzap.New(dev, otelzap.WithMinLevel(-1))
-	otelzap.ReplaceGlobals(log)
 	defer func() {
 		if err := log.Sync(); err != nil {
 		}
 	}()
 
-	// Create a api provider
-	store, err := services.NewNatsClientProvider(log, nats.DefaultURL, nats.MemoryStorage)
+	// Dial shar
+	cl := client.New(log)
+	cl.Dial(nats.DefaultURL)
+
+	// Load BPMN workflow
+	b, err := os.ReadFile("examples/simple/testdata/workflow.bpmn")
 	if err != nil {
 		panic(err)
 	}
-
-	// Dial shar
-	cl := client.New(store, log, "localhost:50000", nil)
-	if err := cl.Dial(); err != nil {
-		log.Fatal(err.Error())
-	}
-
-	// Load BPMN workflow
-	if _, err := cl.LoadBPMNWorkflowFromFile(ctx, "examples/simple/testdata/workflow.bpmn"); err != nil {
+	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, b); err != nil {
 		panic(err)
 	}
 
@@ -84,7 +75,7 @@ func main() {
 			panic(err)
 		}
 	}()
-	time.Sleep(1 * time.Second)
+	time.Sleep(1 * time.Hour)
 }
 
 // A "Hello World" service task
@@ -93,4 +84,3 @@ func simpleProcess(ctx context.Context, vars model.Vars) (model.Vars, error) {
 	return model.Vars{}, nil
 }
 ```
-If you want to trace the behaviour of the server you can check out the events in the [local Jaeger server](http://localhost:16686) included

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
 	"github.com/crystal-construct/shar/server/health"
 	"github.com/crystal-construct/shar/server/services"
@@ -13,7 +14,6 @@ import (
 )
 
 type SharServer struct {
-	model.SharServer
 	log    *otelzap.Logger
 	health *health.Checker
 	store  services.Storage
@@ -37,16 +37,16 @@ func New(log *otelzap.Logger, store services.Storage, queue services.Queue) (*Sh
 	}, nil
 }
 
-func (s *SharServer) StoreWorkflow(ctx context.Context, process *model.Process) (*wrappers.StringValue, error) {
+func (s *SharServer) storeWorkflow(ctx context.Context, process *model.Process) (*wrappers.StringValue, error) {
 	res, err := s.engine.LoadWorkflow(ctx, process)
 	return &wrappers.StringValue{Value: res}, err
 }
-func (s *SharServer) LaunchWorkflow(ctx context.Context, req *model.LaunchWorkflowRequest) (*wrappers.StringValue, error) {
+func (s *SharServer) launchWorkflow(ctx context.Context, req *model.LaunchWorkflowRequest) (*wrappers.StringValue, error) {
 	res, err := s.engine.Launch(ctx, req.Name, req.Vars)
 	return &wrappers.StringValue{Value: res}, err
 }
 
-func (s *SharServer) CancelWorkflowInstance(ctx context.Context, req *model.CancelWorkflowInstanceRequest) (*empty.Empty, error) {
+func (s *SharServer) cancelWorkflowInstance(ctx context.Context, req *model.CancelWorkflowInstanceRequest) (*empty.Empty, error) {
 	err := s.engine.CancelWorkflowInstance(ctx, req.Id)
 	if err != nil {
 		return nil, err
@@ -54,28 +54,27 @@ func (s *SharServer) CancelWorkflowInstance(ctx context.Context, req *model.Canc
 	return &empty.Empty{}, err
 }
 
-func (s *SharServer) ListWorkflowInstance(req *model.ListWorkflowInstanceRequest, svr model.Shar_ListWorkflowInstanceServer) error {
+func (s *SharServer) listWorkflowInstance(ctx context.Context, req *model.ListWorkflowInstanceRequest) (*model.ListWorkflowInstanceResponse, error) {
 	wch, errs := s.store.ListWorkflowInstance(req.WorkflowName)
+	ret := make([]*model.ListWorkflowInstanceResult, 0)
 	var done bool
 	for !done {
 		select {
 		case winf := <-wch:
 			if winf == nil {
-				return nil
+				return &model.ListWorkflowInstanceResponse{Result: ret}, nil
 			}
-			if err := svr.Send(&model.ListWorkflowInstanceResult{
+			ret = append(ret, &model.ListWorkflowInstanceResult{
 				Id:      winf.Id,
 				Version: winf.Version,
-			}); err != nil {
-				return err
-			}
+			})
 		case err := <-errs:
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return &model.ListWorkflowInstanceResponse{Result: ret}, nil
 }
-func (s *SharServer) GetWorkflowInstanceStatus(ctx context.Context, req *model.GetWorkflowInstanceStatusRequest) (*model.WorkflowInstanceStatus, error) {
+func (s *SharServer) getWorkflowInstanceStatus(ctx context.Context, req *model.GetWorkflowInstanceStatusRequest) (*model.WorkflowInstanceStatus, error) {
 	res, err := s.store.GetWorkflowInstanceStatus(req.Id)
 	if err != nil {
 		return nil, err
@@ -83,26 +82,26 @@ func (s *SharServer) GetWorkflowInstanceStatus(ctx context.Context, req *model.G
 	return res, nil
 }
 
-func (s *SharServer) ListWorkflows(p *empty.Empty, svr model.Shar_ListWorkflowsServer) error {
+func (s *SharServer) listWorkflows(ctx context.Context, p *empty.Empty) (*model.ListWorkflowsResponse, error) {
 	res, errs := s.store.ListWorkflows()
+	ret := make([]*model.ListWorkflowResult, 0)
 	var done bool
 	for !done {
 		select {
 		case winf := <-res:
 			if winf == nil {
-				return nil
+				done = true
+				break
 			}
-			if err := svr.Send(&model.ListWorkflowResult{
+			ret = append(ret, &model.ListWorkflowResult{
 				Name:    winf.Name,
 				Version: winf.Version,
-			}); err != nil {
-				return err
-			}
+			})
 		case err := <-errs:
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return &model.ListWorkflowsResponse{Result: ret}, nil
 }
 
 var shutdownOnce sync.Once
@@ -111,4 +110,35 @@ func (s *SharServer) Shutdown() {
 	shutdownOnce.Do(func() {
 		s.engine.Shutdown()
 	})
+}
+
+func (s *SharServer) Listen() error {
+	con := s.queue.Conn()
+	log := s.log.Logger
+	_, err := services.Listen(con, log, messages.ApiStoreWorkflow, &model.Process{}, s.storeWorkflow)
+	if err != nil {
+		return err
+	}
+	_, err = services.Listen(con, log, messages.ApiCancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance)
+	if err != nil {
+		return err
+	}
+	_, err = services.Listen(con, log, messages.ApiLaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow)
+	if err != nil {
+		return err
+	}
+	_, err = services.Listen(con, log, messages.ApiListWorkflows, &empty.Empty{}, s.listWorkflows)
+	if err != nil {
+		return err
+	}
+	_, err = services.Listen(con, log, messages.ApiGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus)
+	if err != nil {
+		return err
+	}
+	_, err = services.Listen(con, log, messages.ApiListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance)
+	if err != nil {
+		return err
+	}
+	s.log.Info("shar api listener started")
+	return nil
 }
