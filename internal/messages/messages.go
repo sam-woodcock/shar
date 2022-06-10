@@ -17,6 +17,7 @@ const (
 	WorkflowActivityComplete       = "WORKFLOW.State.Activity.Complete"
 	WorkflowTraversalExecute       = "WORKFLOW.State.Traversal.Execute"
 	WorkflowTraversalComplete      = "WORKFLOW.State.Traversal.Complete"
+	WorkflowMessage                = "WORKFLOW.Message"
 )
 
 const (
@@ -27,6 +28,7 @@ const (
 	ApiListWorkflowInstance   = "WORKFLOW.Api.ListWorkflowInstance"
 	ApiGetWorkflowStatus      = "WORKFLOW.Api.GetWorkflowInstanceStatus"
 	ApiCancelWorkflowInstance = "WORKFLOW.Api.CancelWorkflowInstance"
+	ApiSendMessage            = "WORKFLOW.Api.SendMessage"
 )
 
 var AllMessages = []string{
@@ -42,5 +44,6 @@ var AllMessages = []string{
 	WorkflowActivityComplete,
 	WorkflowTraversalExecute,
 	WorkflowTraversalComplete,
+	WorkflowMessage,
 	ApiAll,
 }

@@ -104,6 +104,13 @@ func (s *SharServer) listWorkflows(ctx context.Context, p *empty.Empty) (*model.
 	return &model.ListWorkflowsResponse{Result: ret}, nil
 }
 
+func (s *SharServer) sendMessage(ctx context.Context, req *model.SendMessageRequest) (*empty.Empty, error) {
+	if err := s.queue.PublishMessage(ctx, req.Name, req.Key); err != nil {
+		return nil, err
+	}
+	return &empty.Empty{}, nil
+}
+
 var shutdownOnce sync.Once
 
 func (s *SharServer) Shutdown() {
@@ -136,6 +143,10 @@ func (s *SharServer) Listen() error {
 		return err
 	}
 	_, err = services.Listen(con, log, messages.ApiListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance)
+	if err != nil {
+		return err
+	}
+	_, err = services.Listen(con, log, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage)
 	if err != nil {
 		return err
 	}

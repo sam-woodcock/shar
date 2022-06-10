@@ -1,15 +1,18 @@
 package flag
 
 const (
-	Server        = "server"
-	LogLevel      = "loglevel"
-	ServerShort   = "s"
-	LogLevelShort = "l"
+	CorrelationKey      = "correlationKey"
+	Server              = "server"
+	LogLevel            = "loglevel"
+	CorrelationKeyShort = "k"
+	ServerShort         = "s"
+	LogLevelShort       = "l"
 )
 
 type Set struct {
-	Server   string
-	LogLevel string
+	Server         string
+	LogLevel       string
+	CorrelationKey string
 }
 
 var Value Set

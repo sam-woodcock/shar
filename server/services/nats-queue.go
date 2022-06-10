@@ -150,6 +150,21 @@ func (q *NatsQueue) PublishWorkflowState(ctx context.Context, stateName string, 
 	return nil
 }
 
+func (q *NatsQueue) PublishMessage(ctx context.Context, name string, key string) error {
+	sharMsg := &model.MessageInstance{}
+	msg := nats.NewMsg(messages.WorkflowMessage)
+	if b, err := proto.Marshal(sharMsg); err != nil {
+		return err
+	} else {
+		msg.Data = b
+	}
+	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
+	if _, err := q.js.PublishMsg(msg); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (q *NatsQueue) processTraversals(ctx context.Context) {
 	q.process(ctx, messages.WorkflowTraversalExecute, "Traversal", func(ctx context.Context, msg *nats.Msg) error {
 		var traversal model.WorkflowState

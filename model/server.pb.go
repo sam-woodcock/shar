@@ -522,6 +522,61 @@ func (x *ListWorkflowResult) GetVersion() int32 {
 	return 0
 }
 
+type SendMessageRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
+	Key  string `protobuf:"bytes,2,opt,name=Key,proto3" json:"Key,omitempty"`
+}
+
+func (x *SendMessageRequest) Reset() {
+	*x = SendMessageRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_server_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SendMessageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SendMessageRequest) ProtoMessage() {}
+
+func (x *SendMessageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_server_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SendMessageRequest.ProtoReflect.Descriptor instead.
+func (*SendMessageRequest) Descriptor() ([]byte, []int) {
+	return file_server_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *SendMessageRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SendMessageRequest) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
 var File_server_proto protoreflect.FileDescriptor
 
 var file_server_proto_rawDesc = []byte{
@@ -568,10 +623,14 @@ var file_server_proto_rawDesc = []byte{
 	0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01,
 	0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x76, 0x65,
 	0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x07, 0x76, 0x65, 0x72,
-	0x73, 0x69, 0x6f, 0x6e, 0x42, 0x29, 0x5a, 0x27, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63,
-	0x6f, 0x6d, 0x2f, 0x63, 0x72, 0x79, 0x73, 0x74, 0x61, 0x6c, 0x2d, 0x63, 0x6f, 0x6e, 0x73, 0x74,
-	0x72, 0x75, 0x63, 0x74, 0x2f, 0x73, 0x68, 0x61, 0x72, 0x2f, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x62,
-	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x73, 0x69, 0x6f, 0x6e, 0x22, 0x3a, 0x0a, 0x12, 0x53, 0x65, 0x6e, 0x64, 0x4d, 0x65, 0x73, 0x73,
+	0x61, 0x67, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x4e, 0x61,
+	0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x10,
+	0x0a, 0x03, 0x4b, 0x65, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x4b, 0x65, 0x79,
+	0x42, 0x29, 0x5a, 0x27, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63,
+	0x72, 0x79, 0x73, 0x74, 0x61, 0x6c, 0x2d, 0x63, 0x6f, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74,
+	0x2f, 0x73, 0x68, 0x61, 0x72, 0x2f, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x62, 0x06, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x33,
 }
 
 var (
@@ -586,7 +645,7 @@ func file_server_proto_rawDescGZIP() []byte {
 	return file_server_proto_rawDescData
 }
 
-var file_server_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_server_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_server_proto_goTypes = []interface{}{
 	(*LaunchWorkflowRequest)(nil),            // 0: LaunchWorkflowRequest
 	(*CancelWorkflowInstanceRequest)(nil),    // 1: CancelWorkflowInstanceRequest
@@ -598,11 +657,12 @@ var file_server_proto_goTypes = []interface{}{
 	(*WorkflowInstanceStatus)(nil),           // 7: WorkflowInstanceStatus
 	(*ListWorkflowsResponse)(nil),            // 8: ListWorkflowsResponse
 	(*ListWorkflowResult)(nil),               // 9: ListWorkflowResult
-	(*WorkflowState)(nil),                    // 10: WorkflowState
+	(*SendMessageRequest)(nil),               // 10: SendMessageRequest
+	(*WorkflowState)(nil),                    // 11: WorkflowState
 }
 var file_server_proto_depIdxs = []int32{
 	5,  // 0: ListWorkflowInstanceResponse.Result:type_name -> ListWorkflowInstanceResult
-	10, // 1: WorkflowInstanceStatus.state:type_name -> WorkflowState
+	11, // 1: WorkflowInstanceStatus.state:type_name -> WorkflowState
 	9,  // 2: ListWorkflowsResponse.Result:type_name -> ListWorkflowResult
 	3,  // [3:3] is the sub-list for method output_type
 	3,  // [3:3] is the sub-list for method input_type
@@ -738,6 +798,18 @@ func file_server_proto_init() {
 				return nil
 			}
 		}
+		file_server_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SendMessageRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -745,7 +817,7 @@ func file_server_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_server_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

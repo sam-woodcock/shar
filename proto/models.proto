@@ -8,6 +8,7 @@ option go_package = "github.com/crystal-construct/shar/model";
 message Process {
   repeated Element elements = 1;
   string Name      = 2;
+  repeated Element messages = 3;
 }
 
 message WorkflowVersions {
@@ -28,6 +29,7 @@ message Element {
   string execute =5;
   Targets outbound = 6;
   Process process = 7;
+  string msg = 8;
 }
 
 message Target {
@@ -39,6 +41,10 @@ message Target {
 message Targets {
   repeated Target target = 1;
   bool exclusive = 2;
+}
+
+message Messages {
+  string name = 1;
 }
 
 message JobComplete {
@@ -67,4 +73,9 @@ message InstanceState {
   string id = 1;
   string state = 2;
   bytes vars = 3;
+}
+
+message MessageInstance {
+  string name = 1;
+  string correlationKey = 2;
 }

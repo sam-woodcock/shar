@@ -41,4 +41,5 @@ type Queue interface {
 	PublishWorkflowState(ctx context.Context, stateName string, message *model.WorkflowState) error
 	PublishJob(ctx context.Context, stateName string, element *model.Element, message *model.WorkflowState) error
 	Conn() *nats.Conn
+	PublishMessage(ctx context.Context, name string, key string) error
 }

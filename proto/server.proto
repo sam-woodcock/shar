@@ -58,3 +58,8 @@ message ListWorkflowResult {
   string name = 1;
   int32 version = 2;
 }
+
+message SendMessageRequest {
+  string Name = 1;
+  string Key = 2;
+}

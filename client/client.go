@@ -268,6 +268,15 @@ func (c *Client) GetWorkflowInstanceStatus(ctx context.Context, id string) ([]*m
 	return res.State, nil
 }
 
+func (c *Client) SendMessage(ctx context.Context, name string, key string) interface{} {
+	req := &model.SendMessageRequest{Name: name, Key: key}
+	res := &empty.Empty{}
+	if err := callAPI(ctx, c.con, messages.ApiSendMessage, req, res); err != nil {
+		return fmt.Errorf("failed to send message: %w", err)
+	}
+	return nil
+}
+
 func callAPI[T proto.Message, U proto.Message](ctx context.Context, con *nats.Conn, subject string, command T, ret U) error {
 	b, err := proto.Marshal(command)
 	if err != nil {

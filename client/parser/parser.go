@@ -12,7 +12,7 @@ import (
 const bpmnNS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 
 func Parse(rdr io.Reader) (*model.Process, error) {
-
+	msgs := make(map[string]string)
 	pr := &model.Process{
 		Elements: make([]*model.Element, 0),
 	}
@@ -22,18 +22,35 @@ func Parse(rdr io.Reader) (*model.Process, error) {
 		return nil, err
 	}
 	prXml := doc.SelectElements("//bpmn:process")[0]
+	msgXml := doc.SelectElements("//bpmn:message")
 	pr.Name = prXml.SelectAttr("id")
-	parseProcess(doc, prXml, pr)
+	parseProcess(doc, prXml, pr, msgXml, msgs)
 	return pr, nil
 }
 
-func parseProcess(doc *xmlquery.Node, prXml *xmlquery.Node, pr *model.Process) {
+func parseProcess(doc *xmlquery.Node, prXml *xmlquery.Node, pr *model.Process, msgXml []*xmlquery.Node, msgs map[string]string) {
 	for _, i := range prXml.SelectElements("*") {
-		parseElements(doc, pr, i)
+		parseElements(doc, pr, i, msgs)
+	}
+	if msgXml != nil {
+		parseMessages(doc, pr, msgXml, msgs)
 	}
 }
 
-func parseElements(doc *xmlquery.Node, pr *model.Process, i *xmlquery.Node) {
+func parseMessages(doc *xmlquery.Node, pr *model.Process, msgNodes []*xmlquery.Node, msgs map[string]string) {
+	m := make([]*model.Element, len(msgNodes))
+	for i, x := range msgNodes {
+		m[i] = &model.Element{
+			Id:   x.SelectElement("@id").InnerText(),
+			Name: x.SelectElement("@name").InnerText(),
+		}
+		msgs[m[i].Id] = m[i].Name
+		parseExtensions(doc, m[i], x)
+	}
+	pr.Messages = m
+}
+
+func parseElements(doc *xmlquery.Node, pr *model.Process, i *xmlquery.Node, msgs map[string]string) {
 	if i.NamespaceURI == bpmnNS {
 		el := &model.Element{Type: i.Data}
 		if i.Data == "sequenceFlow" || i.Data == "incoming" || i.Data == "outgoing" || i.Data == "extensionElements" {
@@ -43,17 +60,25 @@ func parseElements(doc *xmlquery.Node, pr *model.Process, i *xmlquery.Node) {
 		parseFlowInOut(doc, i, el)
 		parseDocumentation(i, el)
 		parseExtensions(doc, el, i)
-		parseSubprocess(doc, el, i)
+		parseSubprocess(doc, el, i, msgs)
+		parseSubscription(el, i, msgs)
 		pr.Elements = append(pr.Elements, el)
 	}
 }
 
-func parseSubprocess(doc *xmlquery.Node, el *model.Element, i *xmlquery.Node) {
+func parseSubscription(el *model.Element, i *xmlquery.Node, msgs map[string]string) {
+	if x := i.SelectElement("bpmn:messageEventDefinition/@messageRef"); x != nil {
+		ref := x.InnerText()
+		el.Msg = msgs[ref]
+	}
+}
+
+func parseSubprocess(doc *xmlquery.Node, el *model.Element, i *xmlquery.Node, msgs map[string]string) {
 	if i.Data == "subProcess" {
 		pr := &model.Process{
 			Elements: make([]*model.Element, 0),
 		}
-		parseProcess(doc, i, pr)
+		parseProcess(doc, i, pr, nil, msgs)
 		el.Process = pr
 	}
 }
@@ -73,6 +98,10 @@ func parseExtensions(doc *xmlquery.Node, el *model.Element, i *xmlquery.Node) {
 			name := fullName[len(fullName)-1]
 			f := doc.SelectElement("//zeebe:userTaskForm[@id=\"" + name + "\"]").InnerText()
 			el.Execute = f
+		}
+		//Messages
+		if e := x.SelectElement("zeebe:subscription/@correlationKey"); e != nil {
+			el.Execute = e.InnerText()
 		}
 	}
 }
