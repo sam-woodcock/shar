@@ -151,7 +151,10 @@ func (q *NatsQueue) PublishWorkflowState(ctx context.Context, stateName string, 
 }
 
 func (q *NatsQueue) PublishMessage(ctx context.Context, name string, key string) error {
-	sharMsg := &model.MessageInstance{}
+	sharMsg := &model.MessageInstance{
+		Name:           name,
+		CorrelationKey: key,
+	}
 	msg := nats.NewMsg(messages.WorkflowMessage)
 	if b, err := proto.Marshal(sharMsg); err != nil {
 		return err
