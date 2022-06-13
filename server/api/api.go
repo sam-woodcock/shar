@@ -9,20 +9,20 @@ import (
 	"github.com/crystal-construct/shar/server/workflow"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/wrappers"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"go.uber.org/zap"
 	"sync"
 )
 
 type SharServer struct {
-	log    *otelzap.Logger
+	log    *zap.Logger
 	health *health.Checker
 	store  services.Storage
 	queue  services.Queue
 	engine *workflow.Engine
 }
 
-func New(log *otelzap.Logger, store services.Storage, queue services.Queue) (*SharServer, error) {
-	engine, err := workflow.NewEngine(log, store, queue)
+func New(log *zap.Logger, store services.Storage, queue services.Queue) (*SharServer, error) {
+	engine, err := workflow.NewEngine(store, queue)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +114,7 @@ func (s *SharServer) Shutdown() {
 
 func (s *SharServer) Listen() error {
 	con := s.queue.Conn()
-	log := s.log.Logger
+	log := s.log
 	_, err := services.Listen(con, log, messages.ApiStoreWorkflow, &model.Process{}, s.storeWorkflow)
 	if err != nil {
 		return err
