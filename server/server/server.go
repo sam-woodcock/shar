@@ -7,7 +7,6 @@ import (
 	"github.com/crystal-construct/shar/server/health"
 	"github.com/crystal-construct/shar/server/services"
 	"github.com/nats-io/nats.go"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	gogrpc "google.golang.org/grpc"
@@ -22,16 +21,17 @@ import (
 type Server struct {
 	sig           chan os.Signal
 	healthService *health.Checker
-	log           *otelzap.Logger
+	log           *zap.Logger
 	grpcServer    *gogrpc.Server
 	api           *api.SharServer
 }
 
 // New creates a new SHAR server.
 // Leave the exporter nil if telemetry is not required
-func New() *Server {
+func New(log *zap.Logger) *Server {
 	s := &Server{
 		sig: make(chan os.Signal, 10),
+		log: log,
 	}
 	signal.Notify(s.sig, syscall.SIGINT, syscall.SIGTERM)
 	return s
@@ -40,9 +40,6 @@ func New() *Server {
 // Listen starts the GRPC server for both serving requests, and thw GRPC health endpoint.
 func (s *Server) Listen(natsURL string, grpcPort int) {
 	ctx := context.Background()
-
-	zlog, err := zap.NewDevelopment(zap.IncreaseLevel(zapcore.DebugLevel))
-	s.log = otelzap.New(zlog, otelzap.WithMinLevel(zapcore.DebugLevel))
 
 	// Capture errors and cancel signals
 	errs := make(chan error)
@@ -93,7 +90,7 @@ func (s *Server) Shutdown(ctx context.Context) {
 	s.log.Info("shar grpc stopped")
 }
 
-func (s *Server) createServices(natsURL string, log *otelzap.Logger) (*services.NatsKVStore, *services.NatsQueue) {
+func (s *Server) createServices(natsURL string, log *zap.Logger) (*services.NatsKVStore, *services.NatsQueue) {
 	conn, err := nats.Connect(natsURL)
 	if err != nil {
 		log.Fatal("could not connect to NATS", zap.Error(err), zap.String("url", natsURL))

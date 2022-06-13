@@ -13,13 +13,7 @@ import (
 	"github.com/crystal-construct/shar/telemetry/keys"
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"sync"
 )
 
@@ -29,20 +23,17 @@ type Engine struct {
 	js      nats.JetStreamContext
 	queue   services.Queue
 	store   services.Storage
-	log     *otelzap.Logger
+	log     *zap.Logger
 	closing chan struct{}
 	closed  chan struct{}
 	mx      sync.Mutex
 }
 
-var tracer = otel.Tracer("shar")
-
 // NewEngine returns an instance of the core workflow engine.
-func NewEngine(log *otelzap.Logger, store services.Storage, queue services.Queue) (*Engine, error) {
+func NewEngine(store services.Storage, queue services.Queue) (*Engine, error) {
 	e := &Engine{
 		store:   store,
 		queue:   queue,
-		log:     log,
 		closing: make(chan struct{}),
 	}
 	return e, nil
@@ -76,60 +67,72 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 		return "", errors.ErrClosing
 	default:
 	}
-	wfNameAttr := attribute.KeyValue{Key: keys.WorkflowName, Value: attribute.StringValue(workflowName)}
-	parentWfiIDAttr := attribute.KeyValue{Key: keys.ParentWorkflowInstanceId, Value: attribute.StringValue(parentWfiID)}
-	parentElIDAttr := attribute.KeyValue{Key: keys.ParentInstanceElementId, Value: attribute.StringValue(parentElID)}
 
-	ctx, span := tracer.Start(ctx, "WorkflowInstanceLaunch", trace.WithAttributes(wfNameAttr, parentWfiIDAttr, parentElIDAttr))
-	defer span.End()
 	wfId, err := c.store.GetLatestVersion(ctx, workflowName)
 	if err != nil {
-		return "", c.engineErr(ctx, span, "failed to get latest version of workflow", err, wfNameAttr, parentWfiIDAttr, parentElIDAttr)
+		return "", c.engineErr(ctx, "failed to get latest version of workflow", err,
+			zap.String(keys.ParentInstanceElementId, parentElID),
+			zap.String(keys.ParentWorkflowInstanceId, parentWfiID),
+			zap.String(keys.WorkflowName, workflowName),
+		)
 	}
-	wfIDAttr := attribute.KeyValue{Key: keys.WorkflowID, Value: attribute.StringValue(wfId)}
-	span.SetAttributes(wfIDAttr)
+
 	wf, err := c.store.GetWorkflow(ctx, wfId)
 	if err != nil {
-		return "", c.engineErr(ctx, span, "failed to get workflow", err, wfNameAttr, parentWfiIDAttr, parentElIDAttr, wfIDAttr)
+		return "", c.engineErr(ctx, "failed to get workflow", err,
+			zap.String(keys.ParentInstanceElementId, parentElID),
+			zap.String(keys.ParentWorkflowInstanceId, parentWfiID),
+			zap.String(keys.WorkflowName, workflowName),
+			zap.String(keys.WorkflowID, wfId),
+		)
 	}
 	wfi, err := c.store.CreateWorkflowInstance(ctx, &model.WorkflowInstance{WorkflowId: wfId, ParentWorkflowInstanceId: parentWfiID, ParentElementId: parentElID})
 	if err != nil {
-		return "", c.engineErr(ctx, span, "failed to create workflow instance", err, wfNameAttr, parentWfiIDAttr, parentElIDAttr, wfIDAttr)
+		return "", c.engineErr(ctx, "failed to create workflow instance", err,
+			zap.String(keys.ParentInstanceElementId, parentElID),
+			zap.String(keys.ParentWorkflowInstanceId, parentWfiID),
+			zap.String(keys.WorkflowName, workflowName),
+			zap.String(keys.WorkflowID, wfId),
+		)
 	}
-	span.SetAttributes(
-		attribute.KeyValue{Key: keys.WorkflowInstanceID, Value: attribute.StringValue(wfi.WorkflowInstanceId)},
-		attribute.KeyValue{Key: keys.WorkflowID, Value: attribute.StringValue(wfId)},
-	)
+
 	els := elementTable(wf)
 	errs := make(chan error)
 	wg := sync.WaitGroup{}
 	forEachStartElement(wf.Elements, func(el *model.Element) {
 		wg.Add(1)
-		elNameAttr := attribute.KeyValue{Key: keys.ElementName, Value: attribute.StringValue(el.Name)}
-		elIDAttr := attribute.KeyValue{Key: keys.ElementID, Value: attribute.StringValue(el.Id)}
-		elTypeAttr := attribute.KeyValue{Key: keys.ElementType, Value: attribute.StringValue(el.Type)}
-		ctx, span := tracer.Start(ctx, "ElementStart", trace.WithAttributes(elNameAttr, elIDAttr, elTypeAttr, wfIDAttr))
+
 		if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowInstanceExecute, &model.WorkflowState{
 			WorkflowInstanceId: wfi.WorkflowInstanceId,
 			ElementId:          el.Id,
 			ElementType:        el.Type,
 			Vars:               nil,
 		}); err != nil {
-			errs <- c.engineErr(ctx, span, "failed to publish workflow state", err, wfNameAttr, parentWfiIDAttr, parentElIDAttr, wfIDAttr, elNameAttr, elIDAttr, elTypeAttr)
+			errs <- c.engineErr(ctx, "failed to publish workflow state", err,
+				zap.String(keys.ParentInstanceElementId, parentElID),
+				zap.String(keys.ParentWorkflowInstanceId, parentWfiID),
+				zap.String(keys.WorkflowName, workflowName),
+				zap.String(keys.WorkflowID, wfId),
+			)
 		}
-		go func(el *model.Element, span trace.Span) {
+		go func(el *model.Element) {
 			defer wg.Done()
-			defer span.End()
+
 			if err := c.traverse(ctx, wfi, el.Outbound, els, vars); err != nil {
 				errs <- fmt.Errorf("failed traversal to %v: %w", el.Outbound, err)
 			}
 
-		}(el, span)
+		}(el)
 	})
 	wg.Wait()
 	close(errs)
 	if err := <-errs; err != nil {
-		return "", c.engineErr(ctx, span, "failed initial traversal", err, wfNameAttr, parentWfiIDAttr, parentElIDAttr, wfIDAttr)
+		return "", c.engineErr(ctx, "failed initial traversal", err,
+			zap.String(keys.ParentInstanceElementId, parentElID),
+			zap.String(keys.ParentWorkflowInstanceId, parentWfiID),
+			zap.String(keys.WorkflowName, workflowName),
+			zap.String(keys.WorkflowID, wfId),
+		)
 	}
 	return wfi.WorkflowInstanceId, nil
 }
@@ -139,7 +142,7 @@ func (c *Engine) encodeVars(ctx context.Context, vars model.Vars) []byte {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	if err := enc.Encode(vars); err != nil {
-		c.log.Ctx(ctx).Error("failed to encode vars", zap.Any("vars", vars))
+		c.log.Error("failed to encode vars", zap.Any("vars", vars))
 	}
 	return buf.Bytes()
 }
@@ -153,7 +156,7 @@ func (c *Engine) decodeVars(ctx context.Context, vars []byte) model.Vars {
 	r := bytes.NewReader(vars)
 	d := gob.NewDecoder(r)
 	if err := d.Decode(&ret); err != nil {
-		c.log.Ctx(ctx).Error("failed to decode vars", zap.Any("vars", vars))
+		c.log.Error("failed to decode vars", zap.Any("vars", vars))
 	}
 	return ret
 }
@@ -174,27 +177,25 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, outb
 		ok := true
 		// Evaluate conditions
 		for _, ex := range t.Conditions {
-			ctx, span1 := tracer.Start(ctx, "Evaluate condition "+ex)
+
 			// TODO: Cache compilation.
 			exVars := c.decodeVars(ctx, vars)
 			program, err := expr.Compile(ex, expr.Env(exVars))
 			if err != nil {
-				c.log.Ctx(ctx).Error("expression compilation error", zap.Error(err), zap.String("expr", ex))
-				span1.End()
+
 				return err
 			}
 			res, err := expr.Run(program, exVars)
 			if err != nil {
-				c.log.Ctx(ctx).Error("expression evaluation error", zap.String("expr", ex), zap.Error(err))
-				span1.End()
+
 				return err
 			}
 			if !res.(bool) {
 				ok = false
-				span1.End()
+
 				break
 			}
-			span1.End()
+
 		}
 
 		trackingId := ksuid.New().String()
@@ -207,7 +208,7 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, outb
 				TrackingId:         trackingId,
 				Vars:               vars,
 			}); err != nil {
-				c.log.Ctx(ctx).Error("failed to publish workflow state", zap.Error(err))
+				c.log.Error("failed to publish workflow state", zap.Error(err))
 				return err
 			}
 			//if err := c.queue.Traverse(ctx, wfi.WorkflowInstanceId, t.Target, vars); err != nil {
@@ -221,46 +222,48 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, outb
 	}
 	return nil
 }
+
 func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, trackingId string, vars []byte) error {
 	select {
 	case <-c.closing:
 		return errors.ErrClosing
 	default:
 	}
-	ctx, span := tracer.Start(ctx, "ActivityProcessor")
-	defer span.End()
-	wfiIDAttr := attribute.KeyValue{Key: keys.WorkflowInstanceID, Value: attribute.StringValue(wfiId)}
-	span.SetAttributes(wfiIDAttr)
+
 	wfi, err := c.store.GetWorkflowInstance(ctx, wfiId)
 	if err == errors.ErrWorkflowInstanceNotFound {
-		span.SetStatus(codes.Error, "workflow instance not found, cancelling")
-		c.log.Ctx(ctx).Warn("workflow instance not found, cancelling activity", zap.Error(err), zap.String(keys.WorkflowInstanceID, wfiId))
+
+		c.log.Warn("workflow instance not found, cancelling activity", zap.Error(err), zap.String(keys.WorkflowInstanceID, wfiId))
 		return nil
 	} else if err != nil {
-		return c.engineErr(ctx, span, "failed to get workflow instance", err, wfiIDAttr)
+		return c.engineErr(ctx, "failed to get workflow instance", err,
+			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+		)
 	}
-	wfIDAttr := attribute.KeyValue{Key: keys.WorkflowID, Value: attribute.StringValue(wfi.WorkflowId)}
-	span.SetAttributes(wfIDAttr)
 	process, err := c.store.GetWorkflow(ctx, wfi.WorkflowId)
 	if err != nil {
-		return c.engineErr(ctx, span, "failed to get workflow", err, wfiIDAttr, wfIDAttr)
+		return c.engineErr(ctx, "failed to get workflow", err,
+			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+			zap.String(keys.WorkflowID, wfi.WorkflowId),
+		)
 	}
 	els := elementTable(process)
 	el := els[elementId]
-	elIDAttr := attribute.KeyValue{Key: keys.ElementID, Value: attribute.StringValue(el.Id)}
-	elNameAttr := attribute.KeyValue{Key: keys.ElementName, Value: attribute.StringValue(el.Name)}
-	elTypeAttr := attribute.KeyValue{Key: keys.ElementType, Value: attribute.StringValue(el.Type)}
-	wfNameAttr := attribute.KeyValue{Key: keys.WorkflowName, Value: attribute.StringValue(process.Name)}
-	span.SetAttributes(elTypeAttr, elNameAttr, elIDAttr, wfNameAttr)
 	if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowActivityExecute, &model.WorkflowState{
 		ElementType:        el.Type,
 		ElementId:          elementId,
 		WorkflowInstanceId: wfiId,
 		Vars:               vars,
 	}); err != nil {
-		return c.engineErr(ctx, span, "failed to publish workflow state", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+		return c.engineErr(ctx, "failed to publish workflow state", err,
+			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+			zap.String(keys.WorkflowID, wfi.WorkflowId),
+			zap.String(keys.ElementID, el.Id),
+			zap.String(keys.ElementName, el.Name),
+			zap.String(keys.ElementType, el.Type),
+			zap.String(keys.WorkflowName, process.Name),
+		)
 	}
-
 	if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowTraversalComplete, &model.WorkflowState{
 		ElementType:        el.Type,
 		ElementId:          elementId,
@@ -268,7 +271,14 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 		TrackingId:         trackingId,
 		Vars:               vars,
 	}); err != nil {
-		return c.engineErr(ctx, span, "failed to publish workflow state", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+		return c.engineErr(ctx, "failed to publish workflow state", err,
+			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+			zap.String(keys.WorkflowID, wfi.WorkflowId),
+			zap.String(keys.ElementID, el.Id),
+			zap.String(keys.ElementName, el.Name),
+			zap.String(keys.ElementType, el.Type),
+			zap.String(keys.WorkflowName, process.Name),
+		)
 	}
 
 	var workflowComplete bool
@@ -276,37 +286,83 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 	switch el.Type {
 	case "serviceTask":
 		if err := c.startJob(ctx, messages.WorkflowJobServiceTaskExecute, wfiId, el, vars); err != nil {
-			return c.engineErr(ctx, span, "failed to start job", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+			return c.engineErr(ctx, "failed to start job", err,
+				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+				zap.String(keys.WorkflowID, wfi.WorkflowId),
+				zap.String(keys.ElementID, el.Id),
+				zap.String(keys.ElementName, el.Name),
+				zap.String(keys.ElementType, el.Type),
+				zap.String(keys.WorkflowName, process.Name),
+			)
 		}
 	case "userTask":
 		if err := c.startJob(ctx, messages.WorkflowJobUserTaskExecute, wfiId, el, vars); err != nil {
-			return c.engineErr(ctx, span, "failed to start job", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+			return c.engineErr(ctx, "failed to start job", err,
+				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+				zap.String(keys.WorkflowID, wfi.WorkflowId),
+				zap.String(keys.ElementID, el.Id),
+				zap.String(keys.ElementName, el.Name),
+				zap.String(keys.ElementType, el.Type),
+				zap.String(keys.WorkflowName, process.Name),
+			)
 		}
 	case "manualTask":
 		if err := c.startJob(ctx, messages.WorkflowJobManualTaskExecute, wfiId, el, vars); err != nil {
-			return c.engineErr(ctx, span, "failed to start job", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+			return c.engineErr(ctx, "failed to start job", err,
+				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+				zap.String(keys.WorkflowID, wfi.WorkflowId),
+				zap.String(keys.ElementID, el.Id),
+				zap.String(keys.ElementName, el.Name),
+				zap.String(keys.ElementType, el.Type),
+				zap.String(keys.WorkflowName, process.Name),
+			)
 		}
 	case "callActivity":
 		if _, err := c.launch(ctx, el.Execute, vars, wfiId, el.Id); err != nil {
-			return c.engineErr(ctx, span, "failed to launch child workflow", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+			return c.engineErr(ctx, "failed to launch child workflow", err,
+				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+				zap.String(keys.WorkflowID, wfi.WorkflowId),
+				zap.String(keys.ElementID, el.Id),
+				zap.String(keys.ElementName, el.Name),
+				zap.String(keys.ElementType, el.Type),
+				zap.String(keys.WorkflowName, process.Name),
+			)
 		}
 	case "endEvent":
-		ctx, span := tracer.Start(ctx, "WorkflowInstanceComplete")
-		defer span.End()
-		parentWfiIDAttr := attribute.KeyValue{Key: keys.ParentWorkflowInstanceId, Value: attribute.StringValue(wfi.ParentWorkflowInstanceId)}
-		span.SetAttributes(parentWfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfiIDAttr, wfNameAttr)
 		if wfi.ParentWorkflowInstanceId != "" {
 			if err := c.returnBack(ctx, wfi.WorkflowInstanceId, wfi.ParentWorkflowInstanceId, wfi.ParentElementId, vars); err != nil {
-				return c.engineErr(ctx, span, "failed to return to originator workflow", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, parentWfiIDAttr, wfNameAttr)
+				return c.engineErr(ctx, "failed to return to originator workflow", err,
+					zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+					zap.String(keys.WorkflowID, wfi.WorkflowId),
+					zap.String(keys.ElementID, el.Id),
+					zap.String(keys.ElementName, el.Name),
+					zap.String(keys.ElementType, el.Type),
+					zap.String(keys.WorkflowName, process.Name),
+					zap.String(keys.ParentWorkflowInstanceId, wfi.ParentWorkflowInstanceId),
+				)
 			}
 		}
 		if err := c.cleanup(ctx, wfi.WorkflowInstanceId); err != nil {
-			return c.engineErr(ctx, span, "failed to return to remove workflow instance", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+			return c.engineErr(ctx, "failed to return to remove workflow instance", err,
+				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+				zap.String(keys.WorkflowID, wfi.WorkflowId),
+				zap.String(keys.ElementID, el.Id),
+				zap.String(keys.ElementName, el.Name),
+				zap.String(keys.ElementType, el.Type),
+				zap.String(keys.WorkflowName, process.Name),
+			)
 		}
 		workflowComplete = true
 	default:
 		if err := c.traverse(ctx, wfi, el.Outbound, els, vars); err != nil {
-			return c.engineErr(ctx, span, "failed to return to traverse", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+			return c.engineErr(ctx, "failed to return to traverse", err,
+				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+				zap.String(keys.WorkflowID, wfi.WorkflowId),
+				zap.String(keys.ElementID, el.Id),
+				zap.String(keys.ElementName, el.Name),
+				zap.String(keys.ElementType, el.Type),
+				zap.String(keys.WorkflowName, process.Name),
+			)
 		}
 	}
 	if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowActivityComplete, &model.WorkflowState{
@@ -315,7 +371,14 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 		WorkflowInstanceId: wfiId,
 		Vars:               vars,
 	}); err != nil {
-		return c.engineErr(ctx, span, "failed to publish workflow state", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+		return c.engineErr(ctx, "failed to publish workflow state", err,
+			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+			zap.String(keys.WorkflowID, wfi.WorkflowId),
+			zap.String(keys.ElementID, el.Id),
+			zap.String(keys.ElementName, el.Name),
+			zap.String(keys.ElementType, el.Type),
+			zap.String(keys.WorkflowName, process.Name),
+		)
 	}
 
 	if workflowComplete {
@@ -325,38 +388,47 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 			WorkflowInstanceId: wfiId,
 			Vars:               vars,
 		}); err != nil {
-			return c.engineErr(ctx, span, "failed to publish workflow state", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, wfNameAttr)
+			return c.engineErr(ctx, "failed to publish workflow state", err,
+				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+				zap.String(keys.WorkflowID, wfi.WorkflowId),
+				zap.String(keys.ElementID, el.Id),
+				zap.String(keys.ElementName, el.Name),
+				zap.String(keys.ElementType, el.Type),
+				zap.String(keys.WorkflowName, process.Name),
+			)
 		}
 	}
 	return nil
 }
 
 func (c *Engine) returnBack(ctx context.Context, wfiID string, parentWfiID string, parentElID string, vars []byte) error {
-	wfiIDattr := attribute.String(keys.WorkflowInstanceID, wfiID)
-	parentWfiIDattr := attribute.String(keys.ParentWorkflowInstanceId, parentWfiID)
-	elIDattr := attribute.String(keys.ElementID, parentElID)
-	ctx, span := tracer.Start(ctx, "WorkflowReturn", trace.WithAttributes(wfiIDattr, elIDattr, parentWfiIDattr))
-	defer span.End()
 	pwfi, err := c.store.GetWorkflowInstance(ctx, parentWfiID)
 	if err == errors.ErrWorkflowInstanceNotFound {
-		span.SetStatus(codes.Error, "parent workflow instance not found, cancelling")
-		c.log.Ctx(ctx).Warn("parent workflow instance not found, cancelling return to caller", zap.Error(err), zap.String(keys.ParentWorkflowInstanceId, parentWfiID))
+		c.log.Warn("parent workflow instance not found, cancelling return to caller", zap.Error(err), zap.String(keys.ParentWorkflowInstanceId, parentWfiID))
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("failed to fetch workflow instance for return back: %w", err)
 	}
 	pwf, err := c.store.GetWorkflow(ctx, pwfi.WorkflowId)
 	if err != nil {
-		return c.engineErr(ctx, span, "failed to fetch return workflow", err, wfiIDattr, elIDattr, parentWfiIDattr)
+		return c.engineErr(ctx, "failed to fetch return workflow", err,
+			zap.String(keys.ParentWorkflowInstanceId, parentWfiID),
+			zap.String(keys.WorkflowInstanceID, wfiID),
+			zap.String(keys.ElementID, parentElID),
+		)
 	}
 	index := make(map[string]*model.Element)
 	indexElements(pwf.Elements, index)
 	el := index[parentElID]
 	err = c.traverse(ctx, pwfi, el.Outbound, index, vars)
 	if err != nil {
-		elNameAttr := attribute.KeyValue{Key: keys.ElementName, Value: attribute.StringValue(el.Name)}
-		elTypeAttr := attribute.KeyValue{Key: keys.ElementType, Value: attribute.StringValue(el.Type)}
-		return c.engineErr(ctx, span, "failed to traverse", err, wfiIDattr, elIDattr, elTypeAttr, elNameAttr, parentWfiIDattr)
+		return c.engineErr(ctx, "failed to traverse", err,
+			zap.String(keys.ElementName, el.Name),
+			zap.String(keys.ElementID, el.Id),
+			zap.String(keys.ElementType, el.Type),
+			zap.String(keys.WorkflowInstanceID, wfiID),
+			zap.String(keys.ParentWorkflowInstanceId, parentWfiID),
+		)
 	}
 	return nil
 }
@@ -374,62 +446,64 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobId string, vars []
 		return errors.ErrClosing
 	default:
 	}
-	ctx, span := tracer.Start(ctx, "JobComplete")
-	defer span.End()
+
 	job, err := c.store.GetJob(ctx, jobId)
 	if err != nil {
-		return c.engineErr(ctx, span, "failed to locate job", err, attribute.KeyValue{Key: keys.JobID, Value: attribute.StringValue(jobId)})
+		return c.engineErr(ctx, "failed to locate job", err,
+			zap.String(keys.JobID, jobId),
+		)
 	}
-
-	jobIdAttr := attribute.KeyValue{Key: keys.JobID, Value: attribute.StringValue(job.TrackingId)}
-	jobTypeAttr := attribute.KeyValue{Key: keys.JobType, Value: attribute.StringValue(job.ElementType)}
-	span.SetAttributes(jobIdAttr, jobTypeAttr)
 
 	wfi, err := c.store.GetWorkflowInstance(ctx, job.WorkflowInstanceId)
 	if err == errors.ErrWorkflowInstanceNotFound {
-		span.SetStatus(codes.Error, "workflow instance not found, cancelling")
-		c.log.Ctx(ctx).Warn("workflow instance not found, cancelling job processing", zap.Error(err), zap.String(keys.WorkflowInstanceID, job.WorkflowInstanceId))
+		c.log.Warn("workflow instance not found, cancelling job processing", zap.Error(err), zap.String(keys.WorkflowInstanceID, job.WorkflowInstanceId))
 		return nil
 	} else if err != nil {
-		return c.engineErr(ctx, span, "failed to get workflow instance for job", err, jobTypeAttr, jobIdAttr)
+		return c.engineErr(ctx, "failed to get workflow instance for job", err,
+			zap.String(keys.JobType, job.ElementType),
+			zap.String(keys.JobID, jobId),
+		)
 	}
-	wfiIDAttr := attribute.KeyValue{Key: keys.WorkflowInstanceID, Value: attribute.StringValue(wfi.WorkflowInstanceId)}
-	wfIDAttr := attribute.KeyValue{Key: keys.WorkflowID, Value: attribute.StringValue(wfi.WorkflowId)}
-	span.SetAttributes(wfiIDAttr, wfIDAttr)
 
 	wf, err := c.store.GetWorkflow(ctx, wfi.WorkflowId)
 	if err != nil {
-		return c.engineErr(ctx, span, "failed to fetch job workflow", err, jobTypeAttr, wfiIDAttr, jobIdAttr, wfIDAttr)
+		return c.engineErr(ctx, "failed to fetch job workflow", err,
+			zap.String(keys.JobType, job.ElementType),
+			zap.String(keys.JobID, jobId),
+			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+			zap.String(keys.WorkflowID, wfi.WorkflowId),
+		)
 	}
 	els := make(map[string]*model.Element)
 	indexElements(wf.Elements, els)
 	el := els[job.ElementId]
-	elIDAttr := attribute.KeyValue{Key: keys.ElementID, Value: attribute.StringValue(el.Id)}
-	elNameAttr := attribute.KeyValue{Key: keys.ElementName, Value: attribute.StringValue(el.Name)}
-	elTypeAttr := attribute.KeyValue{Key: keys.ElementType, Value: attribute.StringValue(el.Type)}
-	span.SetAttributes(elIDAttr, elNameAttr, elTypeAttr)
 	if err := c.traverse(ctx, wfi, el.Outbound, els, vars); err != nil {
-		return c.engineErr(ctx, span, "failed to launch traversal", err, wfiIDAttr, wfIDAttr, elIDAttr, elNameAttr, elTypeAttr, jobIdAttr, jobTypeAttr)
+		return c.engineErr(ctx, "failed to launch traversal", err,
+			zap.String(keys.ElementName, el.Name),
+			zap.String(keys.ElementID, el.Id),
+			zap.String(keys.ElementType, el.Type),
+			zap.String(keys.JobType, job.ElementType),
+			zap.String(keys.JobID, jobId),
+			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+			zap.String(keys.WorkflowID, wfi.WorkflowId),
+		)
 	}
 	return nil
 }
 
 func (c *Engine) startJob(ctx context.Context, subject string, wfiId string, el *model.Element, vars []byte) error {
-	elIDAttr := attribute.KeyValue{Key: keys.ElementID, Value: attribute.StringValue(el.Id)}
-	elNameAttr := attribute.KeyValue{Key: keys.ElementName, Value: attribute.StringValue(el.Name)}
-	elTypeAttr := attribute.KeyValue{Key: keys.ElementType, Value: attribute.StringValue(el.Type)}
-	jobTypeAttr := attribute.KeyValue{Key: keys.JobType, Value: attribute.StringValue(el.Type)}
-	wfiIDAttr := attribute.KeyValue{Key: keys.WorkflowInstanceID, Value: attribute.StringValue(wfiId)}
-	ctx, span := tracer.Start(ctx, "JobStart", trace.WithAttributes(elNameAttr, elIDAttr, elTypeAttr, jobTypeAttr, wfiIDAttr))
-	defer span.End()
 	job := &model.WorkflowState{WorkflowInstanceId: wfiId, Vars: vars, ElementType: el.Type, ElementId: el.Id, Execute: el.Execute}
 	jobId, err := c.store.CreateJob(ctx, job)
 
-	jobIDAttr := attribute.KeyValue{Key: keys.JobID, Value: attribute.StringValue(jobId)}
-	span.SetAttributes(jobIDAttr)
-
 	if err != nil {
-		return c.engineErr(ctx, span, "failed to start manual task", err, elNameAttr, elIDAttr, elTypeAttr, jobIDAttr, jobTypeAttr, wfiIDAttr)
+		return c.engineErr(ctx, "failed to start manual task", err,
+			zap.String(keys.ElementName, el.Name),
+			zap.String(keys.ElementID, el.Id),
+			zap.String(keys.ElementType, el.Type),
+			zap.String(keys.JobType, job.ElementType),
+			zap.String(keys.JobID, jobId),
+			zap.String(keys.WorkflowInstanceID, wfiId),
+		)
 	}
 	job.TrackingId = jobId
 	return c.queue.PublishJob(ctx, subject, el, job)
@@ -452,12 +526,10 @@ func indexElements(elements []*model.Element, el map[string]*model.Element) {
 	}
 }
 
-func (c *Engine) engineErr(ctx context.Context, span trace.Span, msg string, err error, attrs ...attribute.KeyValue) error {
-	z := keyvalueToZap(attrs...)
+func (c *Engine) engineErr(ctx context.Context, msg string, err error, z ...zap.Field) error {
 	z = append(z, zap.Error(err))
-	c.log.Ctx(ctx).Error(msg, z...)
-	span.RecordError(err, trace.WithAttributes(attrs...))
-	span.SetStatus(codes.Error, msg)
+	c.log.Error(msg, z...)
+
 	return err
 }
 
@@ -473,12 +545,4 @@ func (c *Engine) Shutdown() {
 
 func (c *Engine) CancelWorkflowInstance(ctx context.Context, id string) error {
 	return c.store.DestroyWorkflowInstance(ctx, id)
-}
-
-func keyvalueToZap(attrs ...attribute.KeyValue) []zapcore.Field {
-	ret := make([]zapcore.Field, len(attrs))
-	for i, kv := range attrs {
-		ret[i] = zap.String(string(kv.Key), kv.Value.AsString())
-	}
-	return ret
 }
