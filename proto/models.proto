@@ -79,3 +79,7 @@ message MessageInstance {
   string name = 1;
   string correlationKey = 2;
 }
+
+message MsgWaiting {
+  repeated WorkflowState List = 1;
+}

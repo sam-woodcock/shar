@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/antonmedv/expr"
 	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
+	"github.com/crystal-construct/shar/server/vars"
 	"github.com/crystal-construct/shar/telemetry/ctxutil"
 	"github.com/nats-io/nats.go"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
@@ -13,6 +15,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
+	"strings"
 	"time"
 )
 
@@ -27,6 +30,9 @@ type NatsQueue struct {
 	tracer                    trace.Tracer
 	closing                   chan struct{}
 	workflowTracking          string
+	wfMsgWaiting              nats.KeyValue
+	wfInstance                nats.KeyValue
+	wfDef                     nats.KeyValue
 }
 
 func NewNatsQueue(log *otelzap.Logger, conn *nats.Conn, storageType nats.StorageType, concurrency int) (*NatsQueue, error) {
@@ -37,7 +43,8 @@ func NewNatsQueue(log *otelzap.Logger, conn *nats.Conn, storageType nats.Storage
 	if err != nil {
 		return nil, err
 	}
-	return &NatsQueue{
+
+	nq := &NatsQueue{
 		concurrency:      concurrency,
 		storageType:      storageType,
 		con:              conn,
@@ -45,7 +52,25 @@ func NewNatsQueue(log *otelzap.Logger, conn *nats.Conn, storageType nats.Storage
 		log:              log,
 		closing:          make(chan struct{}),
 		workflowTracking: "WORKFLOW_TRACKING",
-	}, nil
+	}
+	if kv, err := js.KeyValue("WORKFLOW_INSTANCE"); err != nil {
+		return nil, err
+	} else {
+		nq.wfInstance = kv
+	}
+
+	if kv, err := js.KeyValue("WORKFLOW_MSGWAITING"); err != nil {
+		return nil, err
+	} else {
+		nq.wfMsgWaiting = kv
+	}
+
+	if kv, err := js.KeyValue("WORKFLOW_DEF"); err != nil {
+		return nil, err
+	} else {
+		nq.wfDef = kv
+	}
+	return nq, err
 }
 
 func (q *NatsQueue) StartProcessing(ctx context.Context) error {
@@ -331,4 +356,139 @@ func errorResponse(m *nats.Msg, code codes.Code, msg any) {
 
 func apiError(code codes.Code, msg any) []byte {
 	return []byte(fmt.Sprintf("ERR_%d|%+v", code, msg))
+}
+
+func (q *NatsQueue) processMessages(ctx context.Context) {
+	q.process(ctx, messages.WorkflowMessage, "Message", func(ctx context.Context, msg *nats.Msg) error {
+
+		// Unpack the message Instance
+		instance := &model.MessageInstance{}
+		if err := proto.Unmarshal(msg.Data, instance); err != nil {
+			return fmt.Errorf("could not unmarshal message proto: %w", err)
+		}
+
+		// Get pending receivers for the message
+		smsg, rev, err := q.getMessagePending(instance.Name)
+		if err == nats.ErrKeyNotFound {
+			msg.Ack()
+			return nil
+		}
+
+		// Create a list of messages to delete once satisfied
+		toDelete := make([]string, 0, len(smsg.List))
+
+		// Loop through the list
+		for _, v := range smsg.List {
+			// Get the workflow instance get the workflow
+			wfi := &model.WorkflowInstance{}
+			err := LoadObj(q.wfInstance, v.WorkflowInstanceId, wfi)
+			if err == nats.ErrKeyNotFound {
+				// TODO: This should remove the key, as the workflow has been cancelled
+				continue
+			}
+			if err != nil {
+				return err
+			}
+
+			// Get the workflow so we can cross reference the variable to correlate
+			wf := &model.Process{}
+			err = LoadObj(q.wfDef, wfi.WorkflowId, wf)
+			if err == nats.ErrKeyNotFound {
+				// TODO: This should not happen, as workflow definitions are kept forever
+				panic(err)
+			}
+			if err != nil {
+				err := q.removePending(ctx, toDelete, instance.Name, smsg, rev)
+				return err
+			}
+
+			// Get the correct variable to correlate
+			var exec string
+			for _, m := range wf.Messages {
+				if m.Name == instance.Name {
+					exec = m.Execute
+				}
+			}
+
+			// Evaluate the expression
+			vars := vars.Decode(q.log.Logger, v.Vars)
+			satisfied, err := q.evaluateMessage(ctx, instance.CorrelationKey, vars, exec)
+			if err != nil {
+				err := q.removePending(ctx, toDelete, instance.Name, smsg, rev)
+				return err
+			}
+			if satisfied {
+				// TODO: Launch transition
+				toDelete = append(toDelete, v.TrackingId)
+			}
+		}
+		err = q.removePending(ctx, toDelete, instance.Name, smsg, rev)
+		return err
+	})
+	return
+}
+
+func (q *NatsQueue) getMessagePending(messageName string) (*model.MsgWaiting, uint64, error) {
+	val, err := q.wfMsgWaiting.Get(messageName)
+	if err != nil {
+		return nil, 0, err
+	}
+	pending := &model.MsgWaiting{}
+	if err := proto.Unmarshal(val.Value(), pending); err != nil {
+		return nil, 0, fmt.Errorf("could not unmarshal message proto: %w", err)
+	}
+	return pending, val.Revision(), nil
+}
+
+func (q *NatsQueue) evaluateMessage(ctx context.Context, key string, vars model.Vars, correlate string) (bool, error) {
+	program, err := expr.Compile(key+correlate, expr.Env(vars))
+	if err != nil {
+		q.log.Error("expression compilation error", zap.Error(err), zap.String("expr", key+correlate))
+		return false, err
+	}
+	res, err := expr.Run(program, vars)
+	if err != nil {
+		q.log.Error("expression evaluation error", zap.String("expr", key+correlate), zap.Error(err))
+		return false, err
+	}
+	return res.(bool), nil
+}
+
+func (q *NatsQueue) removePending(ctx context.Context, toDelete []string, key string, msgWaiting *model.MsgWaiting, rev uint64) error {
+	for {
+		removed := make([]*model.WorkflowState, 0, len(msgWaiting.List))
+		for i := 0; i < len(msgWaiting.List); i++ {
+			if stringInSlice(msgWaiting.List[i].TrackingId, toDelete) {
+				continue
+			}
+			removed = append(removed, msgWaiting.List[i])
+		}
+		msgWaiting.List = removed
+		b, err := proto.Marshal(msgWaiting)
+		if err != nil {
+			return err
+		}
+		_, err = q.wfMsgWaiting.Update(key, b, rev)
+		if strings.Index(err.Error(), "wrong last sequence") > -1 {
+			v, err := q.wfMsgWaiting.Get(key)
+			if err == nats.ErrKeyNotFound {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			if err = proto.Unmarshal(v.Value(), msgWaiting); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
 }

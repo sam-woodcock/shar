@@ -791,6 +791,53 @@ func (x *MessageInstance) GetCorrelationKey() string {
 	return ""
 }
 
+type MsgWaiting struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	List []*WorkflowState `protobuf:"bytes,1,rep,name=List,proto3" json:"List,omitempty"`
+}
+
+func (x *MsgWaiting) Reset() {
+	*x = MsgWaiting{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_models_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *MsgWaiting) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MsgWaiting) ProtoMessage() {}
+
+func (x *MsgWaiting) ProtoReflect() protoreflect.Message {
+	mi := &file_models_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MsgWaiting.ProtoReflect.Descriptor instead.
+func (*MsgWaiting) Descriptor() ([]byte, []int) {
+	return file_models_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *MsgWaiting) GetList() []*WorkflowState {
+	if x != nil {
+		return x.List
+	}
+	return nil
+}
+
 var File_models_proto protoreflect.FileDescriptor
 
 var file_models_proto_rawDesc = []byte{
@@ -876,10 +923,13 @@ var file_models_proto_rawDesc = []byte{
 	0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x26,
 	0x0a, 0x0e, 0x63, 0x6f, 0x72, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4b, 0x65, 0x79,
 	0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0e, 0x63, 0x6f, 0x72, 0x72, 0x65, 0x6c, 0x61, 0x74,
-	0x69, 0x6f, 0x6e, 0x4b, 0x65, 0x79, 0x42, 0x29, 0x5a, 0x27, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62,
-	0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x72, 0x79, 0x73, 0x74, 0x61, 0x6c, 0x2d, 0x63, 0x6f, 0x6e,
-	0x73, 0x74, 0x72, 0x75, 0x63, 0x74, 0x2f, 0x73, 0x68, 0x61, 0x72, 0x2f, 0x6d, 0x6f, 0x64, 0x65,
-	0x6c, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x69, 0x6f, 0x6e, 0x4b, 0x65, 0x79, 0x22, 0x30, 0x0a, 0x0a, 0x4d, 0x73, 0x67, 0x57, 0x61, 0x69,
+	0x74, 0x69, 0x6e, 0x67, 0x12, 0x22, 0x0a, 0x04, 0x4c, 0x69, 0x73, 0x74, 0x18, 0x01, 0x20, 0x03,
+	0x28, 0x0b, 0x32, 0x0e, 0x2e, 0x57, 0x6f, 0x72, 0x6b, 0x66, 0x6c, 0x6f, 0x77, 0x53, 0x74, 0x61,
+	0x74, 0x65, 0x52, 0x04, 0x4c, 0x69, 0x73, 0x74, 0x42, 0x29, 0x5a, 0x27, 0x67, 0x69, 0x74, 0x68,
+	0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x72, 0x79, 0x73, 0x74, 0x61, 0x6c, 0x2d, 0x63,
+	0x6f, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74, 0x2f, 0x73, 0x68, 0x61, 0x72, 0x2f, 0x6d, 0x6f,
+	0x64, 0x65, 0x6c, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -894,7 +944,7 @@ func file_models_proto_rawDescGZIP() []byte {
 	return file_models_proto_rawDescData
 }
 
-var file_models_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_models_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_models_proto_goTypes = []interface{}{
 	(*Process)(nil),          // 0: Process
 	(*WorkflowVersions)(nil), // 1: WorkflowVersions
@@ -908,6 +958,7 @@ var file_models_proto_goTypes = []interface{}{
 	(*WorkflowInstance)(nil), // 9: WorkflowInstance
 	(*InstanceState)(nil),    // 10: InstanceState
 	(*MessageInstance)(nil),  // 11: MessageInstance
+	(*MsgWaiting)(nil),       // 12: MsgWaiting
 }
 var file_models_proto_depIdxs = []int32{
 	3, // 0: Process.elements:type_name -> Element
@@ -916,11 +967,12 @@ var file_models_proto_depIdxs = []int32{
 	5, // 3: Element.outbound:type_name -> Targets
 	0, // 4: Element.process:type_name -> Process
 	4, // 5: Targets.target:type_name -> Target
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	8, // 6: MsgWaiting.List:type_name -> WorkflowState
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_models_proto_init() }
@@ -1073,6 +1125,18 @@ func file_models_proto_init() {
 				return nil
 			}
 		}
+		file_models_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*MsgWaiting); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1080,7 +1144,7 @@ func file_models_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_models_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

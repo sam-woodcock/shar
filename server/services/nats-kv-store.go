@@ -17,14 +17,15 @@ import (
 )
 
 type NatsKVStore struct {
-	wf         nats.KeyValue
-	wfVersion  nats.KeyValue
-	wfInstance nats.KeyValue
-	wfTracking nats.KeyValue
-	log        *otelzap.Logger
-	job        nats.KeyValue
-	conn       *nats.Conn
-	js         nats.JetStreamContext
+	wf           nats.KeyValue
+	wfVersion    nats.KeyValue
+	wfInstance   nats.KeyValue
+	wfTracking   nats.KeyValue
+	wfMsgWaiting nats.KeyValue
+	job          nats.KeyValue
+	log          *otelzap.Logger
+	conn         *nats.Conn
+	js           nats.JetStreamContext
 }
 
 func (s *NatsKVStore) ListWorkflows() (chan *model.ListWorkflowResult, chan error) {
@@ -63,7 +64,7 @@ func NewNatsKVStore(log *otelzap.Logger, conn *nats.Conn, storageType nats.Stora
 	if err != nil {
 		return nil, err
 	}
-	if err := ensureBuckets(js, storageType, []string{"WORKFLOW_INSTANCE", "WORKFLOW_TRACKING", "WORKFLOW_DEF", "WORKFLOW_LATEST", "WORKFLOW_JOB", "WORKFLOW_VERSION"}); err != nil {
+	if err := ensureBuckets(js, storageType, []string{"WORKFLOW_INSTANCE", "WORKFLOW_TRACKING", "WORKFLOW_DEF", "WORKFLOW_LATEST", "WORKFLOW_JOB", "WORKFLOW_VERSION", "WORKFLOW_MSGWAITING"}); err != nil {
 		return nil, err
 	}
 	ms := &NatsKVStore{
@@ -98,6 +99,11 @@ func NewNatsKVStore(log *otelzap.Logger, conn *nats.Conn, storageType nats.Stora
 		return nil, err
 	} else {
 		ms.job = kv
+	}
+	if kv, err := js.KeyValue("WORKFLOW_MSGWAITING"); err != nil {
+		return nil, err
+	} else {
+		ms.wfMsgWaiting = kv
 	}
 	return ms, nil
 }
