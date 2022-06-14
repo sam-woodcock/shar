@@ -145,6 +145,10 @@ func (q *NatsQueue) StartProcessing(ctx context.Context) error {
 		q.processTracking(ctx)
 	}()
 
+	go func() {
+		q.processMessages(ctx)
+	}()
+
 	go q.processCompletedJobs(ctx)
 	return nil
 }
@@ -358,73 +362,75 @@ func apiError(code codes.Code, msg any) []byte {
 }
 
 func (q *NatsQueue) processMessages(ctx context.Context) {
-	q.process(ctx, messages.WorkflowMessage, "Message", func(ctx context.Context, msg *nats.Msg) error {
-
-		// Unpack the message Instance
-		instance := &model.MessageInstance{}
-		if err := proto.Unmarshal(msg.Data, instance); err != nil {
-			return fmt.Errorf("could not unmarshal message proto: %w", err)
-		}
-
-		// Get pending receivers for the message
-		smsg, rev, err := q.getMessagePending(instance.Name)
-		if err == nats.ErrKeyNotFound {
-			msg.Ack()
-			return nil
-		}
-
-		// Create a list of messages to delete once satisfied
-		toDelete := make([]string, 0, len(smsg.List))
-
-		// Loop through the list
-		for _, v := range smsg.List {
-			// Get the workflow instance get the workflow
-			wfi := &model.WorkflowInstance{}
-			err := LoadObj(q.wfInstance, v.WorkflowInstanceId, wfi)
-			if err == nats.ErrKeyNotFound {
-				// TODO: This should remove the key, as the workflow has been cancelled
-				continue
-			}
-			if err != nil {
-				return err
-			}
-
-			// Get the workflow so we can cross reference the variable to correlate
-			wf := &model.Process{}
-			err = LoadObj(q.wfDef, wfi.WorkflowId, wf)
-			if err == nats.ErrKeyNotFound {
-				// TODO: This should not happen, as workflow definitions are kept forever
-				panic(err)
-			}
-			if err != nil {
-				err := q.removePending(ctx, toDelete, instance.Name, smsg, rev)
-				return err
-			}
-
-			// Get the correct variable to correlate
-			var exec string
-			for _, m := range wf.Messages {
-				if m.Name == instance.Name {
-					exec = m.Execute
-				}
-			}
-
-			// Evaluate the expression
-			vars := vars.Decode(q.log.Logger, v.Vars)
-			satisfied, err := q.evaluateMessage(ctx, instance.CorrelationKey, vars, exec)
-			if err != nil {
-				err := q.removePending(ctx, toDelete, instance.Name, smsg, rev)
-				return err
-			}
-			if satisfied {
-				// TODO: Launch transition
-				toDelete = append(toDelete, v.TrackingId)
-			}
-		}
-		err = q.removePending(ctx, toDelete, instance.Name, smsg, rev)
-		return err
-	})
+	q.process(ctx, messages.WorkflowMessage, "Message", q.processMessage)
 	return
+}
+
+func (q *NatsQueue) processMessage(ctx context.Context, msg *nats.Msg) error {
+
+	// Unpack the message Instance
+	instance := &model.MessageInstance{}
+	if err := proto.Unmarshal(msg.Data, instance); err != nil {
+		return fmt.Errorf("could not unmarshal message proto: %w", err)
+	}
+
+	// Get pending receivers for the message
+	smsg, rev, err := q.getMessagePending(instance.Name)
+	if err == nats.ErrKeyNotFound {
+		return nil
+	}
+
+	// Create a list of messages to delete once satisfied
+	toDelete := make([]string, 0, len(smsg.List))
+
+	// Loop through the list
+	for _, v := range smsg.List {
+
+		// Get the workflow instance get the workflow
+		wfi := &model.WorkflowInstance{}
+		err := LoadObj(q.wfInstance, v.WorkflowInstanceId, wfi)
+		if err == nats.ErrKeyNotFound {
+			// TODO: This should remove the key, as the workflow has been cancelled
+			continue
+		}
+		if err != nil {
+			return err
+		}
+
+		// Get the workflow so we can cross reference the variable to correlate
+		wf := &model.Process{}
+		err = LoadObj(q.wfDef, wfi.WorkflowId, wf)
+		if err == nats.ErrKeyNotFound {
+			// TODO: This should not happen, as workflow definitions are kept forever
+			panic(err)
+		}
+		if err != nil {
+			err := q.removePending(ctx, toDelete, instance.Name, smsg, rev)
+			return err
+		}
+
+		// Get the correct variable to correlate
+		var exec string
+		for _, m := range wf.Messages {
+			if m.Name == instance.Name {
+				exec = m.Execute
+			}
+		}
+
+		// Evaluate the expression
+		vars := vars.Decode(q.log, v.Vars)
+		satisfied, err := q.evaluateMessage(ctx, instance.CorrelationKey, vars, exec)
+		if err != nil {
+			err := q.removePending(ctx, toDelete, instance.Name, smsg, rev)
+			return err
+		}
+		if satisfied {
+			// TODO: Launch transition
+			toDelete = append(toDelete, v.TrackingId)
+		}
+	}
+	err = q.removePending(ctx, toDelete, instance.Name, smsg, rev)
+	return err
 }
 
 func (q *NatsQueue) getMessagePending(messageName string) (*model.MsgWaiting, uint64, error) {
@@ -490,4 +496,8 @@ func stringInSlice(a string, list []string) bool {
 		}
 	}
 	return false
+}
+
+func (q *NatsQueue) Shutdown() {
+	close(q.closing)
 }

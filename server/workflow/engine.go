@@ -30,11 +30,12 @@ type Engine struct {
 }
 
 // NewEngine returns an instance of the core workflow engine.
-func NewEngine(store services.Storage, queue services.Queue) (*Engine, error) {
+func NewEngine(log *zap.Logger, store services.Storage, queue services.Queue) (*Engine, error) {
 	e := &Engine{
 		store:   store,
 		queue:   queue,
 		closing: make(chan struct{}),
+		log:     log,
 	}
 	return e, nil
 }
@@ -255,14 +256,7 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 		WorkflowInstanceId: wfiId,
 		Vars:               vars,
 	}); err != nil {
-		return c.engineErr(ctx, "failed to publish workflow state", err,
-			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-			zap.String(keys.WorkflowID, wfi.WorkflowId),
-			zap.String(keys.ElementID, el.Id),
-			zap.String(keys.ElementName, el.Name),
-			zap.String(keys.ElementType, el.Type),
-			zap.String(keys.WorkflowName, process.Name),
-		)
+		return c.engineErr(ctx, "failed to publish workflow state", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 	}
 	if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowTraversalComplete, &model.WorkflowState{
 		ElementType:        el.Type,
@@ -271,14 +265,7 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 		TrackingId:         trackingId,
 		Vars:               vars,
 	}); err != nil {
-		return c.engineErr(ctx, "failed to publish workflow state", err,
-			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-			zap.String(keys.WorkflowID, wfi.WorkflowId),
-			zap.String(keys.ElementID, el.Id),
-			zap.String(keys.ElementName, el.Name),
-			zap.String(keys.ElementType, el.Type),
-			zap.String(keys.WorkflowName, process.Name),
-		)
+		return c.engineErr(ctx, "failed to publish workflow state", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 	}
 
 	var workflowComplete bool
@@ -286,83 +273,37 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 	switch el.Type {
 	case "serviceTask":
 		if err := c.startJob(ctx, messages.WorkflowJobServiceTaskExecute, wfiId, el, vars); err != nil {
-			return c.engineErr(ctx, "failed to start job", err,
-				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-				zap.String(keys.WorkflowID, wfi.WorkflowId),
-				zap.String(keys.ElementID, el.Id),
-				zap.String(keys.ElementName, el.Name),
-				zap.String(keys.ElementType, el.Type),
-				zap.String(keys.WorkflowName, process.Name),
-			)
+			return c.engineErr(ctx, "failed to start job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "userTask":
 		if err := c.startJob(ctx, messages.WorkflowJobUserTaskExecute, wfiId, el, vars); err != nil {
-			return c.engineErr(ctx, "failed to start job", err,
-				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-				zap.String(keys.WorkflowID, wfi.WorkflowId),
-				zap.String(keys.ElementID, el.Id),
-				zap.String(keys.ElementName, el.Name),
-				zap.String(keys.ElementType, el.Type),
-				zap.String(keys.WorkflowName, process.Name),
-			)
+			return c.engineErr(ctx, "failed to start job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "manualTask":
 		if err := c.startJob(ctx, messages.WorkflowJobManualTaskExecute, wfiId, el, vars); err != nil {
-			return c.engineErr(ctx, "failed to start job", err,
-				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-				zap.String(keys.WorkflowID, wfi.WorkflowId),
-				zap.String(keys.ElementID, el.Id),
-				zap.String(keys.ElementName, el.Name),
-				zap.String(keys.ElementType, el.Type),
-				zap.String(keys.WorkflowName, process.Name),
-			)
+			return c.engineErr(ctx, "failed to start job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "callActivity":
 		if _, err := c.launch(ctx, el.Execute, vars, wfiId, el.Id); err != nil {
-			return c.engineErr(ctx, "failed to launch child workflow", err,
-				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-				zap.String(keys.WorkflowID, wfi.WorkflowId),
-				zap.String(keys.ElementID, el.Id),
-				zap.String(keys.ElementName, el.Name),
-				zap.String(keys.ElementType, el.Type),
-				zap.String(keys.WorkflowName, process.Name),
-			)
+			return c.engineErr(ctx, "failed to launch child workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
+		}
+	case "intermediateCatchEvent":
+		if err := c.awaitMessage(ctx, wfiId, el, vars); err != nil {
+			return c.engineErr(ctx, "failed to awaait message", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "endEvent":
 		if wfi.ParentWorkflowInstanceId != "" {
 			if err := c.returnBack(ctx, wfi.WorkflowInstanceId, wfi.ParentWorkflowInstanceId, wfi.ParentElementId, vars); err != nil {
-				return c.engineErr(ctx, "failed to return to originator workflow", err,
-					zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-					zap.String(keys.WorkflowID, wfi.WorkflowId),
-					zap.String(keys.ElementID, el.Id),
-					zap.String(keys.ElementName, el.Name),
-					zap.String(keys.ElementType, el.Type),
-					zap.String(keys.WorkflowName, process.Name),
-					zap.String(keys.ParentWorkflowInstanceId, wfi.ParentWorkflowInstanceId),
-				)
+				return c.engineErr(ctx, "failed to return to originator workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name, zap.String(keys.ParentWorkflowInstanceId, wfi.ParentWorkflowInstanceId))...)
 			}
 		}
 		if err := c.cleanup(ctx, wfi.WorkflowInstanceId); err != nil {
-			return c.engineErr(ctx, "failed to return to remove workflow instance", err,
-				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-				zap.String(keys.WorkflowID, wfi.WorkflowId),
-				zap.String(keys.ElementID, el.Id),
-				zap.String(keys.ElementName, el.Name),
-				zap.String(keys.ElementType, el.Type),
-				zap.String(keys.WorkflowName, process.Name),
-			)
+			return c.engineErr(ctx, "failed to return to remove workflow instance", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 		workflowComplete = true
 	default:
 		if err := c.traverse(ctx, wfi, el.Outbound, els, vars); err != nil {
-			return c.engineErr(ctx, "failed to return to traverse", err,
-				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-				zap.String(keys.WorkflowID, wfi.WorkflowId),
-				zap.String(keys.ElementID, el.Id),
-				zap.String(keys.ElementName, el.Name),
-				zap.String(keys.ElementType, el.Type),
-				zap.String(keys.WorkflowName, process.Name),
-			)
+			return c.engineErr(ctx, "failed to return to traverse", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	}
 	if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowActivityComplete, &model.WorkflowState{
@@ -371,14 +312,7 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 		WorkflowInstanceId: wfiId,
 		Vars:               vars,
 	}); err != nil {
-		return c.engineErr(ctx, "failed to publish workflow state", err,
-			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-			zap.String(keys.WorkflowID, wfi.WorkflowId),
-			zap.String(keys.ElementID, el.Id),
-			zap.String(keys.ElementName, el.Name),
-			zap.String(keys.ElementType, el.Type),
-			zap.String(keys.WorkflowName, process.Name),
-		)
+		return c.engineErr(ctx, "failed to publish workflow state", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 	}
 
 	if workflowComplete {
@@ -388,17 +322,25 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 			WorkflowInstanceId: wfiId,
 			Vars:               vars,
 		}); err != nil {
-			return c.engineErr(ctx, "failed to publish workflow state", err,
-				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-				zap.String(keys.WorkflowID, wfi.WorkflowId),
-				zap.String(keys.ElementID, el.Id),
-				zap.String(keys.ElementName, el.Name),
-				zap.String(keys.ElementType, el.Type),
-				zap.String(keys.WorkflowName, process.Name),
-			)
+			return c.engineErr(ctx, "failed to publish workflow state", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	}
 	return nil
+}
+
+func apErrFields(workflowInstanceID, workflowID, elementID, elementName, elementType, workflowName string, extraFields ...zap.Field) []zap.Field {
+	fields := []zap.Field{
+		zap.String(keys.WorkflowInstanceID, workflowInstanceID),
+		zap.String(keys.WorkflowID, workflowID),
+		zap.String(keys.ElementID, elementID),
+		zap.String(keys.ElementName, elementName),
+		zap.String(keys.ElementType, elementType),
+		zap.String(keys.WorkflowName, workflowName),
+	}
+	if len(extraFields) > 0 {
+		fields = append(fields, extraFields...)
+	}
+	return fields
 }
 
 func (c *Engine) returnBack(ctx context.Context, wfiID string, parentWfiID string, parentElID string, vars []byte) error {
@@ -539,10 +481,37 @@ func (c *Engine) Shutdown() {
 		return
 	default:
 		close(c.closing)
+		c.queue.Shutdown()
+		c.store.Shutdown()
 		return
 	}
 }
 
 func (c *Engine) CancelWorkflowInstance(ctx context.Context, id string) error {
 	return c.store.DestroyWorkflowInstance(ctx, id)
+}
+
+func (c *Engine) awaitMessage(ctx context.Context, wfiId string, el *model.Element, vars []byte) error {
+	trackingId := ksuid.New().String()
+	awaitMsg := &model.WorkflowState{
+		WorkflowInstanceId: wfiId,
+		ElementId:          el.Id,
+		ElementType:        el.Type,
+		TrackingId:         trackingId,
+		Execute:            el.Execute,
+		Vars:               vars,
+	}
+	err := c.store.AwaitMsg(ctx, el.Msg, awaitMsg)
+
+	if err != nil {
+		return c.engineErr(ctx, "failed to await message", err,
+			zap.String(keys.ElementName, el.Name),
+			zap.String(keys.ElementID, el.Id),
+			zap.String(keys.ElementType, el.Type),
+			zap.String(keys.JobType, awaitMsg.ElementType),
+			zap.String(keys.WorkflowInstanceID, wfiId),
+			zap.String(keys.Execute, awaitMsg.Execute),
+		)
+	}
+	return nil
 }

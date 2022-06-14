@@ -328,3 +328,15 @@ func (s *NatsKVStore) GetWorkflowInstanceStatus(id string) (*model.WorkflowInsta
 	}
 	return &model.WorkflowInstanceStatus{State: []*model.WorkflowState{v}}, nil
 }
+
+func (s *NatsKVStore) AwaitMsg(ctx context.Context, name string, state *model.WorkflowState) error {
+	return UpdateObj(s.wfMsgWaiting, name, &model.MsgWaiting{}, func(v proto.Message) (proto.Message, error) {
+		mw := v.(*model.MsgWaiting)
+		mw.List = append(mw.List, state)
+		return mw, nil
+	})
+}
+
+func (s *NatsKVStore) Shutdown() {
+
+}

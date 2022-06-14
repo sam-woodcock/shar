@@ -87,7 +87,7 @@ func (s *Server) Shutdown(ctx context.Context) {
 	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
 	s.grpcServer.GracefulStop()
 	s.api.Shutdown()
-	s.log.Info("shar grpc stopped")
+	s.log.Info("shar grpc health stopped")
 }
 
 func (s *Server) createServices(natsURL string, log *zap.Logger) (*services.NatsKVStore, *services.NatsQueue) {

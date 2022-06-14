@@ -28,6 +28,7 @@ type Storage interface {
 	ListWorkflows() (chan *model.ListWorkflowResult, chan error)
 	GetWorkflowInstanceStatus(id string) (*model.WorkflowInstanceStatus, error)
 	Shutdown()
+	AwaitMsg(ctx context.Context, name string, state *model.WorkflowState) error
 }
 
 type EventProcessorFunc func(ctx context.Context, workflowInstanceId, elementId, traversalId string, vars []byte) error

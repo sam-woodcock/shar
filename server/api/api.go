@@ -22,7 +22,7 @@ type SharServer struct {
 }
 
 func New(log *zap.Logger, store services.Storage, queue services.Queue) (*SharServer, error) {
-	engine, err := workflow.NewEngine(store, queue)
+	engine, err := workflow.NewEngine(log, store, queue)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +116,7 @@ var shutdownOnce sync.Once
 func (s *SharServer) Shutdown() {
 	shutdownOnce.Do(func() {
 		s.engine.Shutdown()
+		s.log.Info("shar api listener stopped")
 	})
 }
 
