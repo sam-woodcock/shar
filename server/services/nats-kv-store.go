@@ -11,7 +11,6 @@ import (
 	"github.com/crystal-construct/shar/server/services/natsutil"
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
@@ -23,7 +22,7 @@ type NatsKVStore struct {
 	wfTracking   nats.KeyValue
 	wfMsgWaiting nats.KeyValue
 	job          nats.KeyValue
-	log          *otelzap.Logger
+	log          *zap.Logger
 	conn         *nats.Conn
 	js           nats.JetStreamContext
 }
@@ -59,7 +58,7 @@ func (s *NatsKVStore) ListWorkflows() (chan *model.ListWorkflowResult, chan erro
 	return res, errs
 }
 
-func NewNatsKVStore(log *otelzap.Logger, conn *nats.Conn, storageType nats.StorageType) (*NatsKVStore, error) {
+func NewNatsKVStore(log *zap.Logger, conn *nats.Conn, storageType nats.StorageType) (*NatsKVStore, error) {
 	js, err := conn.JetStream()
 	if err != nil {
 		return nil, err

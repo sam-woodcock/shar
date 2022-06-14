@@ -27,6 +27,7 @@ type Storage interface {
 	ListWorkflowInstance(workflowId string) (chan *model.ListWorkflowInstanceResult, chan error)
 	ListWorkflows() (chan *model.ListWorkflowResult, chan error)
 	GetWorkflowInstanceStatus(id string) (*model.WorkflowInstanceStatus, error)
+	Shutdown()
 }
 
 type EventProcessorFunc func(ctx context.Context, workflowInstanceId, elementId, traversalId string, vars []byte) error
@@ -42,4 +43,5 @@ type Queue interface {
 	PublishJob(ctx context.Context, stateName string, element *model.Element, message *model.WorkflowState) error
 	Conn() *nats.Conn
 	PublishMessage(ctx context.Context, name string, key string) error
+	Shutdown()
 }

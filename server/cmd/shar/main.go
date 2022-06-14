@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/crystal-construct/shar/server/config"
 	"github.com/crystal-construct/shar/server/server"
+	"go.uber.org/zap"
 	"log"
 )
 
@@ -12,6 +13,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	svr := server.New()
+	log, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+	svr := server.New(log)
 	svr.Listen(cfg.NatsURL, cfg.Port)
 }

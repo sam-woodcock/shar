@@ -288,7 +288,7 @@ func callAPI[T proto.Message, U proto.Message](ctx context.Context, con *nats.Co
 	if err != nil {
 		return err
 	}
-	if len(res.Data) > 4 && string(res.Data[0:3]) == "ERR_" {
+	if len(res.Data) > 4 && string(res.Data[0:4]) == "ERR_" {
 		em := strings.Split(string(res.Data), "_")
 		e := strings.Split(em[1], "|")
 		i, err := strconv.Atoi(e[0])

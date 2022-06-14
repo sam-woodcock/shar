@@ -10,7 +10,6 @@ import (
 	"github.com/crystal-construct/shar/server/vars"
 	"github.com/crystal-construct/shar/telemetry/ctxutil"
 	"github.com/nats-io/nats.go"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -24,7 +23,7 @@ type NatsQueue struct {
 	con                       *nats.Conn
 	eventProcessor            EventProcessorFunc
 	eventJobCompleteProcessor CompleteJobProcessorFunc
-	log                       *otelzap.Logger
+	log                       *zap.Logger
 	storageType               nats.StorageType
 	concurrency               int
 	tracer                    trace.Tracer
@@ -35,7 +34,7 @@ type NatsQueue struct {
 	wfDef                     nats.KeyValue
 }
 
-func NewNatsQueue(log *otelzap.Logger, conn *nats.Conn, storageType nats.StorageType, concurrency int) (*NatsQueue, error) {
+func NewNatsQueue(log *zap.Logger, conn *nats.Conn, storageType nats.StorageType, concurrency int) (*NatsQueue, error) {
 	if concurrency < 1 || concurrency > 200 {
 		return nil, errors.New("invalid concurrency set")
 	}
@@ -234,7 +233,7 @@ func (q *NatsQueue) process(ctx context.Context, subject string, durable string,
 		go func() {
 			sub, err := q.js.PullSubscribe(subject, durable)
 			if err != nil {
-				q.log.Ctx(ctx).Error("process pull subscribe error", zap.Error(err), zap.String("subject", subject))
+				q.log.Error("process pull subscribe error", zap.Error(err), zap.String("subject", subject))
 				return
 			}
 			for {
@@ -251,17 +250,17 @@ func (q *NatsQueue) process(ctx context.Context, subject string, durable string,
 						continue
 					}
 					// Log Error
-					q.log.Ctx(ctx).Error("message fetch error", zap.Error(err))
+					q.log.Error("message fetch error", zap.Error(err))
 					cancel()
 					return
 				}
 				executeCtx := ctxutil.LoadContextFromNATSHeader(ctx, msg[0])
 				err = fn(executeCtx, msg[0])
 				if err != nil {
-					q.log.Ctx(executeCtx).Error("processing error", zap.Error(err))
+					q.log.Error("processing error", zap.Error(err))
 				}
 				if err := msg[0].Ack(); err != nil {
-					q.log.Ctx(executeCtx).Error("processing failed to ack", zap.Error(err))
+					q.log.Error("processing failed to ack", zap.Error(err))
 				}
 
 				cancel()

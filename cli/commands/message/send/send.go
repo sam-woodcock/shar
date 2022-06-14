@@ -31,5 +31,4 @@ func run(cmd *cobra.Command, args []string) error {
 
 func init() {
 	Cmd.Flags().StringVarP(&flag.Value.CorrelationKey, flag.CorrelationKey, flag.CorrelationKeyShort, "", "a correlation key for the message")
-
 }
