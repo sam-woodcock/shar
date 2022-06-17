@@ -17,7 +17,7 @@ const (
 	WorkflowActivityComplete       = "WORKFLOW.State.Activity.Complete"
 	WorkflowTraversalExecute       = "WORKFLOW.State.Traversal.Execute"
 	WorkflowTraversalComplete      = "WORKFLOW.State.Traversal.Complete"
-	WorkflowMessage                = "WORKFLOW.Message"
+	WorkflowMessage                = "WORKFLOW.Message.>"
 )
 
 const (
@@ -47,3 +47,12 @@ var AllMessages = []string{
 	WorkflowMessage,
 	ApiAll,
 }
+
+var (
+	KvMessageSubs = "WORKFLOW_MSGWAITING"
+	KvJob         = "WORKFLOW_JOB"
+	KvVersion     = "WORKFLOW_VERSION"
+	KvDefinition  = "WORKFLOW_DEF"
+	KvTracking    = "WORKFLOW_TRACKING"
+	KvInstance    = "WORKFLOW_INSTANCE"
+)

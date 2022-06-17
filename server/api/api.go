@@ -16,13 +16,12 @@ import (
 type SharServer struct {
 	log    *zap.Logger
 	health *health.Checker
-	store  services.Storage
-	queue  services.Queue
+	ns     *services.NatsService
 	engine *workflow.Engine
 }
 
-func New(log *zap.Logger, store services.Storage, queue services.Queue) (*SharServer, error) {
-	engine, err := workflow.NewEngine(log, store, queue)
+func New(log *zap.Logger, ns *services.NatsService) (*SharServer, error) {
+	engine, err := workflow.NewEngine(log, ns)
 	if err != nil {
 		return nil, err
 	}
@@ -31,14 +30,13 @@ func New(log *zap.Logger, store services.Storage, queue services.Queue) (*SharSe
 	}
 	return &SharServer{
 		log:    log,
-		store:  store,
-		queue:  queue,
+		ns:     ns,
 		engine: engine,
 	}, nil
 }
 
-func (s *SharServer) storeWorkflow(ctx context.Context, process *model.Process) (*wrappers.StringValue, error) {
-	res, err := s.engine.LoadWorkflow(ctx, process)
+func (s *SharServer) storeWorkflow(ctx context.Context, wf *model.Workflow) (*wrappers.StringValue, error) {
+	res, err := s.engine.LoadWorkflow(ctx, wf)
 	return &wrappers.StringValue{Value: res}, err
 }
 func (s *SharServer) launchWorkflow(ctx context.Context, req *model.LaunchWorkflowRequest) (*wrappers.StringValue, error) {
@@ -55,7 +53,7 @@ func (s *SharServer) cancelWorkflowInstance(ctx context.Context, req *model.Canc
 }
 
 func (s *SharServer) listWorkflowInstance(ctx context.Context, req *model.ListWorkflowInstanceRequest) (*model.ListWorkflowInstanceResponse, error) {
-	wch, errs := s.store.ListWorkflowInstance(req.WorkflowName)
+	wch, errs := s.ns.ListWorkflowInstance(req.WorkflowName)
 	ret := make([]*model.ListWorkflowInstanceResult, 0)
 	var done bool
 	for !done {
@@ -75,7 +73,7 @@ func (s *SharServer) listWorkflowInstance(ctx context.Context, req *model.ListWo
 	return &model.ListWorkflowInstanceResponse{Result: ret}, nil
 }
 func (s *SharServer) getWorkflowInstanceStatus(ctx context.Context, req *model.GetWorkflowInstanceStatusRequest) (*model.WorkflowInstanceStatus, error) {
-	res, err := s.store.GetWorkflowInstanceStatus(req.Id)
+	res, err := s.ns.GetWorkflowInstanceStatus(req.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +81,7 @@ func (s *SharServer) getWorkflowInstanceStatus(ctx context.Context, req *model.G
 }
 
 func (s *SharServer) listWorkflows(ctx context.Context, p *empty.Empty) (*model.ListWorkflowsResponse, error) {
-	res, errs := s.store.ListWorkflows()
+	res, errs := s.ns.ListWorkflows()
 	ret := make([]*model.ListWorkflowResult, 0)
 	var done bool
 	for !done {
@@ -105,7 +103,7 @@ func (s *SharServer) listWorkflows(ctx context.Context, p *empty.Empty) (*model.
 }
 
 func (s *SharServer) sendMessage(ctx context.Context, req *model.SendMessageRequest) (*empty.Empty, error) {
-	if err := s.queue.PublishMessage(ctx, req.Name, req.Key); err != nil {
+	if err := s.ns.PublishMessage(ctx, req.Name, req.Key); err != nil {
 		return nil, err
 	}
 	return &empty.Empty{}, nil
@@ -121,9 +119,9 @@ func (s *SharServer) Shutdown() {
 }
 
 func (s *SharServer) Listen() error {
-	con := s.queue.Conn()
+	con := s.ns.Conn()
 	log := s.log
-	_, err := services.Listen(con, log, messages.ApiStoreWorkflow, &model.Process{}, s.storeWorkflow)
+	_, err := services.Listen(con, log, messages.ApiStoreWorkflow, &model.Workflow{}, s.storeWorkflow)
 	if err != nil {
 		return err
 	}

@@ -32,7 +32,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, b); err != nil {
+	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, "WorkflowDemo", b); err != nil {
 		panic(err)
 	}
 

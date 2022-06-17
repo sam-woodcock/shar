@@ -11,33 +11,39 @@ import (
 //goland:noinspection HttpUrlsUsage
 const bpmnNS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 
-func Parse(rdr io.Reader) (*model.Process, error) {
+func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 	msgs := make(map[string]string)
-	pr := &model.Process{
-		Elements: make([]*model.Element, 0),
-	}
-
 	doc, err := xmlquery.Parse(rdr)
 	if err != nil {
 		return nil, err
 	}
-	prXml := doc.SelectElements("//bpmn:process")[0]
-	msgXml := doc.SelectElements("//bpmn:message")
-	pr.Name = prXml.SelectAttr("id")
-	parseProcess(doc, prXml, pr, msgXml, msgs)
-	return pr, nil
+	prXmls := doc.SelectElements("//bpmn:process")
+	wf := &model.Workflow{
+		Name:    name,
+		Process: make(map[string]*model.Process, len(prXmls)),
+	}
+	for _, prXml := range prXmls {
+		pr := &model.Process{
+			Elements: make([]*model.Element, 0),
+		}
+		msgXml := doc.SelectElements("//bpmn:message")
+		pr.Name = prXml.SelectAttr("id")
+		parseProcess(doc, wf, prXml, pr, msgXml, msgs)
+		wf.Process[pr.Name] = pr
+	}
+	return wf, nil
 }
 
-func parseProcess(doc *xmlquery.Node, prXml *xmlquery.Node, pr *model.Process, msgXml []*xmlquery.Node, msgs map[string]string) {
+func parseProcess(doc *xmlquery.Node, wf *model.Workflow, prXml *xmlquery.Node, pr *model.Process, msgXml []*xmlquery.Node, msgs map[string]string) {
 	for _, i := range prXml.SelectElements("*") {
-		parseElements(doc, pr, i, msgs)
+		parseElements(doc, wf, pr, i, msgs)
 	}
 	if msgXml != nil {
-		parseMessages(doc, pr, msgXml, msgs)
+		parseMessages(doc, wf, pr, msgXml, msgs)
 	}
 }
 
-func parseMessages(doc *xmlquery.Node, pr *model.Process, msgNodes []*xmlquery.Node, msgs map[string]string) {
+func parseMessages(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, msgNodes []*xmlquery.Node, msgs map[string]string) {
 	m := make([]*model.Element, len(msgNodes))
 	for i, x := range msgNodes {
 		m[i] = &model.Element{
@@ -47,10 +53,10 @@ func parseMessages(doc *xmlquery.Node, pr *model.Process, msgNodes []*xmlquery.N
 		msgs[m[i].Id] = m[i].Name
 		parseExtensions(doc, m[i], x)
 	}
-	pr.Messages = m
+	wf.Messages = m
 }
 
-func parseElements(doc *xmlquery.Node, pr *model.Process, i *xmlquery.Node, msgs map[string]string) {
+func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i *xmlquery.Node, msgs map[string]string) {
 	if i.NamespaceURI == bpmnNS {
 		el := &model.Element{Type: i.Data}
 		if i.Data == "sequenceFlow" || i.Data == "incoming" || i.Data == "outgoing" || i.Data == "extensionElements" {
@@ -60,7 +66,7 @@ func parseElements(doc *xmlquery.Node, pr *model.Process, i *xmlquery.Node, msgs
 		parseFlowInOut(doc, i, el)
 		parseDocumentation(i, el)
 		parseExtensions(doc, el, i)
-		parseSubprocess(doc, el, i, msgs)
+		parseSubprocess(doc, wf, el, i, msgs)
 		parseSubscription(el, i, msgs)
 		pr.Elements = append(pr.Elements, el)
 	}
@@ -73,12 +79,12 @@ func parseSubscription(el *model.Element, i *xmlquery.Node, msgs map[string]stri
 	}
 }
 
-func parseSubprocess(doc *xmlquery.Node, el *model.Element, i *xmlquery.Node, msgs map[string]string) {
+func parseSubprocess(doc *xmlquery.Node, wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string) {
 	if i.Data == "subProcess" {
 		pr := &model.Process{
 			Elements: make([]*model.Element, 0),
 		}
-		parseProcess(doc, i, pr, nil, msgs)
+		parseProcess(doc, wf, i, pr, nil, msgs)
 		el.Process = pr
 	}
 }

@@ -21,19 +21,17 @@ import (
 type Engine struct {
 	con     *nats.Conn
 	js      nats.JetStreamContext
-	queue   services.Queue
-	store   services.Storage
 	log     *zap.Logger
 	closing chan struct{}
 	closed  chan struct{}
 	mx      sync.Mutex
+	ns      *services.NatsService
 }
 
 // NewEngine returns an instance of the core workflow engine.
-func NewEngine(log *zap.Logger, store services.Storage, queue services.Queue) (*Engine, error) {
+func NewEngine(log *zap.Logger, ns *services.NatsService) (*Engine, error) {
 	e := &Engine{
-		store:   store,
-		queue:   queue,
+		ns:      ns,
 		closing: make(chan struct{}),
 		log:     log,
 	}
@@ -42,14 +40,14 @@ func NewEngine(log *zap.Logger, store services.Storage, queue services.Queue) (*
 
 // Start sets up the activity and job processors and starts the engine processing workflows.
 func (c *Engine) Start(ctx context.Context) error {
-	c.queue.SetEventProcessor(c.activityProcessor)
-	c.queue.SetCompleteJobProcessor(c.completeJobProcessor)
-	return c.queue.StartProcessing(ctx)
+	c.ns.SetEventProcessor(c.activityProcessor)
+	c.ns.SetCompleteJobProcessor(c.completeJobProcessor)
+	return c.ns.StartProcessing(ctx)
 }
 
 // LoadWorkflow loads a model.Process describing a workflow into the engine ready for execution.
-func (c *Engine) LoadWorkflow(ctx context.Context, model *model.Process) (string, error) {
-	wfId, err := c.store.StoreWorkflow(ctx, model)
+func (c *Engine) LoadWorkflow(ctx context.Context, model *model.Workflow) (string, error) {
+	wfId, err := c.ns.StoreWorkflow(ctx, model)
 	if err != nil {
 		return "", err
 	}
@@ -69,7 +67,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 	default:
 	}
 
-	wfId, err := c.store.GetLatestVersion(ctx, workflowName)
+	wfId, err := c.ns.GetLatestVersion(ctx, workflowName)
 	if err != nil {
 		return "", c.engineErr(ctx, "failed to get latest version of workflow", err,
 			zap.String(keys.ParentInstanceElementId, parentElID),
@@ -78,7 +76,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 		)
 	}
 
-	wf, err := c.store.GetWorkflow(ctx, wfId)
+	wf, err := c.ns.GetWorkflow(ctx, wfId)
 	if err != nil {
 		return "", c.engineErr(ctx, "failed to get workflow", err,
 			zap.String(keys.ParentInstanceElementId, parentElID),
@@ -87,7 +85,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 			zap.String(keys.WorkflowID, wfId),
 		)
 	}
-	wfi, err := c.store.CreateWorkflowInstance(ctx, &model.WorkflowInstance{WorkflowId: wfId, ParentWorkflowInstanceId: parentWfiID, ParentElementId: parentElID})
+	wfi, err := c.ns.CreateWorkflowInstance(ctx, &model.WorkflowInstance{WorkflowId: wfId, ParentWorkflowInstanceId: parentWfiID, ParentElementId: parentElID})
 	if err != nil {
 		return "", c.engineErr(ctx, "failed to create workflow instance", err,
 			zap.String(keys.ParentInstanceElementId, parentElID),
@@ -100,11 +98,12 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 	els := elementTable(wf)
 	errs := make(chan error)
 	wg := sync.WaitGroup{}
-	forEachStartElement(wf.Elements, func(el *model.Element) {
+	forEachStartElement(wf, func(el *model.Element) {
 		wg.Add(1)
 
-		if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowInstanceExecute, &model.WorkflowState{
+		if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowInstanceExecute, &model.WorkflowState{
 			WorkflowInstanceId: wfi.WorkflowInstanceId,
+			WorkflowId:         wfId,
 			ElementId:          el.Id,
 			ElementType:        el.Type,
 			Vars:               nil,
@@ -163,10 +162,12 @@ func (c *Engine) decodeVars(ctx context.Context, vars []byte) model.Vars {
 }
 
 // forEachStartElement finds all start elements for a given process and executes a function on the element.
-func forEachStartElement(els []*model.Element, fn func(element *model.Element)) {
-	for _, i := range els {
-		if i.Type == "startEvent" {
-			fn(i)
+func forEachStartElement(wf *model.Workflow, fn func(element *model.Element)) {
+	for _, pr := range wf.Process {
+		for _, i := range pr.Elements {
+			if i.Type == "startEvent" {
+				fn(i)
+			}
 		}
 	}
 }
@@ -202,9 +203,10 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, outb
 		trackingId := ksuid.New().String()
 		// If the conditions passed commit a traversal
 		if ok {
-			if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowTraversalExecute, &model.WorkflowState{
+			if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowTraversalExecute, &model.WorkflowState{
 				ElementType:        el[t.Target].Type,
 				ElementId:          t.Target,
+				WorkflowId:         wfi.WorkflowId,
 				WorkflowInstanceId: wfi.WorkflowInstanceId,
 				TrackingId:         trackingId,
 				Vars:               vars,
@@ -231,7 +233,7 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 	default:
 	}
 
-	wfi, err := c.store.GetWorkflowInstance(ctx, wfiId)
+	wfi, err := c.ns.GetWorkflowInstance(ctx, wfiId)
 	if err == errors.ErrWorkflowInstanceNotFound {
 
 		c.log.Warn("workflow instance not found, cancelling activity", zap.Error(err), zap.String(keys.WorkflowInstanceID, wfiId))
@@ -241,7 +243,7 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
 		)
 	}
-	process, err := c.store.GetWorkflow(ctx, wfi.WorkflowId)
+	process, err := c.ns.GetWorkflow(ctx, wfi.WorkflowId)
 	if err != nil {
 		return c.engineErr(ctx, "failed to get workflow", err,
 			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
@@ -250,17 +252,19 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 	}
 	els := elementTable(process)
 	el := els[elementId]
-	if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowActivityExecute, &model.WorkflowState{
+	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowActivityExecute, &model.WorkflowState{
 		ElementType:        el.Type,
 		ElementId:          elementId,
 		WorkflowInstanceId: wfiId,
+		WorkflowId:         wfi.WorkflowId,
 		Vars:               vars,
 	}); err != nil {
 		return c.engineErr(ctx, "failed to publish workflow state", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 	}
-	if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowTraversalComplete, &model.WorkflowState{
+	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowTraversalComplete, &model.WorkflowState{
 		ElementType:        el.Type,
 		ElementId:          elementId,
+		WorkflowId:         wfi.WorkflowId,
 		WorkflowInstanceId: wfiId,
 		TrackingId:         trackingId,
 		Vars:               vars,
@@ -272,15 +276,15 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 
 	switch el.Type {
 	case "serviceTask":
-		if err := c.startJob(ctx, messages.WorkflowJobServiceTaskExecute, wfiId, el, vars); err != nil {
+		if err := c.startJob(ctx, messages.WorkflowJobServiceTaskExecute, wfi.WorkflowId, wfiId, el, vars); err != nil {
 			return c.engineErr(ctx, "failed to start job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "userTask":
-		if err := c.startJob(ctx, messages.WorkflowJobUserTaskExecute, wfiId, el, vars); err != nil {
+		if err := c.startJob(ctx, messages.WorkflowJobUserTaskExecute, wfi.WorkflowId, wfiId, el, vars); err != nil {
 			return c.engineErr(ctx, "failed to start job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "manualTask":
-		if err := c.startJob(ctx, messages.WorkflowJobManualTaskExecute, wfiId, el, vars); err != nil {
+		if err := c.startJob(ctx, messages.WorkflowJobManualTaskExecute, wfi.WorkflowId, wfiId, el, vars); err != nil {
 			return c.engineErr(ctx, "failed to start job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "callActivity":
@@ -288,7 +292,7 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 			return c.engineErr(ctx, "failed to launch child workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "intermediateCatchEvent":
-		if err := c.awaitMessage(ctx, wfiId, el, vars); err != nil {
+		if err := c.awaitMessage(ctx, wfi.WorkflowId, wfiId, el, vars); err != nil {
 			return c.engineErr(ctx, "failed to awaait message", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "endEvent":
@@ -306,9 +310,10 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 			return c.engineErr(ctx, "failed to return to traverse", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	}
-	if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowActivityComplete, &model.WorkflowState{
+	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowActivityComplete, &model.WorkflowState{
 		ElementType:        el.Type,
 		ElementId:          elementId,
+		WorkflowId:         wfi.WorkflowId,
 		WorkflowInstanceId: wfiId,
 		Vars:               vars,
 	}); err != nil {
@@ -316,9 +321,10 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 	}
 
 	if workflowComplete {
-		if err := c.queue.PublishWorkflowState(ctx, messages.WorkflowInstanceComplete, &model.WorkflowState{
+		if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowInstanceComplete, &model.WorkflowState{
 			ElementType:        el.Type,
 			ElementId:          elementId,
+			WorkflowId:         wfi.WorkflowId,
 			WorkflowInstanceId: wfiId,
 			Vars:               vars,
 		}); err != nil {
@@ -344,14 +350,14 @@ func apErrFields(workflowInstanceID, workflowID, elementID, elementName, element
 }
 
 func (c *Engine) returnBack(ctx context.Context, wfiID string, parentWfiID string, parentElID string, vars []byte) error {
-	pwfi, err := c.store.GetWorkflowInstance(ctx, parentWfiID)
+	pwfi, err := c.ns.GetWorkflowInstance(ctx, parentWfiID)
 	if err == errors.ErrWorkflowInstanceNotFound {
 		c.log.Warn("parent workflow instance not found, cancelling return to caller", zap.Error(err), zap.String(keys.ParentWorkflowInstanceId, parentWfiID))
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("failed to fetch workflow instance for return back: %w", err)
 	}
-	pwf, err := c.store.GetWorkflow(ctx, pwfi.WorkflowId)
+	pwf, err := c.ns.GetWorkflow(ctx, pwfi.WorkflowId)
 	if err != nil {
 		return c.engineErr(ctx, "failed to fetch return workflow", err,
 			zap.String(keys.ParentWorkflowInstanceId, parentWfiID),
@@ -359,8 +365,7 @@ func (c *Engine) returnBack(ctx context.Context, wfiID string, parentWfiID strin
 			zap.String(keys.ElementID, parentElID),
 		)
 	}
-	index := make(map[string]*model.Element)
-	indexElements(pwf.Elements, index)
+	index := elementTable(pwf)
 	el := index[parentElID]
 	err = c.traverse(ctx, pwfi, el.Outbound, index, vars)
 	if err != nil {
@@ -376,7 +381,7 @@ func (c *Engine) returnBack(ctx context.Context, wfiID string, parentWfiID strin
 }
 
 func (c *Engine) cleanup(ctx context.Context, wfiId string) error {
-	if err := c.store.DestroyWorkflowInstance(ctx, wfiId); err != nil {
+	if err := c.ns.DestroyWorkflowInstance(ctx, wfiId); err != nil {
 		return fmt.Errorf("failed to destroy workflow instance: %w", err)
 	}
 	return nil
@@ -389,14 +394,14 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobId string, vars []
 	default:
 	}
 
-	job, err := c.store.GetJob(ctx, jobId)
+	job, err := c.ns.GetJob(ctx, jobId)
 	if err != nil {
 		return c.engineErr(ctx, "failed to locate job", err,
 			zap.String(keys.JobID, jobId),
 		)
 	}
 
-	wfi, err := c.store.GetWorkflowInstance(ctx, job.WorkflowInstanceId)
+	wfi, err := c.ns.GetWorkflowInstance(ctx, job.WorkflowInstanceId)
 	if err == errors.ErrWorkflowInstanceNotFound {
 		c.log.Warn("workflow instance not found, cancelling job processing", zap.Error(err), zap.String(keys.WorkflowInstanceID, job.WorkflowInstanceId))
 		return nil
@@ -407,7 +412,7 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobId string, vars []
 		)
 	}
 
-	wf, err := c.store.GetWorkflow(ctx, wfi.WorkflowId)
+	wf, err := c.ns.GetWorkflow(ctx, wfi.WorkflowId)
 	if err != nil {
 		return c.engineErr(ctx, "failed to fetch job workflow", err,
 			zap.String(keys.JobType, job.ElementType),
@@ -416,8 +421,7 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobId string, vars []
 			zap.String(keys.WorkflowID, wfi.WorkflowId),
 		)
 	}
-	els := make(map[string]*model.Element)
-	indexElements(wf.Elements, els)
+	els := elementTable(wf)
 	el := els[job.ElementId]
 	if err := c.traverse(ctx, wfi, el.Outbound, els, vars); err != nil {
 		return c.engineErr(ctx, "failed to launch traversal", err,
@@ -433,9 +437,9 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobId string, vars []
 	return nil
 }
 
-func (c *Engine) startJob(ctx context.Context, subject string, wfiId string, el *model.Element, vars []byte) error {
-	job := &model.WorkflowState{WorkflowInstanceId: wfiId, Vars: vars, ElementType: el.Type, ElementId: el.Id, Execute: el.Execute}
-	jobId, err := c.store.CreateJob(ctx, job)
+func (c *Engine) startJob(ctx context.Context, subject string, wfId string, wfiId string, el *model.Element, vars []byte) error {
+	job := &model.WorkflowState{WorkflowId: wfId, WorkflowInstanceId: wfiId, Vars: vars, ElementType: el.Type, ElementId: el.Id, Execute: el.Execute}
+	jobId, err := c.ns.CreateJob(ctx, job)
 
 	if err != nil {
 		return c.engineErr(ctx, "failed to start manual task", err,
@@ -448,22 +452,24 @@ func (c *Engine) startJob(ctx context.Context, subject string, wfiId string, el 
 		)
 	}
 	job.TrackingId = jobId
-	return c.queue.PublishJob(ctx, subject, el, job)
+	return c.ns.PublishJob(ctx, subject, el, job)
 }
 
 // elementTable indexes an entire process for quick Id lookups
-func elementTable(process *model.Process) map[string]*model.Element {
+func elementTable(process *model.Workflow) map[string]*model.Element {
 	el := make(map[string]*model.Element)
-	indexElements(process.Elements, el)
+	for _, i := range process.Process {
+		indexProcessElements(i.Elements, el)
+	}
 	return el
 }
 
-// indexElements is the recursive part of the index
-func indexElements(elements []*model.Element, el map[string]*model.Element) {
+// indexProcessElements is the recursive part of the index
+func indexProcessElements(elements []*model.Element, el map[string]*model.Element) {
 	for _, i := range elements {
 		el[i.Id] = i
 		if i.Process != nil {
-			indexElements(i.Process.Elements, el)
+			indexProcessElements(i.Process.Elements, el)
 		}
 	}
 }
@@ -481,19 +487,19 @@ func (c *Engine) Shutdown() {
 		return
 	default:
 		close(c.closing)
-		c.queue.Shutdown()
-		c.store.Shutdown()
+		c.ns.Shutdown()
 		return
 	}
 }
 
 func (c *Engine) CancelWorkflowInstance(ctx context.Context, id string) error {
-	return c.store.DestroyWorkflowInstance(ctx, id)
+	return c.ns.DestroyWorkflowInstance(ctx, id)
 }
 
-func (c *Engine) awaitMessage(ctx context.Context, wfiId string, el *model.Element, vars []byte) error {
+func (c *Engine) awaitMessage(ctx context.Context, wfId string, wfiId string, el *model.Element, vars []byte) error {
 	trackingId := ksuid.New().String()
 	awaitMsg := &model.WorkflowState{
+		WorkflowId:         wfId,
 		WorkflowInstanceId: wfiId,
 		ElementId:          el.Id,
 		ElementType:        el.Type,
@@ -501,7 +507,7 @@ func (c *Engine) awaitMessage(ctx context.Context, wfiId string, el *model.Eleme
 		Execute:            el.Execute,
 		Vars:               vars,
 	}
-	err := c.store.AwaitMsg(ctx, el.Msg, awaitMsg)
+	err := c.ns.AwaitMsg(ctx, el.Msg, awaitMsg)
 
 	if err != nil {
 		return c.engineErr(ctx, "failed to await message", err,

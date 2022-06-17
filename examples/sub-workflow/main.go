@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/crystal-construct/shar/client"
-	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -25,10 +24,10 @@ func main() {
 
 	w1, _ := os.ReadFile("examples/sub-workflow/testdata/workflow.bpmn")
 	w2, _ := os.ReadFile("examples/sub-workflow/testdata/subworkflow.bpmn")
-	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, w1); err != nil {
+	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, "WorkflowDemo", w1); err != nil {
 		panic(err)
 	}
-	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, w2); err != nil {
+	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, "SubWorkflowDemo", w2); err != nil {
 		panic(err)
 	}
 	cl.RegisterServiceTask("BeforeCallingSubProcess", beforeCallingSubProcess)
@@ -41,32 +40,6 @@ func main() {
 		err := cl.Listen(ctx)
 		if err != nil {
 			panic(err)
-		}
-	}()
-	go func() {
-		con, err := nats.Connect(nats.DefaultURL)
-		if err != nil {
-			panic(err)
-		}
-		js, err := con.JetStream()
-		js.AddConsumer("WORKFLOWTX", &nats.ConsumerConfig{
-			Durable:       "wtxcon",
-			AckPolicy:     nats.AckExplicitPolicy,
-			FilterSubject: "WORKFLOW.>",
-		})
-		if err != nil {
-			panic(err)
-		}
-		sub, err := js.PullSubscribe(messages.WorkflowJobUserTaskExecute, "wtxcon")
-		if err != nil {
-			panic(err)
-		}
-		for {
-			msg, err := sub.Fetch(1)
-			if err != nil {
-				panic(err)
-			}
-			fmt.Println(msg)
 		}
 	}()
 	time.Sleep(1 * time.Hour)

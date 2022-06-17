@@ -209,9 +209,9 @@ func (c *Client) CompleteManualTask(ctx context.Context, jobId string, newVars m
 	return nil
 }
 
-func (c *Client) LoadBMPNWorkflowFromBytes(ctx context.Context, b []byte) (string, error) {
+func (c *Client) LoadBMPNWorkflowFromBytes(ctx context.Context, name string, b []byte) (string, error) {
 	rdr := bytes.NewReader(b)
-	if wf, err := parser.Parse(rdr); err == nil {
+	if wf, err := parser.Parse(name, rdr); err == nil {
 		res := &wrappers.StringValue{}
 		if err := callAPI(ctx, c.con, messages.ApiStoreWorkflow, wf, res); err != nil {
 			return "", fmt.Errorf("failed to store workflow: %w", err)

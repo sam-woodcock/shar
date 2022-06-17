@@ -32,16 +32,16 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, b); err != nil {
+	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, "MessageDemo", b); err != nil {
 		panic(err)
 	}
 
 	// Register a service task
-	cl.RegisterServiceTask("Step1", step1)
-	cl.RegisterServiceTask("Step2", step2)
+	cl.RegisterServiceTask("step1", step1)
+	cl.RegisterServiceTask("step2", step2)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "WorkflowDemo", model.Vars{}); err != nil {
+	if _, err := cl.LaunchWorkflow(ctx, "MessageDemo", model.Vars{}); err != nil {
 		panic(err)
 	}
 
