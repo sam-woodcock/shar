@@ -103,7 +103,7 @@ func (s *SharServer) listWorkflows(ctx context.Context, p *empty.Empty) (*model.
 }
 
 func (s *SharServer) sendMessage(ctx context.Context, req *model.SendMessageRequest) (*empty.Empty, error) {
-	if err := s.ns.PublishMessage(ctx, req.Name, req.Key); err != nil {
+	if err := s.ns.PublishMessage(ctx, req.Name, req.WorkflowInstanceId, req.Key); err != nil {
 		return nil, err
 	}
 	return &empty.Empty{}, nil

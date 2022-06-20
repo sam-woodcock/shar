@@ -21,25 +21,30 @@ import (
 	"time"
 )
 
+type NatsConn interface {
+	JetStream(opts ...nats.JSOpt) (nats.JetStreamContext, error)
+	Subscribe(subject string, fn nats.MsgHandler) (*nats.Subscription, error)
+}
+
 type NatsService struct {
 	js                        nats.JetStreamContext
-	con                       *nats.Conn
 	eventProcessor            EventProcessorFunc
 	eventJobCompleteProcessor CompleteJobProcessorFunc
 	log                       *zap.Logger
 	storageType               nats.StorageType
 	concurrency               int
 	closing                   chan struct{}
-	wfMsgWaiting              nats.KeyValue
+	wfMsgSubs                 nats.KeyValue
+	wfMsgSub                  nats.KeyValue
 	wfInstance                nats.KeyValue
 	wfDef                     nats.KeyValue
-	MessageName               nats.KeyValue
-	wfSubscriber              nats.KeyValue
+	wfMessageName             nats.KeyValue
+	wfMessageID               nats.KeyValue
 	wf                        nats.KeyValue
 	wfVersion                 nats.KeyValue
 	wfTracking                nats.KeyValue
 	job                       nats.KeyValue
-	conn                      *nats.Conn
+	conn                      NatsConn
 }
 
 func (s *NatsService) AwaitMsg(ctx context.Context, name string, state *model.WorkflowState) error {
@@ -78,7 +83,7 @@ func (s *NatsService) ListWorkflows() (chan *model.ListWorkflowResult, chan erro
 	return res, errs
 }
 
-func NewNatsService(log *zap.Logger, conn *nats.Conn, storageType nats.StorageType, concurrency int) (*NatsService, error) {
+func NewNatsService(log *zap.Logger, conn NatsConn, storageType nats.StorageType, concurrency int) (*NatsService, error) {
 	if concurrency < 1 || concurrency > 200 {
 		return nil, errors2.New("invalid concurrency set")
 	}
@@ -93,7 +98,6 @@ func NewNatsService(log *zap.Logger, conn *nats.Conn, storageType nats.StorageTy
 		log:         log,
 		concurrency: concurrency,
 		storageType: storageType,
-		con:         conn,
 		closing:     make(chan struct{}),
 	}
 	kvs := make(map[string]*nats.KeyValue)
@@ -103,8 +107,10 @@ func NewNatsService(log *zap.Logger, conn *nats.Conn, storageType nats.StorageTy
 	kvs[messages.KvDefinition] = &ms.wf
 	kvs[messages.KvJob] = &ms.job
 	kvs[messages.KvVersion] = &ms.wfVersion
-	kvs[messages.KvMessageSubs] = &ms.wfMsgWaiting
-
+	kvs[messages.KvMessageSubs] = &ms.wfMsgSubs
+	kvs[messages.KvMessageSub] = &ms.wfMsgSub
+	kvs[messages.KvMessageName] = &ms.wfMessageName
+	kvs[messages.KvMessageID] = &ms.wfMessageID
 	keys := make([]string, 0, len(kvs))
 	for k, _ := range kvs {
 		keys = append(keys, k)
@@ -136,6 +142,18 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 	err = SaveObj(s.wf, wfId, wf)
 	if err != nil {
 		return "", err
+	}
+	for _, m := range wf.Messages {
+		ks := ksuid.New()
+		if _, err := Load(s.wfMessageID, m.Name); err == nil {
+			continue
+		}
+		if err := Save(s.wfMessageID, m.Name, []byte(ks.String())); err != nil {
+			return "", err
+		}
+		if err := Save(s.wfMessageName, ks.String(), []byte(m.Name)); err != nil {
+			return "", err
+		}
 	}
 	err = UpdateObj(s.wfVersion, wf.Name, &model.WorkflowVersions{}, func(v1 proto.Message) (proto.Message, error) {
 		v := v1.(*model.WorkflowVersions)
@@ -279,7 +297,7 @@ func (s *NatsService) GetWorkflowInstanceStatus(id string) (*model.WorkflowInsta
 
 /*
 func (s *NatsService) AwaitMsg(ctx context.Context, name string, state *model.WorkflowState) error {
-	return UpdateObj(s.wfMsgWaiting, name, &model.MsgWaiting{}, func(v proto.Message) (proto.Message, error) {
+	return UpdateObj(s.wfMsgSubs, name, &model.MsgWaiting{}, func(v proto.Message) (proto.Message, error) {
 		mw := v.(*model.MsgWaiting)
 		mw.List = append(mw.List, state)
 		return mw, nil
@@ -393,12 +411,16 @@ func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string
 	return nil
 }
 
-func (s *NatsService) PublishMessage(ctx context.Context, name string, key string) error {
+func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string) error {
 	sharMsg := &model.MessageInstance{
 		MessageId:      name,
 		CorrelationKey: key,
 	}
-	msg := nats.NewMsg(messages.WorkflowMessage)
+	messageID, err := Load(s.wfMessageID, name)
+	if err != nil {
+		return err
+	}
+	msg := nats.NewMsg(fmt.Sprintf(messages.WorkflowMessageFormat, workflowInstanceID, messageID))
 	if b, err := proto.Marshal(sharMsg); err != nil {
 		return err
 	} else {
@@ -525,12 +547,12 @@ func (s *NatsService) track(ctx context.Context, msg *nats.Msg) (bool, error) {
 	return true, nil
 }
 
-func (s *NatsService) Conn() *nats.Conn {
-	return s.con
+func (s *NatsService) Conn() NatsConn {
+	return s.conn
 }
 
 func (s *NatsService) processMessages(ctx context.Context) {
-	s.process(ctx, messages.WorkflowMessage, "Message", s.processMessage)
+	s.process(ctx, messages.WorkflowMessages, "Message", s.processMessage)
 	return
 }
 
@@ -541,7 +563,7 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 		return false, fmt.Errorf("could not unmarshal message proto: %w", err)
 	}
 
-	messageName, err := Load(s.MessageName, instance.MessageId)
+	messageName, err := Load(s.wfMessageName, instance.MessageId)
 	if err != nil {
 		return false, fmt.Errorf("failed to load message name for message id %s: %w", instance.MessageId, err)
 	}
@@ -552,12 +574,12 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 	workflowInstanceId := subj[2]
 	fmt.Println(messageName)
 	subs := &model.WorkflowInstanceSubscribers{}
-	if err := LoadObj(s.wfMsgWaiting, workflowInstanceId, subs); err != nil {
+	if err := LoadObj(s.wfMsgSubs, workflowInstanceId, subs); err != nil {
 		return true, nil
 	}
 	for _, i := range subs.List {
 		sub := &model.WorkflowState{}
-		if err := LoadObj(s.wfSubscriber, i, sub); err == nats.ErrKeyNotFound {
+		if err := LoadObj(s.wfMsgSub, i, sub); err == nats.ErrKeyNotFound {
 			continue
 		} else if err != nil {
 			return false, err
@@ -581,7 +603,7 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 
 /*
 func (s *NatsService) getMessagePending(messageName string) (*model.MsgWaiting, uint64, error) {
-	val, err := q.wfMsgWaiting.Get(messageName)
+	val, err := q.wfMsgSubs.Get(messageName)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get awaiting instances: %w", err)
 	}
@@ -621,9 +643,9 @@ func (s *NatsService) removePending(ctx context.Context, toDelete []string, key 
 		if err != nil {
 			return err
 		}
-		_, err = q.wfMsgWaiting.Update(key, b, rev)
+		_, err = q.wfMsgSubs.Update(key, b, rev)
 		if strings.Index(err.Error(), "wrong last sequence") > -1 {
-			v, err := q.wfMsgWaiting.Get(key)
+			v, err := q.wfMsgSubs.Get(key)
 			if err == nats.ErrKeyNotFound {
 				continue
 			}

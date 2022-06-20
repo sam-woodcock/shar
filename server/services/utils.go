@@ -88,7 +88,7 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
-func Listen[T proto.Message, U proto.Message](con *nats.Conn, log *zap.Logger, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
+func Listen[T proto.Message, U proto.Message](con NatsConn, log *zap.Logger, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
 	sub, err := con.Subscribe(subject, func(msg *nats.Msg) {
 		ctx := context.Background()
 		if err := callApi(ctx, req, msg, fn); err != nil {

@@ -21,6 +21,11 @@ import (
 	"time"
 )
 
+type Command struct {
+	cl    *Client
+	wfiID string
+}
+
 type serviceFn func(ctx context.Context, vars model.Vars) (model.Vars, error)
 
 type Client struct {
@@ -268,8 +273,8 @@ func (c *Client) GetWorkflowInstanceStatus(ctx context.Context, id string) ([]*m
 	return res.State, nil
 }
 
-func (c *Client) SendMessage(ctx context.Context, name string, key string) interface{} {
-	req := &model.SendMessageRequest{Name: name, Key: key}
+func (c *Client) SendMessage(ctx context.Context, woflowInstanceID string, name string, key string) interface{} {
+	req := &model.SendMessageRequest{Name: name, Key: key, WorkflowInstanceId: woflowInstanceID}
 	res := &empty.Empty{}
 	if err := callAPI(ctx, c.con, messages.ApiSendMessage, req, res); err != nil {
 		return fmt.Errorf("failed to send message: %w", err)
