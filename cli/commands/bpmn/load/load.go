@@ -2,11 +2,12 @@ package load
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/crystal-construct/shar/cli/flag"
 	"github.com/crystal-construct/shar/cli/output"
 	"github.com/crystal-construct/shar/client"
-	"github.com/pkg/errors"
+
 	"github.com/spf13/cobra"
 	"os"
 )

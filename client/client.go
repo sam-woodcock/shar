@@ -6,17 +6,16 @@ import (
 	"fmt"
 	"github.com/crystal-construct/shar/client/parser"
 	"github.com/crystal-construct/shar/client/services"
-	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
 	"github.com/crystal-construct/shar/server/errors"
-	"github.com/crystal-construct/shar/server/services/ctxutil"
+	"github.com/crystal-construct/shar/server/messages"
 	"github.com/crystal-construct/shar/server/vars"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/nats-io/nats.go"
-	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"strconv"
 	"strings"
 	"time"
@@ -39,7 +38,6 @@ type Client struct {
 	SvcTasks  map[string]serviceFn
 	storage   services.Storage
 	log       *zap.Logger
-	tp        *tracesdk.TracerProvider
 	con       *nats.Conn
 	MsgSender map[string]senderFn
 }
@@ -113,7 +111,7 @@ func (c *Client) listen(ctx context.Context) error {
 			} else {
 				msg = msgs[0]
 			}
-			xctx := ctxutil.LoadContextFromNATSHeader(ctx, msg)
+			xctx := context.Background()
 			ut := &model.WorkflowState{}
 			if err := proto.Unmarshal(msg.Data, ut); err != nil {
 				fmt.Println(err)
@@ -125,14 +123,14 @@ func (c *Client) listen(ctx context.Context) error {
 					c.log.Error("failed to get job", zap.Error(err), zap.String("JobId", ut.TrackingId))
 					continue
 				}
-				if svcFn, ok := c.SvcTasks[job.Execute]; !ok {
+				if svcFn, ok := c.SvcTasks[*job.Execute]; !ok {
 					if err := msg.Ack(); err != nil {
-						c.log.Error("failed to find service function", zap.Error(err), zap.String("fn", job.Execute))
+						c.log.Error("failed to find service function", zap.Error(err), zap.String("fn", *job.Execute))
 					}
 				} else {
 					dv, err := vars.Decode(c.log, job.Vars)
 					if err != nil {
-						c.log.Error("failed to decode vars", zap.Error(err), zap.String("fn", job.Execute))
+						c.log.Error("failed to decode vars", zap.Error(err), zap.String("fn", *job.Execute))
 					}
 					newVars, err := svcFn(xctx, dv)
 					if err != nil {
@@ -159,14 +157,14 @@ func (c *Client) listen(ctx context.Context) error {
 					c.log.Error("failed to get send message task", zap.Error(err), zap.String("JobId", ut.TrackingId))
 					continue
 				}
-				if sendFn, ok := c.MsgSender[job.Execute]; !ok {
+				if sendFn, ok := c.MsgSender[*job.Execute]; !ok {
 					if err := msg.Ack(); err != nil {
-						c.log.Error("failed to find send message function", zap.Error(err), zap.String("fn", job.Execute))
+						c.log.Error("failed to find send message function", zap.Error(err), zap.String("fn", *job.Execute))
 					}
 				} else {
 					dv, err := vars.Decode(c.log, job.Vars)
 					if err != nil {
-						c.log.Error("failed to decode vars", zap.Error(err), zap.String("fn", job.Execute))
+						c.log.Error("failed to decode vars", zap.Error(err), zap.String("fn", *job.Execute))
 					}
 					if err := sendFn(xctx, &Command{cl: c, wfiID: job.WorkflowInstanceId}, dv); err != nil {
 						if err := msg.Nak(); err != nil {
@@ -205,7 +203,6 @@ func (c *Client) CompleteUserTask(ctx context.Context, jobId string, newVars mod
 	}
 	msg := nats.NewMsg(messages.WorkflowJobUserTaskComplete)
 	msg.Data = b
-	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	_, err = c.js.PublishMsg(msg)
 	if err != nil {
 		return c.clientErr(ctx, "failed to publish complete user task: %w", err)
@@ -225,7 +222,6 @@ func (c *Client) CompleteServiceTask(ctx context.Context, jobId string, newVars 
 	}
 	msg := nats.NewMsg(messages.WorkflowJobServiceTaskComplete)
 	msg.Data = b
-	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	_, err = c.js.PublishMsg(msg)
 	if err != nil {
 		return c.clientErr(ctx, "failed to publish complete service task: %w", err)
@@ -245,7 +241,6 @@ func (c *Client) CompleteManualTask(ctx context.Context, jobId string, newVars m
 	}
 	msg := nats.NewMsg(messages.WorkflowJobManualTaskComplete)
 	msg.Data = b
-	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	_, err = c.js.PublishMsg(msg)
 	if err != nil {
 		return c.clientErr(ctx, "failed to publish complete manual task: %w", err)
@@ -256,7 +251,7 @@ func (c *Client) CompleteManualTask(ctx context.Context, jobId string, newVars m
 func (c *Client) LoadBPMNWorkflowFromBytes(ctx context.Context, name string, b []byte) (string, error) {
 	rdr := bytes.NewReader(b)
 	if wf, err := parser.Parse(name, rdr); err == nil {
-		res := &wrappers.StringValue{}
+		res := &wrapperspb.StringValue{}
 		if err := callAPI(ctx, c.con, messages.ApiStoreWorkflow, wf, res); err != nil {
 			return "", c.clientErr(ctx, "failed to store workflow: %w", err)
 		}
@@ -268,7 +263,7 @@ func (c *Client) LoadBPMNWorkflowFromBytes(ctx context.Context, name string, b [
 }
 
 func (c *Client) CancelWorkflowInstance(ctx context.Context, instanceID string) error {
-	res := &empty.Empty{}
+	res := &emptypb.Empty{}
 	req := &model.CancelWorkflowInstanceRequest{Id: instanceID}
 	if err := callAPI(ctx, c.con, messages.ApiCancelWorkflowInstance, req, res); err != nil {
 		return c.clientErr(ctx, "failed to cancel workflow instance: %w", err)
@@ -299,7 +294,7 @@ func (c *Client) ListWorkflowInstance(ctx context.Context, name string) ([]*mode
 }
 
 func (c *Client) ListWorkflows(ctx context.Context) ([]*model.ListWorkflowResult, error) {
-	req := &empty.Empty{}
+	req := &emptypb.Empty{}
 	res := &model.ListWorkflowsResponse{}
 	if err := callAPI(ctx, c.con, messages.ApiListWorkflows, req, res); err != nil {
 		return nil, c.clientErr(ctx, "failed to launch workflow: %w", err)
@@ -325,7 +320,7 @@ func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, nam
 		skey = fmt.Sprintf("%+v", key)
 	}
 	req := &model.SendMessageRequest{Name: name, Key: skey, WorkflowInstanceId: workflowInstanceID}
-	res := &empty.Empty{}
+	res := &emptypb.Empty{}
 	if err := callAPI(ctx, c.con, messages.ApiSendMessage, req, res); err != nil {
 		return c.clientErr(ctx, "failed to send message: %w", err)
 	}

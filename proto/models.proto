@@ -52,27 +52,23 @@ message Messages {
   string name = 1;
 }
 
-message JobComplete {
-
-}
-
 message WorkflowState {
   string workflowId = 1;
   string workflowInstanceId = 2;
   string elementId = 3;
   string elementType = 4;
   string trackingId = 5;
-  string execute = 6;
+  optional string execute = 6;
   string state = 7;
-  string condition = 8;
+  optional string condition = 8;
   int64 unixTimeNano = 9;
   bytes vars = 10;
 }
 
 message WorkflowInstance {
   string workflowInstanceId = 1;
-  string parentWorkflowInstanceId = 2;
-  string parentElementId = 3;
+  optional string parentWorkflowInstanceId = 2;
+  optional string parentElementId = 3;
   string workflowId = 4;
 }
 

@@ -2,14 +2,14 @@ package api
 
 import (
 	"context"
-	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
 	"github.com/crystal-construct/shar/server/health"
+	"github.com/crystal-construct/shar/server/messages"
 	"github.com/crystal-construct/shar/server/services"
 	"github.com/crystal-construct/shar/server/workflow"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"sync"
 )
 
@@ -35,21 +35,21 @@ func New(log *zap.Logger, ns *services.NatsService) (*SharServer, error) {
 	}, nil
 }
 
-func (s *SharServer) storeWorkflow(ctx context.Context, wf *model.Workflow) (*wrappers.StringValue, error) {
+func (s *SharServer) storeWorkflow(ctx context.Context, wf *model.Workflow) (*wrapperspb.StringValue, error) {
 	res, err := s.engine.LoadWorkflow(ctx, wf)
-	return &wrappers.StringValue{Value: res}, err
+	return &wrapperspb.StringValue{Value: res}, err
 }
-func (s *SharServer) launchWorkflow(ctx context.Context, req *model.LaunchWorkflowRequest) (*wrappers.StringValue, error) {
+func (s *SharServer) launchWorkflow(ctx context.Context, req *model.LaunchWorkflowRequest) (*wrapperspb.StringValue, error) {
 	res, err := s.engine.Launch(ctx, req.Name, req.Vars)
-	return &wrappers.StringValue{Value: res}, err
+	return &wrapperspb.StringValue{Value: res}, err
 }
 
-func (s *SharServer) cancelWorkflowInstance(ctx context.Context, req *model.CancelWorkflowInstanceRequest) (*empty.Empty, error) {
+func (s *SharServer) cancelWorkflowInstance(ctx context.Context, req *model.CancelWorkflowInstanceRequest) (*emptypb.Empty, error) {
 	err := s.engine.CancelWorkflowInstance(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
-	return &empty.Empty{}, err
+	return &emptypb.Empty{}, err
 }
 
 func (s *SharServer) listWorkflowInstance(ctx context.Context, req *model.ListWorkflowInstanceRequest) (*model.ListWorkflowInstanceResponse, error) {
@@ -80,7 +80,7 @@ func (s *SharServer) getWorkflowInstanceStatus(ctx context.Context, req *model.G
 	return res, nil
 }
 
-func (s *SharServer) listWorkflows(ctx context.Context, p *empty.Empty) (*model.ListWorkflowsResponse, error) {
+func (s *SharServer) listWorkflows(ctx context.Context, p *emptypb.Empty) (*model.ListWorkflowsResponse, error) {
 	res, errs := s.ns.ListWorkflows()
 	ret := make([]*model.ListWorkflowResult, 0)
 	var done bool
@@ -102,11 +102,11 @@ func (s *SharServer) listWorkflows(ctx context.Context, p *empty.Empty) (*model.
 	return &model.ListWorkflowsResponse{Result: ret}, nil
 }
 
-func (s *SharServer) sendMessage(ctx context.Context, req *model.SendMessageRequest) (*empty.Empty, error) {
+func (s *SharServer) sendMessage(ctx context.Context, req *model.SendMessageRequest) (*emptypb.Empty, error) {
 	if err := s.ns.PublishMessage(ctx, req.WorkflowInstanceId, req.Name, req.Key); err != nil {
 		return nil, err
 	}
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 var shutdownOnce sync.Once
@@ -133,7 +133,7 @@ func (s *SharServer) Listen() error {
 	if err != nil {
 		return err
 	}
-	_, err = services.Listen(con, log, messages.ApiListWorkflows, &empty.Empty{}, s.listWorkflows)
+	_, err = services.Listen(con, log, messages.ApiListWorkflows, &emptypb.Empty{}, s.listWorkflows)
 	if err != nil {
 		return err
 	}
