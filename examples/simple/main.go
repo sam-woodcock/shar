@@ -32,7 +32,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, "WorkflowDemo", b); err != nil {
+	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "SimpleWorkflowDemo", b); err != nil {
 		panic(err)
 	}
 
@@ -40,7 +40,7 @@ func main() {
 	cl.RegisterServiceTask("SimpleProcess", simpleProcess)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "WorkflowDemo", model.Vars{}); err != nil {
+	if _, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowDemo", model.Vars{}); err != nil {
 		panic(err)
 	}
 
@@ -51,7 +51,7 @@ func main() {
 			panic(err)
 		}
 	}()
-	time.Sleep(1 * time.Hour)
+	time.Sleep(1 * time.Second)
 }
 
 // A "Hello World" service task

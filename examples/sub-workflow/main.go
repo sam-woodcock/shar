@@ -24,16 +24,16 @@ func main() {
 
 	w1, _ := os.ReadFile("examples/sub-workflow/testdata/workflow.bpmn")
 	w2, _ := os.ReadFile("examples/sub-workflow/testdata/subworkflow.bpmn")
-	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, "WorkflowDemo", w1); err != nil {
+	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "MasterWorkflowDemo", w1); err != nil {
 		panic(err)
 	}
-	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, "SubWorkflowDemo", w2); err != nil {
+	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "SubWorkflowDemo", w2); err != nil {
 		panic(err)
 	}
 	cl.RegisterServiceTask("BeforeCallingSubProcess", beforeCallingSubProcess)
 	cl.RegisterServiceTask("DuringSubProcess", duringSubProcess)
 	cl.RegisterServiceTask("AfterCallingSubProcess", afterCallingSubProcess)
-	if _, err := cl.LaunchWorkflow(ctx, "WorkflowDemo", model.Vars{}); err != nil {
+	if _, err := cl.LaunchWorkflow(ctx, "MasterWorkflowDemo", model.Vars{}); err != nil {
 		panic(err)
 	}
 	go func() {
@@ -42,7 +42,7 @@ func main() {
 			panic(err)
 		}
 	}()
-	time.Sleep(1 * time.Hour)
+	time.Sleep(1 * time.Second)
 }
 
 func afterCallingSubProcess(ctx context.Context, vars model.Vars) (model.Vars, error) {

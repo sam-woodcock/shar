@@ -64,8 +64,9 @@ message WorkflowState {
   string trackingId = 5;
   string execute = 6;
   string state = 7;
-  int64 unixTimeNano = 8;
-  bytes vars = 9;
+  string condition = 8;
+  int64 unixTimeNano = 9;
+  bytes vars = 10;
 }
 
 message WorkflowInstance {
@@ -81,5 +82,5 @@ message MessageInstance {
 }
 
 message WorkflowInstanceSubscribers {
-  repeated string List = 1; // stateId
+  repeated string list = 1; // stateId
 }

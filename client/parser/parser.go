@@ -3,6 +3,7 @@ package parser
 import (
 	"github.com/antchfx/xmlquery"
 	"github.com/crystal-construct/shar/model"
+	"github.com/pkg/errors"
 	"io"
 
 	"strings"
@@ -28,22 +29,27 @@ func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 		}
 		msgXml := doc.SelectElements("//bpmn:message")
 		pr.Name = prXml.SelectAttr("id")
-		parseProcess(doc, wf, prXml, pr, msgXml, msgs)
+		if err := parseProcess(doc, wf, prXml, pr, msgXml, msgs); err != nil {
+			return nil, err
+		}
 		wf.Process[pr.Name] = pr
 	}
 	return wf, nil
 }
 
-func parseProcess(doc *xmlquery.Node, wf *model.Workflow, prXml *xmlquery.Node, pr *model.Process, msgXml []*xmlquery.Node, msgs map[string]string) {
+func parseProcess(doc *xmlquery.Node, wf *model.Workflow, prXml *xmlquery.Node, pr *model.Process, msgXml []*xmlquery.Node, msgs map[string]string) error {
 	for _, i := range prXml.SelectElements("*") {
-		parseElements(doc, wf, pr, i, msgs)
+		if err := parseElements(doc, wf, pr, i, msgs); err != nil {
+			return err
+		}
 	}
 	if msgXml != nil {
-		parseMessages(doc, wf, pr, msgXml, msgs)
+		parseMessages(doc, wf, msgXml, msgs)
 	}
+	return nil
 }
 
-func parseMessages(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, msgNodes []*xmlquery.Node, msgs map[string]string) {
+func parseMessages(doc *xmlquery.Node, wf *model.Workflow, msgNodes []*xmlquery.Node, msgs map[string]string) {
 	m := make([]*model.Element, len(msgNodes))
 	for i, x := range msgNodes {
 		m[i] = &model.Element{
@@ -56,37 +62,60 @@ func parseMessages(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, ms
 	wf.Messages = m
 }
 
-func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i *xmlquery.Node, msgs map[string]string) {
+func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i *xmlquery.Node, msgs map[string]string) error {
 	if i.NamespaceURI == bpmnNS {
 		el := &model.Element{Type: i.Data}
 		if i.Data == "sequenceFlow" || i.Data == "incoming" || i.Data == "outgoing" || i.Data == "extensionElements" {
-			return
+			return nil
 		}
 		parseCoreValues(i, el)
 		parseFlowInOut(doc, i, el)
 		parseDocumentation(i, el)
 		parseExtensions(doc, el, i)
-		parseSubprocess(doc, wf, el, i, msgs)
-		parseSubscription(el, i, msgs)
+		if err := parseSubprocess(doc, wf, el, i, msgs); err != nil {
+			return err
+		}
+		if err := parseSubscription(wf, el, i, msgs); err != nil {
+			return err
+		}
 		pr.Elements = append(pr.Elements, el)
 	}
+	return nil
 }
 
-func parseSubscription(el *model.Element, i *xmlquery.Node, msgs map[string]string) {
+func parseSubscription(wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string) error {
 	if x := i.SelectElement("bpmn:messageEventDefinition/@messageRef"); x != nil {
 		ref := x.InnerText()
 		el.Msg = msgs[ref]
+		c, err := getCorrelation(wf.Messages, el.Msg)
+		if err != nil {
+			return err
+		}
+		el.Execute = c
 	}
+	return nil
 }
 
-func parseSubprocess(doc *xmlquery.Node, wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string) {
+func getCorrelation(messages []*model.Element, msg string) (string, error) {
+	for _, v := range messages {
+		if v.Name == msg {
+			return v.Execute, nil
+		}
+	}
+	return "", errors.New("could not find message: " + msg)
+}
+
+func parseSubprocess(doc *xmlquery.Node, wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string) error {
 	if i.Data == "subProcess" {
 		pr := &model.Process{
 			Elements: make([]*model.Element, 0),
 		}
-		parseProcess(doc, wf, i, pr, nil, msgs)
+		if err := parseProcess(doc, wf, i, pr, nil, msgs); err != nil {
+			return err
+		}
 		el.Process = pr
 	}
+	return nil
 }
 
 func parseExtensions(doc *xmlquery.Node, el *model.Element, i *xmlquery.Node) {

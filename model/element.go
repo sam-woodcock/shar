@@ -1,6 +1,6 @@
 package model
 
-type Vars map[string]interface{}
+type Vars map[string]any
 
 type UserTask struct {
 	JobId string

@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"github.com/crystal-construct/shar/model"
 	"github.com/crystal-construct/shar/server/services/natsutil"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -40,22 +39,17 @@ func LoadObj(wf nats.KeyValue, k string, v proto.Message) error {
 	}
 }
 
-func UpdateObj(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v proto.Message) (proto.Message, error)) error {
+func UpdateObj[T proto.Message](wf nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) error {
 	if oldk, err := wf.Get(k); err == nats.ErrKeyNotFound || (err == nil && oldk.Value() == nil) {
-		if err := SaveObj(wf, k, &model.WorkflowVersions{Version: []*model.WorkflowVersion{}}); err != nil {
+		if err := SaveObj(wf, k, msg); err != nil {
 			return err
 		}
-	}
-	var p = &model.WorkflowVersions{}
-	err := LoadObj(wf, k, p)
-	if err != nil {
-		panic(err)
 	}
 	return natsutil.UpdateKV(wf, k, msg, func(bv []byte, msg proto.Message) ([]byte, error) {
 		if err := proto.Unmarshal(bv, msg); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal proto for KV update: %w", err)
 		}
-		uv, err := updateFn(msg)
+		uv, err := updateFn(msg.(T))
 		if err != nil {
 			return nil, fmt.Errorf("failed during update function: %w", err)
 		}
@@ -69,7 +63,7 @@ func UpdateObj(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v pr
 func ensureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names []string) error {
 	for _, i := range names {
 		if _, err := js.KeyValue(i); err == nats.ErrBucketNotFound {
-			if _, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: i}); err != nil {
+			if _, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: i, Storage: storageType}); err != nil {
 				return fmt.Errorf("failed to ensure buckets: %w", err)
 			}
 		} else if err != nil {

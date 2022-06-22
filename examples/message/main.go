@@ -32,16 +32,17 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	if _, err := cl.LoadBMPNWorkflowFromBytes(ctx, "MessageDemo", b); err != nil {
+	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "MessageDemo", b); err != nil {
 		panic(err)
 	}
 
 	// Register a service task
 	cl.RegisterServiceTask("step1", step1)
 	cl.RegisterServiceTask("step2", step2)
+	cl.RegisterMessageSender("continueMessage", sendMessage)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "MessageDemo", model.Vars{}); err != nil {
+	if _, err := cl.LaunchWorkflow(ctx, "MessageDemo", model.Vars{"orderId": 57}); err != nil {
 		panic(err)
 	}
 
@@ -52,7 +53,7 @@ func main() {
 			panic(err)
 		}
 	}()
-	time.Sleep(1 * time.Hour)
+	time.Sleep(1 * time.Second)
 }
 
 func step1(ctx context.Context, vars model.Vars) (model.Vars, error) {
@@ -63,4 +64,9 @@ func step1(ctx context.Context, vars model.Vars) (model.Vars, error) {
 func step2(ctx context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Step 2")
 	return model.Vars{}, nil
+}
+
+func sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
+	fmt.Println("Sending Message...")
+	return cmd.SendMessage(ctx, "continueMessage", 57)
 }

@@ -11,8 +11,9 @@ import (
 	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
 	"github.com/crystal-construct/shar/server/errors"
+	"github.com/crystal-construct/shar/server/errors/keys"
+	"github.com/crystal-construct/shar/server/services/ctxutil"
 	"github.com/crystal-construct/shar/server/vars"
-	"github.com/crystal-construct/shar/telemetry/ctxutil"
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
 	"go.uber.org/zap"
@@ -28,6 +29,7 @@ type NatsConn interface {
 
 type NatsService struct {
 	js                        nats.JetStreamContext
+	messageCompleteProcessor  MessageCompleteProcessorFunc
 	eventProcessor            EventProcessorFunc
 	eventJobCompleteProcessor CompleteJobProcessorFunc
 	log                       *zap.Logger
@@ -37,7 +39,6 @@ type NatsService struct {
 	wfMsgSubs                 nats.KeyValue
 	wfMsgSub                  nats.KeyValue
 	wfInstance                nats.KeyValue
-	wfDef                     nats.KeyValue
 	wfMessageName             nats.KeyValue
 	wfMessageID               nats.KeyValue
 	wf                        nats.KeyValue
@@ -48,8 +49,17 @@ type NatsService struct {
 }
 
 func (s *NatsService) AwaitMsg(ctx context.Context, name string, state *model.WorkflowState) error {
-	//TODO implement me
-	panic("implement me")
+	id := ksuid.New().String()
+	if err := SaveObj(s.wfMsgSub, id, state); err != nil {
+		return err
+	}
+	if err := UpdateObj(s.wfMsgSubs, state.WorkflowInstanceId, &model.WorkflowInstanceSubscribers{}, func(v *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
+		v.List = append(v.List, id)
+		return v, nil
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *NatsService) ListWorkflows() (chan *model.ListWorkflowResult, chan error) {
@@ -137,11 +147,13 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 		return "", err
 	}
 	h := sha256.New()
-	h.Write(b)
+	if _, err := h.Write(b); err != nil {
+		return "", fmt.Errorf("could not marshal workflow: %s", wf.Name)
+	}
 	hash := h.Sum(nil)
 	err = SaveObj(s.wf, wfId, wf)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("could not save workflow: %s", wf.Name)
 	}
 	for _, m := range wf.Messages {
 		ks := ksuid.New()
@@ -155,8 +167,7 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 			return "", err
 		}
 	}
-	err = UpdateObj(s.wfVersion, wf.Name, &model.WorkflowVersions{}, func(v1 proto.Message) (proto.Message, error) {
-		v := v1.(*model.WorkflowVersions)
+	if err := UpdateObj(s.wfVersion, wf.Name, &model.WorkflowVersions{}, func(v *model.WorkflowVersions) (*model.WorkflowVersions, error) {
 		if v.Version == nil || len(v.Version) == 0 {
 			v.Version = make([]*model.WorkflowVersion, 0, 1)
 		} else {
@@ -168,9 +179,8 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 			{Id: wfId, Sha256: hash, Number: int32(len(v.Version)) + 1},
 		}, v.Version...)
 		return v, nil
-	})
-	if err != nil {
-		return "", err
+	}); err != nil {
+		fmt.Errorf("could not update workflow version for: %s", wf.Name)
 	}
 	return wfId, nil
 }
@@ -191,6 +201,10 @@ func (s *NatsService) CreateWorkflowInstance(ctx context.Context, wfInstance *mo
 	if err := SaveObj(s.wfInstance, wfiId, wfInstance); err != nil {
 		return nil, fmt.Errorf("failed to save workflow instance object to KV: %w", err)
 	}
+	subs := &model.WorkflowInstanceSubscribers{List: []string{}}
+	if err := SaveObj(s.wfMsgSubs, wfiId, subs); err != nil {
+		return nil, fmt.Errorf("failed to save workflow instance object to KV: %w", err)
+	}
 	return wfInstance, nil
 }
 
@@ -205,12 +219,84 @@ func (s *NatsService) GetWorkflowInstance(ctx context.Context, workflowInstanceI
 }
 
 func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string) error {
+	wfi := &model.WorkflowInstance{}
+	if err := LoadObj(s.wfInstance, workflowInstanceId, wfi); err != nil {
+		s.log.Warn("Could not fetch workflow instance",
+			zap.String(keys.WorkflowInstanceID, workflowInstanceId),
+		)
+		return err
+	}
+	wf := &model.Workflow{}
+	if wfi.WorkflowId != "" {
+		if err := LoadObj(s.wf, wfi.WorkflowId, wf); err != nil {
+			s.log.Warn("Could not fetch workflow definition",
+				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+				zap.String(keys.WorkflowID, wfi.WorkflowId),
+				zap.String(keys.WorkflowName, wf.Name),
+			)
+		}
+	}
+
+	if wf.Name != "" {
+		for _, msg := range wf.Messages {
+			msgIdB, err := Load(s.wfMessageID, msg.Name)
+			if err != nil {
+				s.log.Warn("Could not fetch message id for",
+					zap.String("msg.name", msg.Name),
+				)
+			}
+			msgId := string(msgIdB)
+			var toDelete map[string]struct{}
+			subs := &model.WorkflowInstanceSubscribers{}
+			if err := LoadObj(s.wfMsgSubs, msgId, subs); err != nil {
+				s.log.Warn("Could not fetch message subscribers",
+					zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+					zap.String(keys.WorkflowID, wfi.WorkflowId),
+					zap.String(keys.WorkflowName, wf.Name),
+				)
+			}
+			for _, subid := range subs.List {
+				sub := &model.WorkflowState{}
+				if err := LoadObj(s.wfMsgSub, subid, sub); err != nil {
+					s.log.Warn("Could not fetch message subscriber",
+						zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+						zap.String(keys.WorkflowID, wfi.WorkflowId),
+						zap.String(keys.WorkflowName, wf.Name),
+						zap.String("sub.id", subid),
+					)
+					continue
+				}
+				if sub.WorkflowInstanceId == workflowInstanceId {
+					toDelete[subid] = struct{}{}
+				}
+			}
+			UpdateObj(s.wfMsgSubs, msgId, &model.WorkflowInstanceSubscribers{}, func(subs *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
+				for i := 0; i < len(subs.List); i++ {
+					val := subs.List[i]
+					if _, ok := toDelete[val]; ok {
+						subs.List = remove(subs.List, val)
+						i--
+						delete(toDelete, val)
+					}
+					err := s.wfMsgSub.Delete(val)
+					if err != nil {
+						s.log.Warn("Could not delete instance subscriber",
+							zap.String("inst.id", val),
+						)
+					}
+				}
+				return subs, nil
+			})
+		}
+	}
+
 	if err := s.wfInstance.Delete(workflowInstanceId); err != nil {
 		return err
 	}
 	if err := s.wfTracking.Delete(workflowInstanceId); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -388,6 +474,9 @@ func (s *NatsService) StartProcessing(ctx context.Context) error {
 func (s *NatsService) SetEventProcessor(processor EventProcessorFunc) {
 	s.eventProcessor = processor
 }
+func (s *NatsService) SetMessageCompleteProcessor(processor MessageCompleteProcessorFunc) {
+	s.messageCompleteProcessor = processor
+}
 func (s *NatsService) SetCompleteJobProcessor(processor CompleteJobProcessorFunc) {
 	s.eventJobCompleteProcessor = processor
 }
@@ -412,13 +501,14 @@ func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string
 }
 
 func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string) error {
-	sharMsg := &model.MessageInstance{
-		MessageId:      name,
-		CorrelationKey: key,
-	}
-	messageID, err := Load(s.wfMessageID, name)
+	messageIDb, err := Load(s.wfMessageID, name)
+	messageID := string(messageIDb)
 	if err != nil {
 		return err
+	}
+	sharMsg := &model.MessageInstance{
+		MessageId:      messageID,
+		CorrelationKey: key,
 	}
 	msg := nats.NewMsg(fmt.Sprintf(messages.WorkflowMessageFormat, workflowInstanceID, messageID))
 	if b, err := proto.Marshal(sharMsg); err != nil {
@@ -562,7 +652,6 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 	if err := proto.Unmarshal(msg.Data, instance); err != nil {
 		return false, fmt.Errorf("could not unmarshal message proto: %w", err)
 	}
-
 	messageName, err := Load(s.wfMessageName, instance.MessageId)
 	if err != nil {
 		return false, fmt.Errorf("failed to load message name for message id %s: %w", instance.MessageId, err)
@@ -572,20 +661,27 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 		return true, nil
 	}
 	workflowInstanceId := subj[2]
-	fmt.Println(messageName)
+
 	subs := &model.WorkflowInstanceSubscribers{}
 	if err := LoadObj(s.wfMsgSubs, workflowInstanceId, subs); err != nil {
 		return true, nil
 	}
 	for _, i := range subs.List {
+
 		sub := &model.WorkflowState{}
 		if err := LoadObj(s.wfMsgSub, i, sub); err == nats.ErrKeyNotFound {
 			continue
 		} else if err != nil {
 			return false, err
 		}
-		//TODO: Check subject!!!!
-		success, err := s.evaluateMessage(ctx, sub.Execute, vars.Decode(s.log, sub.Vars), instance.CorrelationKey)
+		if sub.Condition != string(messageName) {
+			continue
+		}
+		dv, err := vars.Decode(s.log, sub.Vars)
+		if err != nil {
+			return false, err
+		}
+		success, err := s.evaluate(ctx, dv, instance.CorrelationKey+cleanExpression(sub.Execute))
 		if err != nil {
 			return false, err
 		}
@@ -597,8 +693,39 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 				return false, fmt.Errorf("could not process event: %w", err)
 			}
 		}
+		if s.messageCompleteProcessor != nil {
+			if err := s.messageCompleteProcessor(ctx, sub); err != nil {
+				return false, err
+			}
+		}
+		if err := UpdateObj(s.wfMsgSubs, workflowInstanceId, &model.WorkflowInstanceSubscribers{}, func(v *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
+			remove(v.List, i)
+			return v, nil
+		}); err != nil {
+			return false, err
+		}
 	}
 	return true, nil
+}
+
+func remove[T comparable](slice []T, member T) []T {
+	for i, v := range slice {
+		if v == member {
+			slice = append(slice[:i], slice[i+1:]...)
+			break
+		}
+	}
+	return slice
+}
+
+func cleanExpression(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "=") {
+		if len(s) > 2 && s[2] != '=' {
+			s = "=" + s
+		}
+	}
+	return s
 }
 
 /*
@@ -614,15 +741,15 @@ func (s *NatsService) getMessagePending(messageName string) (*model.MsgWaiting, 
 	return pending, val.Revision(), nil
 }
 */
-func (s *NatsService) evaluateMessage(ctx context.Context, key string, vars model.Vars, correlate string) (bool, error) {
-	program, err := expr.Compile(key+correlate, expr.Env(vars))
+func (s *NatsService) evaluate(ctx context.Context, vars model.Vars, expresssion string) (bool, error) {
+	program, err := expr.Compile(expresssion, expr.Env(vars))
 	if err != nil {
-		s.log.Error("expression compilation error", zap.Error(err), zap.String("expr", key+correlate))
+		s.log.Error("expression compilation error", zap.Error(err), zap.String("expr", expresssion))
 		return false, fmt.Errorf("failed to compile expression: %w", err)
 	}
 	res, err := expr.Run(program, vars)
 	if err != nil {
-		s.log.Error("expression evaluation error", zap.String("expr", key+correlate), zap.Error(err))
+		s.log.Error("expression evaluation error", zap.String("expr", expresssion), zap.Error(err))
 		return false, fmt.Errorf("failed to evaluate expression: %w", err)
 	}
 	return res.(bool), nil

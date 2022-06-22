@@ -16,7 +16,9 @@ var Cmd = &cobra.Command{
 	Short: "Loads a BPMN XML file into shar",
 	Long: `shar bpmn load "WorkflowName" ./path-to-workflow.bpmn 
 	`,
-	RunE: run,
+	RunE:      run,
+	Args:      cobra.ExactValidArgs(1),
+	ValidArgs: []string{"workflowName"},
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -33,7 +35,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	wn, err := shar.LoadBMPNWorkflowFromBytes(ctx, args[0], b)
+	wn, err := shar.LoadBPMNWorkflowFromBytes(ctx, args[0], b)
 	if err != nil {
 		return fmt.Errorf("workflow could not be loaded: %w", err)
 	}

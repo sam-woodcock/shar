@@ -9,8 +9,8 @@ import (
 	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
 	"github.com/crystal-construct/shar/server/errors"
+	"github.com/crystal-construct/shar/server/errors/keys"
 	"github.com/crystal-construct/shar/server/services"
-	"github.com/crystal-construct/shar/telemetry/keys"
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
 	"go.uber.org/zap"
@@ -42,6 +42,7 @@ func NewEngine(log *zap.Logger, ns *services.NatsService) (*Engine, error) {
 func (c *Engine) Start(ctx context.Context) error {
 	c.ns.SetEventProcessor(c.activityProcessor)
 	c.ns.SetCompleteJobProcessor(c.completeJobProcessor)
+	c.ns.SetMessageCompleteProcessor(c.messageCompleteProcessor)
 	return c.ns.StartProcessing(ctx)
 }
 
@@ -94,7 +95,6 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 			zap.String(keys.WorkflowID, wfId),
 		)
 	}
-
 	els := elementTable(wf)
 	errs := make(chan error)
 	wg := sync.WaitGroup{}
@@ -149,7 +149,7 @@ func (c *Engine) encodeVars(ctx context.Context, vars model.Vars) []byte {
 
 // decodeVars decodes a go binary object containing workflow variables.
 func (c *Engine) decodeVars(ctx context.Context, vars []byte) model.Vars {
-	ret := make(map[string]interface{})
+	ret := make(map[string]any)
 	if vars == nil {
 		return ret
 	}
@@ -174,6 +174,9 @@ func forEachStartElement(wf *model.Workflow, fn func(element *model.Element)) {
 
 // traverse traverses all outbound connections provided the conditions passed if available.
 func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, outbound *model.Targets, el map[string]*model.Element, vars []byte) error {
+	if outbound == nil {
+		return nil
+	}
 	// Traverse along all outbound edges
 	for _, t := range outbound.Target {
 		ok := true
@@ -276,15 +279,34 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 
 	switch el.Type {
 	case "serviceTask":
-		if err := c.startJob(ctx, messages.WorkflowJobServiceTaskExecute, wfi.WorkflowId, wfiId, el, vars); err != nil {
+		if err := c.startJob(ctx, messages.WorkflowJobServiceTaskExecute, wfi.WorkflowId, wfiId, el, "", vars); err != nil {
 			return c.engineErr(ctx, "failed to start job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "userTask":
-		if err := c.startJob(ctx, messages.WorkflowJobUserTaskExecute, wfi.WorkflowId, wfiId, el, vars); err != nil {
+		if err := c.startJob(ctx, messages.WorkflowJobUserTaskExecute, wfi.WorkflowId, wfiId, el, "", vars); err != nil {
 			return c.engineErr(ctx, "failed to start job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "manualTask":
-		if err := c.startJob(ctx, messages.WorkflowJobManualTaskExecute, wfi.WorkflowId, wfiId, el, vars); err != nil {
+		if err := c.startJob(ctx, messages.WorkflowJobManualTaskExecute, wfi.WorkflowId, wfiId, el, "", vars); err != nil {
+			return c.engineErr(ctx, "failed to start job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
+		}
+	case "intermediateThrowEvent":
+		wf, err := c.ns.GetWorkflow(ctx, wfi.WorkflowId)
+		if err != nil {
+			return err
+		}
+		ix := -1
+		for i, v := range wf.Messages {
+			if v.Name == el.Execute {
+				ix = i
+				break
+			}
+		}
+		if ix == -1 {
+			// TODO: Fatal workflow error - we shouldn't allow to send unknown messages in parser
+			return fmt.Errorf("unknown workflow message name: %s", el.Execute)
+		}
+		if err := c.startJob(ctx, messages.WorkflowJobSendMessageExecute, wfi.WorkflowId, wfiId, el, wf.Messages[ix].Execute, vars); err != nil {
 			return c.engineErr(ctx, "failed to start job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "callActivity":
@@ -293,7 +315,7 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 		}
 	case "intermediateCatchEvent":
 		if err := c.awaitMessage(ctx, wfi.WorkflowId, wfiId, el, vars); err != nil {
-			return c.engineErr(ctx, "failed to awaait message", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
+			return c.engineErr(ctx, "failed to await message", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "endEvent":
 		if wfi.ParentWorkflowInstanceId != "" {
@@ -437,8 +459,8 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobId string, vars []
 	return nil
 }
 
-func (c *Engine) startJob(ctx context.Context, subject string, wfId string, wfiId string, el *model.Element, vars []byte) error {
-	job := &model.WorkflowState{WorkflowId: wfId, WorkflowInstanceId: wfiId, Vars: vars, ElementType: el.Type, ElementId: el.Id, Execute: el.Execute}
+func (c *Engine) startJob(ctx context.Context, subject string, wfId string, wfiId string, el *model.Element, condition string, vars []byte) error {
+	job := &model.WorkflowState{WorkflowId: wfId, WorkflowInstanceId: wfiId, Vars: vars, ElementType: el.Type, ElementId: el.Id, Execute: el.Execute, Condition: condition}
 	jobId, err := c.ns.CreateJob(ctx, job)
 
 	if err != nil {
@@ -505,6 +527,7 @@ func (c *Engine) awaitMessage(ctx context.Context, wfId string, wfiId string, el
 		ElementType:        el.Type,
 		TrackingId:         trackingId,
 		Execute:            el.Execute,
+		Condition:          el.Msg,
 		Vars:               vars,
 	}
 	err := c.ns.AwaitMsg(ctx, el.Msg, awaitMsg)
@@ -520,4 +543,17 @@ func (c *Engine) awaitMessage(ctx context.Context, wfId string, wfiId string, el
 		)
 	}
 	return nil
+}
+
+func (c *Engine) messageCompleteProcessor(ctx context.Context, state *model.WorkflowState) error {
+	wfi, err := c.ns.GetWorkflowInstance(ctx, state.WorkflowInstanceId)
+	if err != nil {
+		return err
+	}
+	wf, err := c.ns.GetWorkflow(ctx, state.WorkflowId)
+	if err != nil {
+		return err
+	}
+	els := elementTable(wf)
+	return c.traverse(ctx, wfi, els[state.ElementId].Outbound, els, state.Vars)
 }
