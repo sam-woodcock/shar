@@ -32,7 +32,7 @@ message ListWorkflowInstanceRequest {
 }
 
 message ListWorkflowInstanceResponse {
-  repeated ListWorkflowInstanceResult Result = 1;
+  repeated ListWorkflowInstanceResult result = 1;
 }
 
 
@@ -51,10 +51,16 @@ message WorkflowInstanceStatus {
 }
 
 message ListWorkflowsResponse {
-  repeated ListWorkflowResult Result = 1;
+  repeated ListWorkflowResult result = 1;
 }
 
 message ListWorkflowResult {
   string name = 1;
   int32 version = 2;
+}
+
+message SendMessageRequest {
+  string name = 1;
+  string key = 2;
+  string workflowInstanceId = 3;
 }

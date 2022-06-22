@@ -3,13 +3,14 @@ package client
 import (
 	"bytes"
 	"context"
-	"encoding/gob"
 	"fmt"
 	"github.com/crystal-construct/shar/client/parser"
 	"github.com/crystal-construct/shar/client/services"
 	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
-	"github.com/crystal-construct/shar/telemetry/ctxutil"
+	"github.com/crystal-construct/shar/server/errors"
+	"github.com/crystal-construct/shar/server/services/ctxutil"
+	"github.com/crystal-construct/shar/server/vars"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/nats-io/nats.go"
@@ -21,32 +22,44 @@ import (
 	"time"
 )
 
+type Command struct {
+	cl    *Client
+	wfiID string
+}
+
+func (c *Command) SendMessage(ctx context.Context, name string, key any) error {
+	return c.cl.SendMessage(ctx, c.wfiID, name, key)
+}
+
 type serviceFn func(ctx context.Context, vars model.Vars) (model.Vars, error)
+type senderFn func(ctx context.Context, client *Command, vars model.Vars) error
 
 type Client struct {
-	js       nats.JetStreamContext
-	SvcTasks map[string]serviceFn
-	storage  services.Storage
-	log      *zap.Logger
-	tp       *tracesdk.TracerProvider
-	con      *nats.Conn
+	js        nats.JetStreamContext
+	SvcTasks  map[string]serviceFn
+	storage   services.Storage
+	log       *zap.Logger
+	tp        *tracesdk.TracerProvider
+	con       *nats.Conn
+	MsgSender map[string]senderFn
 }
 
 func New(log *zap.Logger) *Client {
 	return &Client{
-		SvcTasks: make(map[string]serviceFn),
-		log:      log,
+		SvcTasks:  make(map[string]serviceFn),
+		MsgSender: make(map[string]senderFn),
+		log:       log,
 	}
 }
 
 func (c *Client) Dial(natsURL string) error {
 	n, err := nats.Connect(natsURL)
 	if err != nil {
-		return fmt.Errorf("failed to connect to nats: %w", err)
+		return c.clientErr(context.Background(), "failed to connect to nats", err)
 	}
 	js, err := n.JetStream()
 	if err != nil {
-		return fmt.Errorf("failed to connect to jetstream: %w", err)
+		return c.clientErr(context.Background(), "failed to connect to jetstream: %w", err)
 	}
 	c.js = js
 	c.con = n
@@ -64,9 +77,16 @@ func (c *Client) RegisterServiceTask(taskName string, fn serviceFn) {
 	c.SvcTasks[taskName] = fn
 }
 
+func (c *Client) RegisterMessageSender(messageName string, sender senderFn) {
+	if _, ok := c.MsgSender[messageName]; ok {
+		c.log.Fatal("message sender " + messageName + " already registered")
+	}
+	c.MsgSender[messageName] = sender
+}
+
 func (c *Client) Listen(ctx context.Context) error {
 	if err := c.listen(ctx); err != nil {
-		return fmt.Errorf("failed to listen for user tasks: %w", err)
+		return c.clientErr(ctx, "failed to listen for user tasks: %w", err)
 	}
 	return nil
 }
@@ -78,11 +98,11 @@ func (c *Client) listen(ctx context.Context) error {
 		FilterSubject: messages.WorkflowJobExecuteAll,
 		AckPolicy:     nats.AckExplicitPolicy,
 	}); err != nil {
-		return fmt.Errorf("failed to add consumer: %w", err)
+		return c.clientErr(ctx, "failed to add consumer: %w", err)
 	}
 	sub, err := c.js.PullSubscribe(messages.WorkflowJobExecuteAll, "JobExecuteConsumer")
 	if err != nil {
-		return fmt.Errorf("failed to pull subscribe: %w", err)
+		return c.clientErr(ctx, "failed to pull subscribe: %w", err)
 	}
 	go func() {
 		for {
@@ -110,7 +130,11 @@ func (c *Client) listen(ctx context.Context) error {
 						c.log.Error("failed to find service function", zap.Error(err), zap.String("fn", job.Execute))
 					}
 				} else {
-					newVars, err := svcFn(xctx, c.decodeVars(job.Vars))
+					dv, err := vars.Decode(c.log, job.Vars)
+					if err != nil {
+						c.log.Error("failed to decode vars", zap.Error(err), zap.String("fn", job.Execute))
+					}
+					newVars, err := svcFn(xctx, dv)
 					if err != nil {
 						if err := msg.Nak(); err != nil {
 							c.log.Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
@@ -129,6 +153,39 @@ func (c *Client) listen(ctx context.Context) error {
 						c.log.Error("service task ack failed", zap.Error(err), zap.String("subject", msg.Subject))
 					}
 				}
+			case "intermediateThrowEvent":
+				job, err := c.storage.GetJob(xctx, ut.TrackingId)
+				if err != nil {
+					c.log.Error("failed to get send message task", zap.Error(err), zap.String("JobId", ut.TrackingId))
+					continue
+				}
+				if sendFn, ok := c.MsgSender[job.Execute]; !ok {
+					if err := msg.Ack(); err != nil {
+						c.log.Error("failed to find send message function", zap.Error(err), zap.String("fn", job.Execute))
+					}
+				} else {
+					dv, err := vars.Decode(c.log, job.Vars)
+					if err != nil {
+						c.log.Error("failed to decode vars", zap.Error(err), zap.String("fn", job.Execute))
+					}
+					if err := sendFn(xctx, &Command{cl: c, wfiID: job.WorkflowInstanceId}, dv); err != nil {
+						if err := msg.Nak(); err != nil {
+							c.log.Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
+						}
+						fmt.Println(err)
+						continue
+					}
+					if err := c.CompleteServiceTask(xctx, ut.TrackingId, make(map[string]any)); err != nil {
+						if err := msg.Nak(); err != nil {
+							c.log.Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
+						}
+						fmt.Println(err)
+						continue
+					}
+					if err := msg.Ack(); err != nil {
+						c.log.Error("send message ack failed", zap.Error(err), zap.String("subject", msg.Subject))
+					}
+				}
 			default:
 				if err := msg.Ack(); err != nil {
 					c.log.Error("default ack failed", zap.Error(err), zap.String("subject", msg.Subject))
@@ -139,86 +196,73 @@ func (c *Client) listen(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) encodeVars(vars map[string]interface{}) []byte {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(vars); err != nil {
-		fmt.Println("failed to encode vars", zap.Any("vars", vars))
-	}
-	return buf.Bytes()
-}
-
-func (c *Client) decodeVars(vars []byte) model.Vars {
-	ret := make(map[string]interface{})
-	if vars == nil {
-		return ret
-	}
-	r := bytes.NewReader(vars)
-	d := gob.NewDecoder(r)
-	if err := d.Decode(&ret); err != nil {
-		fmt.Println(err)
-	}
-	return ret
-}
-
 func (c *Client) CompleteUserTask(ctx context.Context, jobId string, newVars model.Vars) error {
-	job := &model.WorkflowState{TrackingId: jobId, Vars: c.encodeVars(newVars)}
+	vb, err := vars.Encode(c.log, newVars)
+	job := &model.WorkflowState{TrackingId: jobId, Vars: vb}
 	b, err := proto.Marshal(job)
 	if err != nil {
-		return fmt.Errorf("failed to marshal completed user task: %w", err)
+		return c.clientErr(ctx, "failed to marshal completed user task: %w", err)
 	}
 	msg := nats.NewMsg(messages.WorkflowJobUserTaskComplete)
 	msg.Data = b
 	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	_, err = c.js.PublishMsg(msg)
 	if err != nil {
-		return fmt.Errorf("failed to publish complete user task: %w", err)
+		return c.clientErr(ctx, "failed to publish complete user task: %w", err)
 	}
 	return nil
 }
 
 func (c *Client) CompleteServiceTask(ctx context.Context, jobId string, newVars model.Vars) error {
-	job := &model.WorkflowState{TrackingId: jobId, Vars: c.encodeVars(newVars)}
+	ev, err := vars.Encode(c.log, newVars)
+	if err != nil {
+		return err
+	}
+	job := &model.WorkflowState{TrackingId: jobId, Vars: ev}
 	b, err := proto.Marshal(job)
 	if err != nil {
-		return fmt.Errorf("failed to marshal complete service task: %w", err)
+		return c.clientErr(ctx, "failed to marshal complete service task: %w", err)
 	}
 	msg := nats.NewMsg(messages.WorkflowJobServiceTaskComplete)
 	msg.Data = b
 	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	_, err = c.js.PublishMsg(msg)
 	if err != nil {
-		return fmt.Errorf("failed to publish complete service task: %w", err)
+		return c.clientErr(ctx, "failed to publish complete service task: %w", err)
 	}
 	return nil
 }
 
 func (c *Client) CompleteManualTask(ctx context.Context, jobId string, newVars model.Vars) error {
-	job := &model.WorkflowState{TrackingId: jobId, Vars: c.encodeVars(newVars)}
+	ev, err := vars.Encode(c.log, newVars)
+	if err != nil {
+		return err
+	}
+	job := &model.WorkflowState{TrackingId: jobId, Vars: ev}
 	b, err := proto.Marshal(job)
 	if err != nil {
-		return fmt.Errorf("failed to marshal complete manual task: %w", err)
+		return c.clientErr(ctx, "failed to marshal complete manual task: %w", err)
 	}
 	msg := nats.NewMsg(messages.WorkflowJobManualTaskComplete)
 	msg.Data = b
 	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	_, err = c.js.PublishMsg(msg)
 	if err != nil {
-		return fmt.Errorf("failed to publish complete manual task: %w", err)
+		return c.clientErr(ctx, "failed to publish complete manual task: %w", err)
 	}
 	return nil
 }
 
-func (c *Client) LoadBMPNWorkflowFromBytes(ctx context.Context, b []byte) (string, error) {
+func (c *Client) LoadBPMNWorkflowFromBytes(ctx context.Context, name string, b []byte) (string, error) {
 	rdr := bytes.NewReader(b)
-	if wf, err := parser.Parse(rdr); err == nil {
+	if wf, err := parser.Parse(name, rdr); err == nil {
 		res := &wrappers.StringValue{}
 		if err := callAPI(ctx, c.con, messages.ApiStoreWorkflow, wf, res); err != nil {
-			return "", fmt.Errorf("failed to store workflow: %w", err)
+			return "", c.clientErr(ctx, "failed to store workflow: %w", err)
 		}
 		return res.Value, nil
 	} else {
-		return "", fmt.Errorf("failed to parse workflow: %w", err)
+		return "", c.clientErr(ctx, "failed to parse workflow: %w", err)
 	}
 
 }
@@ -227,16 +271,20 @@ func (c *Client) CancelWorkflowInstance(ctx context.Context, instanceID string) 
 	res := &empty.Empty{}
 	req := &model.CancelWorkflowInstanceRequest{Id: instanceID}
 	if err := callAPI(ctx, c.con, messages.ApiCancelWorkflowInstance, req, res); err != nil {
-		return fmt.Errorf("failed to cancel workflow instance: %w", err)
+		return c.clientErr(ctx, "failed to cancel workflow instance: %w", err)
 	}
 	return nil
 }
 
-func (c *Client) LaunchWorkflow(ctx context.Context, workflowName string, vars model.Vars) (string, error) {
-	req := &model.LaunchWorkflowRequest{Name: workflowName, Vars: c.encodeVars(vars)}
+func (c *Client) LaunchWorkflow(ctx context.Context, workflowName string, mvars model.Vars) (string, error) {
+	ev, err := vars.Encode(c.log, mvars)
+	if err != nil {
+		return "", err
+	}
+	req := &model.LaunchWorkflowRequest{Name: workflowName, Vars: ev}
 	res := &wrappers.StringValue{}
 	if err := callAPI(ctx, c.con, messages.ApiLaunchWorkflow, req, res); err != nil {
-		return "", fmt.Errorf("failed to launch workflow: %w", err)
+		return "", c.clientErr(ctx, "failed to launch workflow: %w", err)
 	}
 	return res.Value, nil
 }
@@ -245,7 +293,7 @@ func (c *Client) ListWorkflowInstance(ctx context.Context, name string) ([]*mode
 	req := &model.ListWorkflowInstanceRequest{WorkflowName: name}
 	res := &model.ListWorkflowInstanceResponse{}
 	if err := callAPI(ctx, c.con, messages.ApiListWorkflowInstance, req, res); err != nil {
-		return nil, fmt.Errorf("failed to launch workflow: %w", err)
+		return nil, c.clientErr(ctx, "failed to launch workflow: %w", err)
 	}
 	return res.Result, nil
 }
@@ -254,7 +302,7 @@ func (c *Client) ListWorkflows(ctx context.Context) ([]*model.ListWorkflowResult
 	req := &empty.Empty{}
 	res := &model.ListWorkflowsResponse{}
 	if err := callAPI(ctx, c.con, messages.ApiListWorkflows, req, res); err != nil {
-		return nil, fmt.Errorf("failed to launch workflow: %w", err)
+		return nil, c.clientErr(ctx, "failed to launch workflow: %w", err)
 	}
 	return res.Result, nil
 }
@@ -263,9 +311,36 @@ func (c *Client) GetWorkflowInstanceStatus(ctx context.Context, id string) ([]*m
 	req := &model.GetWorkflowInstanceStatusRequest{Id: id}
 	res := &model.WorkflowInstanceStatus{}
 	if err := callAPI(ctx, c.con, messages.ApiGetWorkflowStatus, req, res); err != nil {
-		return nil, fmt.Errorf("failed to launch workflow: %w", err)
+		return nil, c.clientErr(ctx, "failed to launch workflow: %w", err)
 	}
 	return res.State, nil
+}
+
+func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, name string, key any) error {
+	var skey string
+	switch key.(type) {
+	case string:
+		skey = "\"" + fmt.Sprintf("%+v", key) + "\""
+	default:
+		skey = fmt.Sprintf("%+v", key)
+	}
+	req := &model.SendMessageRequest{Name: name, Key: skey, WorkflowInstanceId: workflowInstanceID}
+	res := &empty.Empty{}
+	if err := callAPI(ctx, c.con, messages.ApiSendMessage, req, res); err != nil {
+		return c.clientErr(ctx, "failed to send message: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) clientErr(ctx context.Context, msg string, err error, z ...zap.Field) error {
+	z = append(z, zap.Error(err))
+	c.log.Error(msg, z...)
+	return err
+}
+
+func (c *Client) fatalClientErr(ctx context.Context, msg string, err error, z ...zap.Field) error {
+	err2 := c.clientErr(ctx, msg, err, z...)
+	return errors.NewErrWorkflowFatal(msg, err2)
 }
 
 func callAPI[T proto.Message, U proto.Message](ctx context.Context, con *nats.Conn, subject string, command T, ret U) error {
@@ -279,7 +354,7 @@ func callAPI[T proto.Message, U proto.Message](ctx context.Context, con *nats.Co
 	if err != nil {
 		return err
 	}
-	if len(res.Data) > 4 && string(res.Data[0:3]) == "ERR_" {
+	if len(res.Data) > 4 && string(res.Data[0:4]) == "ERR_" {
 		em := strings.Split(string(res.Data), "_")
 		e := strings.Split(em[1], "|")
 		i, err := strconv.Atoi(e[0])

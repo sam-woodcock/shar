@@ -3,6 +3,7 @@ package commands
 import (
 	"github.com/crystal-construct/shar/cli/commands/bpmn"
 	"github.com/crystal-construct/shar/cli/commands/instance"
+	"github.com/crystal-construct/shar/cli/commands/message"
 	"github.com/crystal-construct/shar/cli/commands/workflow"
 	"github.com/crystal-construct/shar/cli/flag"
 	"github.com/crystal-construct/shar/cli/output"
@@ -36,8 +37,8 @@ func init() {
 	rootCmd.AddCommand(bpmn.Cmd)
 	rootCmd.AddCommand(instance.Cmd)
 	rootCmd.AddCommand(workflow.Cmd)
-
-	rootCmd.PersistentFlags().StringVarP(&flag.Value.Server, flag.Server, flag.ServerShort, nats.DefaultURL, "sets the address of a SHAR server")
+	rootCmd.AddCommand(message.Cmd)
+	rootCmd.PersistentFlags().StringVarP(&flag.Value.Server, flag.Server, flag.ServerShort, nats.DefaultURL, "sets the address of a NATS server")
 	rootCmd.PersistentFlags().StringVarP(&flag.Value.LogLevel, flag.LogLevel, flag.LogLevelShort, "error", "sets the logging level for the CLI")
 	var err error
 	lev, err := zap.ParseAtomicLevel(flag.Value.LogLevel)
