@@ -22,8 +22,8 @@ func main() {
 	cl := client.New(log)
 	cl.Dial(nats.DefaultURL)
 
-	w1, _ := os.ReadFile("examples/sub-workflow/testdata/workflow.bpmn")
-	w2, _ := os.ReadFile("examples/sub-workflow/testdata/subworkflow.bpmn")
+	w1, _ := os.ReadFile("testdata/sub-workflow-parent.bpmn")
+	w2, _ := os.ReadFile("testdata/sub-workflow-child.bpmn")
 	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "MasterWorkflowDemo", w1); err != nil {
 		panic(err)
 	}

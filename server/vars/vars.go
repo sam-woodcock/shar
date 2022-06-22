@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// encodeVars encodes the map of workflow variables into a go binary to be sent across the wire.
+// Encode encodes the map of workflow variables into a go binary to be sent across the wire.
 func Encode(log *zap.Logger, vars model.Vars) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
@@ -20,7 +20,7 @@ func Encode(log *zap.Logger, vars model.Vars) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// decode decodes a go binary object containing workflow variables.
+// Decode decodes a go binary object containing workflow variables.
 func Decode(log *zap.Logger, vars []byte) (model.Vars, error) {
 	ret := make(map[string]any)
 	if vars == nil {

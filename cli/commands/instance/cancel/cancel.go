@@ -20,15 +20,15 @@ var Cmd = &cobra.Command{
 
 func run(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
-	wfiid := args[0]
+	wfiID := args[0]
 
 	shar := client.New(output.Logger)
 	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	if err := shar.CancelWorkflowInstance(ctx, wfiid); err != nil {
+	if err := shar.CancelWorkflowInstance(ctx, wfiID); err != nil {
 		return fmt.Errorf("failed to cancel workflow instance: %w", err)
 	}
-	fmt.Println("workflow", wfiid, "cancelled.")
+	fmt.Println("workflow", wfiID, "cancelled.")
 	return nil
 }

@@ -28,7 +28,7 @@ func main() {
 	cl.Dial(nats.DefaultURL)
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("examples/message/testdata/workflow.bpmn")
+	b, err := os.ReadFile("testdata/message-workflow.bpmn")
 	if err != nil {
 		panic(err)
 	}

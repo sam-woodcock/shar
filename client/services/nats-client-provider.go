@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/crystal-construct/shar/model"
+	"github.com/crystal-construct/shar/server/services"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 )
 
 type NatsClientProvider struct {
@@ -58,41 +58,9 @@ func ensureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names
 	return nil
 }
 
-func Save(wf nats.KeyValue, k string, v []byte) error {
-	_, err := wf.Put(k, v)
-	if err != nil {
-		return fmt.Errorf("failed to save value: %w", err)
-	}
-	return nil
-}
-
-func Load(wf nats.KeyValue, k string) ([]byte, error) {
-	if b, err := wf.Get(k); err == nil {
-		return b.Value(), nil
-	} else {
-		return nil, fmt.Errorf("failed to load value: %w", err)
-	}
-}
-
-func SaveObj(wf nats.KeyValue, k string, v proto.Message) error {
-	if b, err := proto.Marshal(v); err == nil {
-		return Save(wf, k, b)
-	} else {
-		return fmt.Errorf("failed to save object: %w", err)
-	}
-}
-
-func LoadObj(wf nats.KeyValue, k string, v proto.Message) error {
-	if kv, err := Load(wf, k); err == nil {
-		return proto.Unmarshal(kv, v)
-	} else {
-		return fmt.Errorf("failed to load object: %w", err)
-	}
-}
-
 func (s *NatsClientProvider) GetJob(ctx context.Context, id string) (*model.WorkflowState, error) {
 	job := &model.WorkflowState{}
-	if err := LoadObj(s.job, id, job); err != nil {
+	if err := services.LoadObj(s.job, id, job); err != nil {
 		return nil, err
 	}
 	return job, nil

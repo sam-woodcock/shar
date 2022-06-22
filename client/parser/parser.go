@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/antchfx/xmlquery"
 	"github.com/crystal-construct/shar/model"
-	"github.com/pkg/errors"
 	"io"
 	"strings"
 )

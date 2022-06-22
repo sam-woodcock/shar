@@ -8,6 +8,7 @@ require (
 	github.com/caarlos0/env/v6 v6.9.3
 	github.com/golang/protobuf v1.5.2
 	github.com/nats-io/nats.go v1.16.0
+	github.com/pkg/errors v0.8.1
 	github.com/pterm/pterm v0.12.42
 	github.com/segmentio/ksuid v1.0.4
 	github.com/spf13/cobra v1.5.0

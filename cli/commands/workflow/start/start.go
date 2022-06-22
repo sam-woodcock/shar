@@ -24,10 +24,10 @@ func run(cmd *cobra.Command, args []string) error {
 	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	wfiid, err := shar.LaunchWorkflow(ctx, args[0], nil)
+	wfiID, err := shar.LaunchWorkflow(ctx, args[0], nil)
 	if err != nil {
 		return fmt.Errorf("workflow launch failed: %w", err)
 	}
-	fmt.Println("workflow instance started. instance-id:", wfiid)
+	fmt.Println("workflow instance started. instance-id:", wfiID)
 	return nil
 }
