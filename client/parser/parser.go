@@ -3,6 +3,7 @@ package parser
 import (
 	"github.com/antchfx/xmlquery"
 	"github.com/crystal-construct/shar/model"
+	"github.com/pkg/errors"
 	"io"
 
 	"strings"
@@ -11,51 +12,110 @@ import (
 //goland:noinspection HttpUrlsUsage
 const bpmnNS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 
-func Parse(rdr io.Reader) (*model.Process, error) {
-
-	pr := &model.Process{
-		Elements: make([]*model.Element, 0),
-	}
-
+func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
+	msgs := make(map[string]string)
 	doc, err := xmlquery.Parse(rdr)
 	if err != nil {
 		return nil, err
 	}
-	prXml := doc.SelectElements("//bpmn:process")[0]
-	pr.Name = prXml.SelectAttr("id")
-	parseProcess(doc, prXml, pr)
-	return pr, nil
-}
-
-func parseProcess(doc *xmlquery.Node, prXml *xmlquery.Node, pr *model.Process) {
-	for _, i := range prXml.SelectElements("*") {
-		parseElements(doc, pr, i)
+	prXmls := doc.SelectElements("//bpmn:process")
+	wf := &model.Workflow{
+		Name:    name,
+		Process: make(map[string]*model.Process, len(prXmls)),
 	}
+	for _, prXml := range prXmls {
+		pr := &model.Process{
+			Elements: make([]*model.Element, 0),
+		}
+		msgXml := doc.SelectElements("//bpmn:message")
+		pr.Name = prXml.SelectAttr("id")
+		if err := parseProcess(doc, wf, prXml, pr, msgXml, msgs); err != nil {
+			return nil, err
+		}
+		wf.Process[pr.Name] = pr
+	}
+	return wf, nil
 }
 
-func parseElements(doc *xmlquery.Node, pr *model.Process, i *xmlquery.Node) {
+func parseProcess(doc *xmlquery.Node, wf *model.Workflow, prXml *xmlquery.Node, pr *model.Process, msgXml []*xmlquery.Node, msgs map[string]string) error {
+	for _, i := range prXml.SelectElements("*") {
+		if err := parseElements(doc, wf, pr, i, msgs); err != nil {
+			return err
+		}
+	}
+	if msgXml != nil {
+		parseMessages(doc, wf, msgXml, msgs)
+	}
+	return nil
+}
+
+func parseMessages(doc *xmlquery.Node, wf *model.Workflow, msgNodes []*xmlquery.Node, msgs map[string]string) {
+	m := make([]*model.Element, len(msgNodes))
+	for i, x := range msgNodes {
+		m[i] = &model.Element{
+			Id:   x.SelectElement("@id").InnerText(),
+			Name: x.SelectElement("@name").InnerText(),
+		}
+		msgs[m[i].Id] = m[i].Name
+		parseExtensions(doc, m[i], x)
+	}
+	wf.Messages = m
+}
+
+func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i *xmlquery.Node, msgs map[string]string) error {
 	if i.NamespaceURI == bpmnNS {
 		el := &model.Element{Type: i.Data}
 		if i.Data == "sequenceFlow" || i.Data == "incoming" || i.Data == "outgoing" || i.Data == "extensionElements" {
-			return
+			return nil
 		}
 		parseCoreValues(i, el)
 		parseFlowInOut(doc, i, el)
 		parseDocumentation(i, el)
 		parseExtensions(doc, el, i)
-		parseSubprocess(doc, el, i)
+		if err := parseSubprocess(doc, wf, el, i, msgs); err != nil {
+			return err
+		}
+		if err := parseSubscription(wf, el, i, msgs); err != nil {
+			return err
+		}
 		pr.Elements = append(pr.Elements, el)
 	}
+	return nil
 }
 
-func parseSubprocess(doc *xmlquery.Node, el *model.Element, i *xmlquery.Node) {
+func parseSubscription(wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string) error {
+	if x := i.SelectElement("bpmn:messageEventDefinition/@messageRef"); x != nil {
+		ref := x.InnerText()
+		el.Msg = msgs[ref]
+		c, err := getCorrelation(wf.Messages, el.Msg)
+		if err != nil {
+			return err
+		}
+		el.Execute = c
+	}
+	return nil
+}
+
+func getCorrelation(messages []*model.Element, msg string) (string, error) {
+	for _, v := range messages {
+		if v.Name == msg {
+			return v.Execute, nil
+		}
+	}
+	return "", errors.New("could not find message: " + msg)
+}
+
+func parseSubprocess(doc *xmlquery.Node, wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string) error {
 	if i.Data == "subProcess" {
 		pr := &model.Process{
 			Elements: make([]*model.Element, 0),
 		}
-		parseProcess(doc, i, pr)
+		if err := parseProcess(doc, wf, i, pr, nil, msgs); err != nil {
+			return err
+		}
 		el.Process = pr
 	}
+	return nil
 }
 
 func parseExtensions(doc *xmlquery.Node, el *model.Element, i *xmlquery.Node) {
@@ -73,6 +133,10 @@ func parseExtensions(doc *xmlquery.Node, el *model.Element, i *xmlquery.Node) {
 			name := fullName[len(fullName)-1]
 			f := doc.SelectElement("//zeebe:userTaskForm[@id=\"" + name + "\"]").InnerText()
 			el.Execute = f
+		}
+		//Messages
+		if e := x.SelectElement("zeebe:subscription/@correlationKey"); e != nil {
+			el.Execute = e.InnerText()
 		}
 	}
 }

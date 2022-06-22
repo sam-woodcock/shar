@@ -5,6 +5,12 @@ option go_package = "github.com/crystal-construct/shar/model";
 //import "google/protobuf/duration.proto";
 //import "google/protobuf/any.proto";
 
+message Workflow {
+  string Name = 1;
+  map<string,Process> Process = 2;
+  repeated Element messages = 3;
+}
+
 message Process {
   repeated Element elements = 1;
   string Name      = 2;
@@ -28,6 +34,7 @@ message Element {
   string execute =5;
   Targets outbound = 6;
   Process process = 7;
+  string msg = 8;
 }
 
 message Target {
@@ -41,19 +48,25 @@ message Targets {
   bool exclusive = 2;
 }
 
+message Messages {
+  string name = 1;
+}
+
 message JobComplete {
 
 }
 
 message WorkflowState {
-  string workflowInstanceId = 1;
-  string elementId = 2;
-  string elementType = 3;
-  string trackingId = 4;
-  string execute = 5;
-  string state = 6;
-  int64 unixTimeNano = 7;
-  bytes vars = 8;
+  string workflowId = 1;
+  string workflowInstanceId = 2;
+  string elementId = 3;
+  string elementType = 4;
+  string trackingId = 5;
+  string execute = 6;
+  string state = 7;
+  string condition = 8;
+  int64 unixTimeNano = 9;
+  bytes vars = 10;
 }
 
 message WorkflowInstance {
@@ -63,8 +76,11 @@ message WorkflowInstance {
   string workflowId = 4;
 }
 
-message InstanceState {
-  string id = 1;
-  string state = 2;
-  bytes vars = 3;
+message MessageInstance {
+  string messageId = 1;
+  string correlationKey = 2;
+}
+
+message WorkflowInstanceSubscribers {
+  repeated string list = 1; // stateId
 }

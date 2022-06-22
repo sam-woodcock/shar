@@ -10,10 +10,12 @@ import (
 )
 
 var Cmd = &cobra.Command{
-	Use:   "start",
-	Short: "Starts a new workflow instance",
-	Long:  ``,
-	RunE:  run,
+	Use:       "start",
+	Short:     "Starts a new workflow instance",
+	Long:      `shar workflow start "WorkflowName"`,
+	RunE:      run,
+	Args:      cobra.ExactValidArgs(1),
+	ValidArgs: []string{"workflow"},
 }
 
 func run(cmd *cobra.Command, args []string) error {

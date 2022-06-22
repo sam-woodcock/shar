@@ -19,7 +19,7 @@ type NatsClientProvider struct {
 }
 
 func NewNatsClientProvider(log *zap.Logger, js nats.JetStreamContext, storageType nats.StorageType) (*NatsClientProvider, error) {
-	if err := ensureBuckets(js, storageType, []string{"WORKFLOW_INSTANCE", "WORKFLOW_DEF", "WORKFLOW_LATEST", "WORKFLOW_JOB"}); err != nil {
+	if err := ensureBuckets(js, storageType, []string{"WORKFLOW_INSTANCE", "WORKFLOW_DEF", "WORKFLOW_JOB"}); err != nil {
 		return nil, err
 	}
 	ms := &NatsClientProvider{
@@ -38,11 +38,6 @@ func NewNatsClientProvider(log *zap.Logger, js nats.JetStreamContext, storageTyp
 		ms.wf = kv
 	}
 
-	if kv, err := js.KeyValue("WORKFLOW_LATEST"); err != nil {
-		return nil, err
-	} else {
-		ms.latestWf = kv
-	}
 	if kv, err := js.KeyValue("WORKFLOW_JOB"); err != nil {
 		return nil, err
 	} else {

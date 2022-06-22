@@ -67,8 +67,8 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 	}()
 	s.log.Info("shar grpc health started")
 
-	store, queue := s.createServices(natsURL, s.log)
-	s.api, err = api.New(s.log, store, queue)
+	ns := s.createServices(natsURL, s.log)
+	s.api, err = api.New(s.log, ns)
 	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_SERVING)
 	s.api.Listen()
 	// Log or exit
@@ -87,25 +87,20 @@ func (s *Server) Shutdown(ctx context.Context) {
 	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
 	s.grpcServer.GracefulStop()
 	s.api.Shutdown()
-	s.log.Info("shar grpc stopped")
+	s.log.Info("shar grpc health stopped")
 }
 
-func (s *Server) createServices(natsURL string, log *zap.Logger) (*services.NatsKVStore, *services.NatsQueue) {
+func (s *Server) createServices(natsURL string, log *zap.Logger) *services.NatsService {
 	conn, err := nats.Connect(natsURL)
 	if err != nil {
 		log.Fatal("could not connect to NATS", zap.Error(err), zap.String("url", natsURL))
 	}
 
-	store, err := services.NewNatsKVStore(log, conn, nats.FileStorage)
+	ns, err := services.NewNatsService(log, conn, nats.FileStorage, 4)
 	if err != nil {
 		log.Fatal("failed to create NATS KV store", zap.Error(err))
 	}
-
-	queue, err := services.NewNatsQueue(log, conn, nats.FileStorage, 4)
-	if err != nil {
-		log.Fatal("failed to create NATS queue", zap.Error(err))
-	}
-	return store, queue
+	return ns
 }
 
 func registerServer(s *gogrpc.Server) (*health.Checker, error) {

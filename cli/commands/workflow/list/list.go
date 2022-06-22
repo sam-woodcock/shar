@@ -14,6 +14,7 @@ var Cmd = &cobra.Command{
 	Short: "Lists available workflows",
 	Long:  ``,
 	RunE:  run,
+	Args:  cobra.NoArgs,
 }
 
 func run(cmd *cobra.Command, args []string) error {
