@@ -8,11 +8,10 @@ import (
 	errors2 "errors"
 	"fmt"
 	"github.com/antonmedv/expr"
-	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
 	"github.com/crystal-construct/shar/server/errors"
 	"github.com/crystal-construct/shar/server/errors/keys"
-	"github.com/crystal-construct/shar/server/services/ctxutil"
+	"github.com/crystal-construct/shar/server/messages"
 	"github.com/crystal-construct/shar/server/vars"
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
@@ -493,7 +492,6 @@ func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string
 	} else {
 		msg.Data = b
 	}
-	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	if _, err := s.js.PublishMsg(msg); err != nil {
 		return err
 	}
@@ -516,7 +514,6 @@ func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID str
 	} else {
 		msg.Data = b
 	}
-	ctxutil.LoadNATSHeaderFromContext(ctx, msg)
 	if _, err := s.js.PublishMsg(msg); err != nil {
 		return err
 	}
@@ -585,7 +582,7 @@ func (s *NatsService) process(ctx context.Context, subject string, durable strin
 					cancel()
 					return
 				}
-				executeCtx := ctxutil.LoadContextFromNATSHeader(ctx, msg[0])
+				executeCtx := context.Background()
 				ack, err := fn(executeCtx, msg[0])
 				if err != nil {
 					s.log.Error("processing error", zap.Error(err))
@@ -674,14 +671,14 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 		} else if err != nil {
 			return false, err
 		}
-		if sub.Condition != string(messageName) {
+		if *sub.Condition != string(messageName) {
 			continue
 		}
 		dv, err := vars.Decode(s.log, sub.Vars)
 		if err != nil {
 			return false, err
 		}
-		success, err := s.evaluate(ctx, dv, instance.CorrelationKey+cleanExpression(sub.Execute))
+		success, err := s.evaluate(ctx, dv, instance.CorrelationKey+cleanExpression(*sub.Execute))
 		if err != nil {
 			return false, err
 		}

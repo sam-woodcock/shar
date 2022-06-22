@@ -1,6 +1,6 @@
 package errors
 
-import "github.com/pkg/errors"
+import "errors"
 
 var (
 	ErrClosing                  = errors.New("grpc server is shutting down")

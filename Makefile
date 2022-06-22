@@ -3,10 +3,10 @@ default: clean proto server
 configure:
 	@echo "\033[92mConfigure\033[0m"
 	go version
-	go get -d google.golang.org/protobuf/cmd/protoc-gen-go@v1.27.1
+	go get -d google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
 	go get -d google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
 	go get -d github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.27.1
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 

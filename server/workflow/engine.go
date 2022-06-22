@@ -6,10 +6,10 @@ import (
 	"encoding/gob"
 	"fmt"
 	"github.com/antonmedv/expr"
-	"github.com/crystal-construct/shar/internal/messages"
 	"github.com/crystal-construct/shar/model"
 	"github.com/crystal-construct/shar/server/errors"
 	"github.com/crystal-construct/shar/server/errors/keys"
+	"github.com/crystal-construct/shar/server/messages"
 	"github.com/crystal-construct/shar/server/services"
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
@@ -86,7 +86,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 			zap.String(keys.WorkflowID, wfId),
 		)
 	}
-	wfi, err := c.ns.CreateWorkflowInstance(ctx, &model.WorkflowInstance{WorkflowId: wfId, ParentWorkflowInstanceId: parentWfiID, ParentElementId: parentElID})
+	wfi, err := c.ns.CreateWorkflowInstance(ctx, &model.WorkflowInstance{WorkflowId: wfId, ParentWorkflowInstanceId: &parentWfiID, ParentElementId: &parentElID})
 	if err != nil {
 		return "", c.engineErr(ctx, "failed to create workflow instance", err,
 			zap.String(keys.ParentInstanceElementId, parentElID),
@@ -318,9 +318,9 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiId, elementId, tracki
 			return c.engineErr(ctx, "failed to await message", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "endEvent":
-		if wfi.ParentWorkflowInstanceId != "" {
-			if err := c.returnBack(ctx, wfi.WorkflowInstanceId, wfi.ParentWorkflowInstanceId, wfi.ParentElementId, vars); err != nil {
-				return c.engineErr(ctx, "failed to return to originator workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name, zap.String(keys.ParentWorkflowInstanceId, wfi.ParentWorkflowInstanceId))...)
+		if *wfi.ParentWorkflowInstanceId != "" {
+			if err := c.returnBack(ctx, wfi.WorkflowInstanceId, *wfi.ParentWorkflowInstanceId, *wfi.ParentElementId, vars); err != nil {
+				return c.engineErr(ctx, "failed to return to originator workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name, zap.String(keys.ParentWorkflowInstanceId, *wfi.ParentWorkflowInstanceId))...)
 			}
 		}
 		if err := c.cleanup(ctx, wfi.WorkflowInstanceId); err != nil {
@@ -460,7 +460,7 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobId string, vars []
 }
 
 func (c *Engine) startJob(ctx context.Context, subject string, wfId string, wfiId string, el *model.Element, condition string, vars []byte) error {
-	job := &model.WorkflowState{WorkflowId: wfId, WorkflowInstanceId: wfiId, Vars: vars, ElementType: el.Type, ElementId: el.Id, Execute: el.Execute, Condition: condition}
+	job := &model.WorkflowState{WorkflowId: wfId, WorkflowInstanceId: wfiId, Vars: vars, ElementType: el.Type, ElementId: el.Id, Execute: &el.Execute, Condition: &condition}
 	jobId, err := c.ns.CreateJob(ctx, job)
 
 	if err != nil {
@@ -526,8 +526,8 @@ func (c *Engine) awaitMessage(ctx context.Context, wfId string, wfiId string, el
 		ElementId:          el.Id,
 		ElementType:        el.Type,
 		TrackingId:         trackingId,
-		Execute:            el.Execute,
-		Condition:          el.Msg,
+		Execute:            &el.Execute,
+		Condition:          &el.Msg,
 		Vars:               vars,
 	}
 	err := c.ns.AwaitMsg(ctx, el.Msg, awaitMsg)
@@ -539,7 +539,7 @@ func (c *Engine) awaitMessage(ctx context.Context, wfId string, wfiId string, el
 			zap.String(keys.ElementType, el.Type),
 			zap.String(keys.JobType, awaitMsg.ElementType),
 			zap.String(keys.WorkflowInstanceID, wfiId),
-			zap.String(keys.Execute, awaitMsg.Execute),
+			zap.String(keys.Execute, *awaitMsg.Execute),
 		)
 	}
 	return nil
@@ -547,7 +547,10 @@ func (c *Engine) awaitMessage(ctx context.Context, wfId string, wfiId string, el
 
 func (c *Engine) messageCompleteProcessor(ctx context.Context, state *model.WorkflowState) error {
 	wfi, err := c.ns.GetWorkflowInstance(ctx, state.WorkflowInstanceId)
-	if err != nil {
+	if err == nats.ErrKeyNotFound {
+		c.log.Warn("workflow instance not found, cancelling message processing", zap.Error(err), zap.String(keys.WorkflowInstanceID, state.WorkflowInstanceId))
+		return nil
+	} else if err != nil {
 		return err
 	}
 	wf, err := c.ns.GetWorkflow(ctx, state.WorkflowId)
