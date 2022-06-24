@@ -1,8 +1,8 @@
 package message
 
 import (
-	"gitlab.com/shar-workflow/shar/cli/commands/message/send"
 	"github.com/spf13/cobra"
+	"gitlab.com/shar-workflow/shar/cli/commands/message/send"
 )
 
 var Cmd = &cobra.Command{

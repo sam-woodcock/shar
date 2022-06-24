@@ -54,7 +54,7 @@ func main() {
 	}
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("examples/simple/testdata/workflow.bpmn")
+	b, err := os.ReadFile("testdata/simple-workflow.bpmn")
 	if err != nil {
 		panic(err)
 	}

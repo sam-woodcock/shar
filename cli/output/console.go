@@ -2,9 +2,9 @@ package output
 
 import (
 	"fmt"
-	"gitlab.com/shar-workflow/shar/model"
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
+	"gitlab.com/shar-workflow/shar/model"
 	"time"
 )
 

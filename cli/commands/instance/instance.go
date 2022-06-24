@@ -1,10 +1,10 @@
 package instance
 
 import (
+	"github.com/spf13/cobra"
 	"gitlab.com/shar-workflow/shar/cli/commands/instance/cancel"
 	"gitlab.com/shar-workflow/shar/cli/commands/instance/list"
 	"gitlab.com/shar-workflow/shar/cli/commands/instance/status"
-	"github.com/spf13/cobra"
 )
 
 var Cmd = &cobra.Command{

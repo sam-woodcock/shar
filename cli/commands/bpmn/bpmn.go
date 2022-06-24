@@ -1,8 +1,8 @@
 package bpmn
 
 import (
-	"gitlab.com/shar-workflow/shar/cli/commands/bpmn/load"
 	"github.com/spf13/cobra"
+	"gitlab.com/shar-workflow/shar/cli/commands/bpmn/load"
 )
 
 var Cmd = &cobra.Command{

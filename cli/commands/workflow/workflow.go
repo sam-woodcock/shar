@@ -1,9 +1,9 @@
 package workflow
 
 import (
+	"github.com/spf13/cobra"
 	"gitlab.com/shar-workflow/shar/cli/commands/workflow/list"
 	"gitlab.com/shar-workflow/shar/cli/commands/workflow/start"
-	"github.com/spf13/cobra"
 )
 
 var Cmd = &cobra.Command{
