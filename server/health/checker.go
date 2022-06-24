@@ -31,3 +31,9 @@ func (c *Checker) Check(context.Context, *grpcHealth.HealthCheckRequest) (*grpcH
 		Status: c.status,
 	}, nil
 }
+
+func (c *Checker) GetStatus() grpcHealth.HealthCheckResponse_ServingStatus {
+	c.mx.Lock()
+	defer c.mx.Unlock()
+	return c.status
+}

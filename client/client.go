@@ -4,14 +4,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/golang/protobuf/ptypes/wrappers"
+	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client/parser"
 	"gitlab.com/shar-workflow/shar/client/services"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/vars"
-	"github.com/golang/protobuf/ptypes/wrappers"
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -39,6 +39,7 @@ type Client struct {
 	storage   services.Storage
 	log       *zap.Logger
 	con       *nats.Conn
+	complete  chan *model.WorkflowInstanceComplete
 	MsgSender map[string]senderFn
 }
 
@@ -85,6 +86,9 @@ func (c *Client) RegisterMessageSender(messageName string, sender senderFn) {
 func (c *Client) Listen(ctx context.Context) error {
 	if err := c.listen(ctx); err != nil {
 		return c.clientErr(ctx, "failed to listen for user tasks: %w", err)
+	}
+	if err := c.listenWorkflowComplete(ctx); err != nil {
+		return c.clientErr(ctx, "failed to listen for workflow complete: %w", err)
 	}
 	return nil
 }
@@ -137,14 +141,14 @@ func (c *Client) listen(ctx context.Context) error {
 						if err := msg.Nak(); err != nil {
 							c.log.Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
 						}
-						fmt.Println(err)
+						c.log.Warn("failed during execution of service task function", zap.Error(err))
 						continue
 					}
 					if err := c.CompleteServiceTask(xctx, ut.TrackingId, newVars); err != nil {
 						if err := msg.Nak(); err != nil {
 							c.log.Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
 						}
-						fmt.Println(err)
+						c.log.Warn("failed to complete service task", zap.Error(err))
 						continue
 					}
 					if err := msg.Ack(); err != nil {
@@ -170,14 +174,14 @@ func (c *Client) listen(ctx context.Context) error {
 						if err := msg.Nak(); err != nil {
 							c.log.Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
 						}
-						fmt.Println(err)
+						c.log.Warn("nats listener", zap.Error(err))
 						continue
 					}
 					if err := c.CompleteServiceTask(xctx, ut.TrackingId, make(map[string]any)); err != nil {
 						if err := msg.Nak(); err != nil {
 							c.log.Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
 						}
-						fmt.Println(err)
+						c.log.Error("proto unmarshal error", zap.Error(err))
 						continue
 					}
 					if err := msg.Ack(); err != nil {
@@ -191,6 +195,29 @@ func (c *Client) listen(ctx context.Context) error {
 			}
 		}
 	}()
+	return nil
+}
+
+func (c *Client) listenWorkflowComplete(ctx context.Context) error {
+	_, err := c.con.Subscribe(messages.WorkflowInstanceComplete, func(msg *nats.Msg) {
+		st := &model.WorkflowState{}
+		if err := proto.Unmarshal(msg.Data, st); err != nil {
+			c.log.Error("proto unmarshal error", zap.Error(err))
+		}
+
+		if c.complete != nil {
+			c.complete <- &model.WorkflowInstanceComplete{
+				WorkflowInstanceId: st.WorkflowInstanceId,
+				WorkflowId:         st.WorkflowId,
+			}
+			if err := msg.Ack(); err != nil {
+				c.log.Error("send message ack failed", zap.Error(err), zap.String("subject", msg.Subject))
+			}
+		}
+	})
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -336,6 +363,10 @@ func (c *Client) clientErr(ctx context.Context, msg string, err error, z ...zap.
 func (c *Client) fatalClientErr(ctx context.Context, msg string, err error, z ...zap.Field) error {
 	err2 := c.clientErr(ctx, msg, err, z...)
 	return errors.NewErrWorkflowFatal(msg, err2)
+}
+
+func (c *Client) RegisterWorkflowInstanceComplete(fn chan *model.WorkflowInstanceComplete) {
+	c.complete = fn
 }
 
 func callAPI[T proto.Message, U proto.Message](ctx context.Context, con *nats.Conn, subject string, command T, ret U) error {

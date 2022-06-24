@@ -1,12 +1,11 @@
 package server
 
 import (
-	"context"
 	"fmt"
+	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/server/api"
 	"gitlab.com/shar-workflow/shar/server/health"
 	"gitlab.com/shar-workflow/shar/server/services"
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	gogrpc "google.golang.org/grpc"
@@ -30,8 +29,9 @@ type Server struct {
 // Leave the exporter nil if telemetry is not required
 func New(log *zap.Logger) *Server {
 	s := &Server{
-		sig: make(chan os.Signal, 10),
-		log: log,
+		sig:           make(chan os.Signal, 10),
+		log:           log,
+		healthService: health.New(),
 	}
 	signal.Notify(s.sig, syscall.SIGINT, syscall.SIGTERM)
 	return s
@@ -39,8 +39,6 @@ func New(log *zap.Logger) *Server {
 
 // Listen starts the GRPC server for both serving requests, and thw GRPC health endpoint.
 func (s *Server) Listen(natsURL string, grpcPort int) {
-	ctx := context.Background()
-
 	// Capture errors and cancel signals
 	errs := make(chan error)
 
@@ -53,8 +51,8 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 		log.Fatal("failed to listen", zap.Field{Key: "grpcPort", Type: zapcore.Int64Type, Integer: int64(grpcPort)}, zap.Error(err))
 	}
 	s.grpcServer = gogrpc.NewServer()
-	s.healthService, err = registerServer(s.grpcServer)
-	if err != nil {
+
+	if err := registerServer(s.grpcServer, s.healthService); err != nil {
 		log.Fatal("failed to register grpc health server", zap.Field{Key: "grpcPort", Type: zapcore.Int64Type, Integer: int64(grpcPort)}, zap.Error(err))
 	}
 
@@ -80,12 +78,12 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 			log.Fatal("fatal error", zap.Error(err))
 		}
 	case <-s.sig:
-		s.shutdown(ctx)
+		s.Shutdown()
 	}
 }
 
 // shutdown gracefully shuts down the GRPC server, and requests that
-func (s *Server) shutdown(ctx context.Context) {
+func (s *Server) Shutdown() {
 	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
 	s.grpcServer.GracefulStop()
 	s.api.Shutdown()
@@ -105,9 +103,12 @@ func (s *Server) createServices(natsURL string, log *zap.Logger) *services.NatsS
 	return ns
 }
 
-func registerServer(s *gogrpc.Server) (*health.Checker, error) {
-	healthService := health.New()
-	healthService.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
-	grpcHealth.RegisterHealthServer(s, healthService)
-	return healthService, nil
+func (s *Server) Ready() bool {
+	return s.healthService.GetStatus() == grpcHealth.HealthCheckResponse_SERVING
+}
+
+func registerServer(s *gogrpc.Server, hs *health.Checker) error {
+	hs.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
+	grpcHealth.RegisterHealthServer(s, hs)
+	return nil
 }

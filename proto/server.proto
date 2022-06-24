@@ -64,3 +64,9 @@ message SendMessageRequest {
   string key = 2;
   string workflowInstanceId = 3;
 }
+
+message WorkflowInstanceComplete {
+  string workflowName = 1;
+  string workflowId = 2;
+  string workflowInstanceId = 3;
+}

@@ -8,14 +8,14 @@ import (
 	errors2 "errors"
 	"fmt"
 	"github.com/antonmedv/expr"
+	"github.com/nats-io/nats.go"
+	"github.com/segmentio/ksuid"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/errors/keys"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/vars"
-	"github.com/nats-io/nats.go"
-	"github.com/segmentio/ksuid"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 	"strings"
@@ -248,6 +248,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 					zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
 					zap.String(keys.WorkflowID, wfi.WorkflowId),
 					zap.String(keys.WorkflowName, wf.Name),
+					zap.String(keys.MessageID, wf.Name),
 				)
 			}
 			for _, subID := range subs.List {
@@ -378,16 +379,6 @@ func (s *NatsService) GetWorkflowInstanceStatus(ctx context.Context, id string) 
 	}
 	return &model.WorkflowInstanceStatus{State: []*model.WorkflowState{v}}, nil
 }
-
-/*
-func (s *NatsService) AwaitMsg(ctx context.Context, name string, state *model.WorkflowState) error {
-	return UpdateObj(s.wfMsgSubs, name, &model.MsgWaiting{}, func(v proto.Message) (proto.Message, error) {
-		mw := v.(*model.MsgWaiting)
-		mw.List = append(mw.List, state)
-		return mw, nil
-	})
-}
-*/
 
 func (s *NatsService) StartProcessing(ctx context.Context) error {
 	scfg := &nats.StreamConfig{

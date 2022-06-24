@@ -12,4 +12,5 @@ const (
 	WorkflowName             = "wf.name"
 	ParentInstanceElementId  = "wf.parent.el.id"
 	Execute                  = "wf.ex"
+	MessageID                = "msg.id"
 )
