@@ -8,12 +8,12 @@ import (
 	errors2 "errors"
 	"fmt"
 	"github.com/antonmedv/expr"
-	"github.com/crystal-construct/shar/common"
-	"github.com/crystal-construct/shar/model"
-	"github.com/crystal-construct/shar/server/errors"
-	"github.com/crystal-construct/shar/server/errors/keys"
-	"github.com/crystal-construct/shar/server/messages"
-	"github.com/crystal-construct/shar/server/vars"
+	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/errors"
+	"gitlab.com/shar-workflow/shar/server/errors/keys"
+	"gitlab.com/shar-workflow/shar/server/messages"
+	"gitlab.com/shar-workflow/shar/server/vars"
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
 	"go.uber.org/zap"
@@ -60,15 +60,15 @@ func (s *NatsService) AwaitMsg(ctx context.Context, state *model.WorkflowState) 
 func (s *NatsService) ListWorkflows(ctx context.Context) (chan *model.ListWorkflowResult, chan error) {
 	res := make(chan *model.ListWorkflowResult, 100)
 	errs := make(chan error, 1)
-	keys, err := s.wfVersion.Keys()
+	ks, err := s.wfVersion.Keys()
 	if err == nats.ErrNoKeysFound {
-		keys = []string{}
+		ks = []string{}
 	} else if err != nil {
 		errs <- err
 		return res, errs
 	}
 	go func() {
-		for _, k := range keys {
+		for _, k := range ks {
 			v := &model.WorkflowVersions{}
 			err := common.LoadObj(s.wfVersion, k, v)
 			if err == nats.ErrKeyNotFound {
@@ -116,11 +116,11 @@ func NewNatsService(log *zap.Logger, conn common.NatsConn, storageType nats.Stor
 	kvs[messages.KvMessageSub] = &ms.wfMsgSub
 	kvs[messages.KvMessageName] = &ms.wfMessageName
 	kvs[messages.KvMessageID] = &ms.wfMessageID
-	keys := make([]string, 0, len(kvs))
+	ks := make([]string, 0, len(kvs))
 	for k := range kvs {
-		keys = append(keys, k)
+		ks = append(ks, k)
 	}
-	if err := common.EnsureBuckets(js, storageType, keys); err != nil {
+	if err := common.EnsureBuckets(js, storageType, ks); err != nil {
 		return nil, fmt.Errorf("failed to ensure the KV buckets: %w", err)
 	}
 
@@ -241,7 +241,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 				)
 			}
 			msgId := string(msgIdB)
-			var toDelete map[string]struct{}
+			toDelete := make(map[string]struct{})
 			subs := &model.WorkflowInstanceSubscribers{}
 			if err := common.LoadObj(s.wfMsgSubs, msgId, subs); err != nil {
 				s.log.Warn("Could not fetch message subscribers",
@@ -341,9 +341,9 @@ func (s *NatsService) ListWorkflowInstance(ctx context.Context, workflowName str
 		ver[v.Id] = v
 	}
 
-	keys, err := s.wfInstance.Keys()
+	ks, err := s.wfInstance.Keys()
 	if err == nats.ErrNoKeysFound {
-		keys = []string{}
+		ks = []string{}
 	} else if err != nil {
 		s.log.Error("error obtaining keys", zap.Error(err))
 		return nil, errs
@@ -366,7 +366,7 @@ func (s *NatsService) ListWorkflowInstance(ctx context.Context, workflowName str
 			}
 		}
 		close(wch)
-	}(keys)
+	}(ks)
 	return wch, errs
 }
 
@@ -477,10 +477,6 @@ func (s *NatsService) SetMessageCompleteProcessor(processor MessageCompleteProce
 }
 func (s *NatsService) SetCompleteJobProcessor(processor CompleteJobProcessorFunc) {
 	s.eventJobCompleteProcessor = processor
-}
-
-func (s *NatsService) PublishJob(ctx context.Context, stateName string, el *model.Element, job *model.WorkflowState) error {
-	return s.PublishWorkflowState(ctx, stateName, job)
 }
 
 func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState) error {

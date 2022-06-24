@@ -3,7 +3,7 @@ package parser
 import (
 	"errors"
 	"github.com/antchfx/xmlquery"
-	"github.com/crystal-construct/shar/model"
+	"gitlab.com/shar-workflow/shar/model"
 	"io"
 	"strings"
 )

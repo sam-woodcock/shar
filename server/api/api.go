@@ -3,12 +3,12 @@ package api
 import (
 	"context"
 	"fmt"
-	"github.com/crystal-construct/shar/common"
-	"github.com/crystal-construct/shar/model"
-	"github.com/crystal-construct/shar/server/health"
-	"github.com/crystal-construct/shar/server/messages"
-	"github.com/crystal-construct/shar/server/services"
-	"github.com/crystal-construct/shar/server/workflow"
+	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/health"
+	"gitlab.com/shar-workflow/shar/server/messages"
+	"gitlab.com/shar-workflow/shar/server/services"
+	"gitlab.com/shar-workflow/shar/server/workflow"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -126,31 +126,31 @@ func (s *SharServer) Shutdown() {
 func (s *SharServer) Listen() error {
 	con := s.ns.Conn()
 	log := s.log
-	_, err := Listen(con, log, messages.ApiStoreWorkflow, &model.Workflow{}, s.storeWorkflow)
+	_, err := listen(con, log, messages.ApiStoreWorkflow, &model.Workflow{}, s.storeWorkflow)
 	if err != nil {
 		return err
 	}
-	_, err = Listen(con, log, messages.ApiCancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance)
+	_, err = listen(con, log, messages.ApiCancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance)
 	if err != nil {
 		return err
 	}
-	_, err = Listen(con, log, messages.ApiLaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow)
+	_, err = listen(con, log, messages.ApiLaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow)
 	if err != nil {
 		return err
 	}
-	_, err = Listen(con, log, messages.ApiListWorkflows, &emptypb.Empty{}, s.listWorkflows)
+	_, err = listen(con, log, messages.ApiListWorkflows, &emptypb.Empty{}, s.listWorkflows)
 	if err != nil {
 		return err
 	}
-	_, err = Listen(con, log, messages.ApiGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus)
+	_, err = listen(con, log, messages.ApiGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus)
 	if err != nil {
 		return err
 	}
-	_, err = Listen(con, log, messages.ApiListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance)
+	_, err = listen(con, log, messages.ApiListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance)
 	if err != nil {
 		return err
 	}
-	_, err = Listen(con, log, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage)
+	_, err = listen(con, log, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage)
 	if err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ func (s *SharServer) Listen() error {
 	return nil
 }
 
-func Listen[T proto.Message, U proto.Message](con common.NatsConn, log *zap.Logger, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
+func listen[T proto.Message, U proto.Message](con common.NatsConn, log *zap.Logger, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
 	sub, err := con.Subscribe(subject, func(msg *nats.Msg) {
 		ctx := context.Background()
 		if err := callApi(ctx, req, msg, fn); err != nil {
@@ -202,7 +202,7 @@ func recoverAPIpanic(msg *nats.Msg) {
 }
 
 func errorResponse(m *nats.Msg, code codes.Code, msg any) {
-	if err := m.Respond(apiError(codes.Internal, msg)); err != nil {
+	if err := m.Respond(apiError(code, msg)); err != nil {
 		fmt.Println("failed to send error response: " + string(apiError(codes.Internal, msg)))
 	}
 }

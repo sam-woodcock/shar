@@ -6,11 +6,10 @@ import (
 	"encoding/gob"
 	"fmt"
 	"github.com/antonmedv/expr"
-	"github.com/crystal-construct/shar/model"
-	"github.com/crystal-construct/shar/server/errors"
-	"github.com/crystal-construct/shar/server/errors/keys"
-	"github.com/crystal-construct/shar/server/messages"
-	"github.com/crystal-construct/shar/server/services"
+	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/errors"
+	"gitlab.com/shar-workflow/shar/server/errors/keys"
+	"gitlab.com/shar-workflow/shar/server/messages"
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
 	"go.uber.org/zap"
@@ -25,11 +24,11 @@ type Engine struct {
 	closing chan struct{}
 	closed  chan struct{}
 	mx      sync.Mutex
-	ns      *services.NatsService
+	ns      NatsService
 }
 
 // NewEngine returns an instance of the core workflow engine.
-func NewEngine(log *zap.Logger, ns *services.NatsService) (*Engine, error) {
+func NewEngine(log *zap.Logger, ns NatsService) (*Engine, error) {
 	e := &Engine{
 		ns:      ns,
 		closing: make(chan struct{}),
@@ -248,14 +247,14 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiID, elementId, tracki
 
 	wfi, err := c.ns.GetWorkflowInstance(ctx, wfiID)
 	if err == errors.ErrWorkflowInstanceNotFound {
-
 		c.log.Warn("workflow instance not found, cancelling activity", zap.Error(err), zap.String(keys.WorkflowInstanceID, wfiID))
 		return nil
 	} else if err != nil {
 		return c.engineErr(ctx, "failed to get workflow instance", err,
-			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+			zap.String(keys.WorkflowInstanceID, wfiID),
 		)
 	}
+
 	process, err := c.ns.GetWorkflow(ctx, wfi.WorkflowId)
 	if err != nil {
 		return c.engineErr(ctx, "failed to get workflow", err,
@@ -487,7 +486,7 @@ func (c *Engine) startJob(ctx context.Context, subject string, wfID string, wfiI
 		)
 	}
 	job.TrackingId = jobId
-	return c.ns.PublishJob(ctx, subject, el, job)
+	return c.ns.PublishWorkflowState(ctx, subject, job)
 }
 
 // elementTable indexes an entire process for quick Id lookups

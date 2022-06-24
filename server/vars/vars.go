@@ -3,8 +3,8 @@ package vars
 import (
 	"bytes"
 	"encoding/gob"
-	"github.com/crystal-construct/shar/model"
-	"github.com/crystal-construct/shar/server/errors"
+	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/errors"
 	"go.uber.org/zap"
 )
 

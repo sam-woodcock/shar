@@ -1,12 +1,12 @@
 package commands
 
 import (
-	"github.com/crystal-construct/shar/cli/commands/bpmn"
-	"github.com/crystal-construct/shar/cli/commands/instance"
-	"github.com/crystal-construct/shar/cli/commands/message"
-	"github.com/crystal-construct/shar/cli/commands/workflow"
-	"github.com/crystal-construct/shar/cli/flag"
-	"github.com/crystal-construct/shar/cli/output"
+	"gitlab.com/shar-workflow/shar/cli/commands/bpmn"
+	"gitlab.com/shar-workflow/shar/cli/commands/instance"
+	"gitlab.com/shar-workflow/shar/cli/commands/message"
+	"gitlab.com/shar-workflow/shar/cli/commands/workflow"
+	"gitlab.com/shar-workflow/shar/cli/flag"
+	"gitlab.com/shar-workflow/shar/cli/output"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"os"

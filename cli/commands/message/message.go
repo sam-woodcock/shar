@@ -1,7 +1,7 @@
 package message
 
 import (
-	"github.com/crystal-construct/shar/cli/commands/message/send"
+	"gitlab.com/shar-workflow/shar/cli/commands/message/send"
 	"github.com/spf13/cobra"
 )
 

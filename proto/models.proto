@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package = "github.com/crystal-construct/shar/model";
+option go_package = "gitlab.com/shar-workflow/shar/model";
 
 //import "google/protobuf/timestamp.proto";
 //import "google/protobuf/duration.proto";

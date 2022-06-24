@@ -3,19 +3,18 @@ package cancel
 import (
 	"context"
 	"fmt"
-	"github.com/crystal-construct/shar/cli/flag"
-	"github.com/crystal-construct/shar/cli/output"
-	"github.com/crystal-construct/shar/client"
+	"gitlab.com/shar-workflow/shar/cli/flag"
+	"gitlab.com/shar-workflow/shar/cli/output"
+	"gitlab.com/shar-workflow/shar/client"
 	"github.com/spf13/cobra"
 )
 
 var Cmd = &cobra.Command{
-	Use:       "cancel",
-	Short:     "Cancel a running workflow instance",
-	Long:      ``,
-	RunE:      run,
-	Args:      cobra.ExactValidArgs(1),
-	ValidArgs: []string{"workflowInstanceId"},
+	Use:   "cancel",
+	Short: "Cancel a running workflow instance",
+	Long:  ``,
+	RunE:  run,
+	Args:  cobra.ExactValidArgs(1),
 }
 
 func run(cmd *cobra.Command, args []string) error {

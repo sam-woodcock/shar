@@ -3,9 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
-	"github.com/crystal-construct/shar/model"
-	"github.com/crystal-construct/shar/server/services"
 	"github.com/nats-io/nats.go"
+	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/model"
 	"go.uber.org/zap"
 )
 
@@ -60,7 +60,7 @@ func ensureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names
 
 func (s *NatsClientProvider) GetJob(ctx context.Context, id string) (*model.WorkflowState, error) {
 	job := &model.WorkflowState{}
-	if err := services.LoadObj(s.job, id, job); err != nil {
+	if err := common.LoadObj(s.job, id, job); err != nil {
 		return nil, err
 	}
 	return job, nil

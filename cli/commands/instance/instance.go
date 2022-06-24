@@ -1,9 +1,9 @@
 package instance
 
 import (
-	"github.com/crystal-construct/shar/cli/commands/instance/cancel"
-	"github.com/crystal-construct/shar/cli/commands/instance/list"
-	"github.com/crystal-construct/shar/cli/commands/instance/status"
+	"gitlab.com/shar-workflow/shar/cli/commands/instance/cancel"
+	"gitlab.com/shar-workflow/shar/cli/commands/instance/list"
+	"gitlab.com/shar-workflow/shar/cli/commands/instance/status"
 	"github.com/spf13/cobra"
 )
 

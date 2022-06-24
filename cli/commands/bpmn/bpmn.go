@@ -1,7 +1,7 @@
 package bpmn
 
 import (
-	"github.com/crystal-construct/shar/cli/commands/bpmn/load"
+	"gitlab.com/shar-workflow/shar/cli/commands/bpmn/load"
 	"github.com/spf13/cobra"
 )
 

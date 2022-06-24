@@ -3,9 +3,9 @@ package list
 import (
 	"context"
 	"fmt"
-	"github.com/crystal-construct/shar/cli/flag"
-	"github.com/crystal-construct/shar/cli/output"
-	"github.com/crystal-construct/shar/client"
+	"gitlab.com/shar-workflow/shar/cli/flag"
+	"gitlab.com/shar-workflow/shar/cli/output"
+	"gitlab.com/shar-workflow/shar/client"
 	"github.com/spf13/cobra"
 )
 

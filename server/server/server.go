@@ -3,9 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/crystal-construct/shar/server/api"
-	"github.com/crystal-construct/shar/server/health"
-	"github.com/crystal-construct/shar/server/services"
+	"gitlab.com/shar-workflow/shar/server/api"
+	"gitlab.com/shar-workflow/shar/server/health"
+	"gitlab.com/shar-workflow/shar/server/services"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -70,7 +70,9 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 	ns := s.createServices(natsURL, s.log)
 	s.api, err = api.New(s.log, ns)
 	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_SERVING)
-	s.api.Listen()
+	if err := s.api.Listen(); err != nil {
+		panic(err)
+	}
 	// Log or exit
 	select {
 	case err := <-errs:
@@ -78,12 +80,12 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 			log.Fatal("fatal error", zap.Error(err))
 		}
 	case <-s.sig:
-		s.Shutdown(ctx)
+		s.shutdown(ctx)
 	}
 }
 
-// Shutdown gracefully shuts down the GRPC server, and requests that
-func (s *Server) Shutdown(ctx context.Context) {
+// shutdown gracefully shuts down the GRPC server, and requests that
+func (s *Server) shutdown(ctx context.Context) {
 	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
 	s.grpcServer.GracefulStop()
 	s.api.Shutdown()

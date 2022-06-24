@@ -2,8 +2,9 @@ package output
 
 import (
 	"fmt"
-	"github.com/crystal-construct/shar/model"
+	"gitlab.com/shar-workflow/shar/model"
 	"github.com/pterm/pterm"
+	"github.com/pterm/pterm/putils"
 	"time"
 )
 
@@ -23,6 +24,6 @@ func (c *Console) OutputWorkflowInstanceStatus(status []*model.WorkflowState) er
 		pterm.LeveledListItem{Level: 1, Text: "Executing: " + *st.Execute},
 		pterm.LeveledListItem{Level: 1, Text: "Since: " + time.Unix(0, st.UnixTimeNano).Format("“2006-01-02T15:04:05.999999999Z07:00”")},
 	}
-	root := pterm.NewTreeFromLeveledList(leveledList)
+	root := putils.TreeFromLeveledList(leveledList)
 	return pterm.DefaultTree.WithRoot(root).Render()
 }

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/crystal-construct/shar/cli/flag"
-	"github.com/crystal-construct/shar/cli/output"
-	"github.com/crystal-construct/shar/client"
+	"gitlab.com/shar-workflow/shar/cli/flag"
+	"gitlab.com/shar-workflow/shar/cli/output"
+	"gitlab.com/shar-workflow/shar/client"
 
 	"github.com/spf13/cobra"
 	"os"
@@ -17,9 +17,8 @@ var Cmd = &cobra.Command{
 	Short: "Loads a BPMN XML file into shar",
 	Long: `shar bpmn load "WorkflowName" ./path-to-workflow.bpmn 
 	`,
-	RunE:      run,
-	Args:      cobra.ExactValidArgs(1),
-	ValidArgs: []string{"workflowName"},
+	RunE: run,
+	Args: cobra.ExactValidArgs(1),
 }
 
 func run(cmd *cobra.Command, args []string) error {

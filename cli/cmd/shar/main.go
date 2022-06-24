@@ -1,10 +1,6 @@
-/*
-Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-
-*/
 package main
 
-import "github.com/crystal-construct/shar/cli/commands"
+import "gitlab.com/shar-workflow/shar/cli/commands"
 
 func main() {
 	commands.Execute()

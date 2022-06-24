@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/crystal-construct/shar/client"
-	"github.com/crystal-construct/shar/model"
+	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/model"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"os"
@@ -25,7 +25,9 @@ func main() {
 
 	// Dial shar
 	cl := client.New(log)
-	cl.Dial(nats.DefaultURL)
+	if err := cl.Dial(nats.DefaultURL); err != nil {
+		panic(err)
+	}
 
 	// Load BPMN workflow
 	b, err := os.ReadFile("testdata/message-workflow.bpmn")

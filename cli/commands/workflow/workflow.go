@@ -1,8 +1,8 @@
 package workflow
 
 import (
-	"github.com/crystal-construct/shar/cli/commands/workflow/list"
-	"github.com/crystal-construct/shar/cli/commands/workflow/start"
+	"gitlab.com/shar-workflow/shar/cli/commands/workflow/list"
+	"gitlab.com/shar-workflow/shar/cli/commands/workflow/start"
 	"github.com/spf13/cobra"
 )
 
