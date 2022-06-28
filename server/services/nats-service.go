@@ -484,7 +484,7 @@ func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string
 	return nil
 }
 
-func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string) error {
+func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string, vars []byte) error {
 	messageIDb, err := common.Load(s.wfMessageID, name)
 	messageID := string(messageIDb)
 	if err != nil {
@@ -493,6 +493,7 @@ func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID str
 	sharMsg := &model.MessageInstance{
 		MessageId:      messageID,
 		CorrelationKey: key,
+		Vars:           vars,
 	}
 	msg := nats.NewMsg(fmt.Sprintf(messages.WorkflowMessageFormat, workflowInstanceID, messageID))
 	if b, err := proto.Marshal(sharMsg); err != nil {
@@ -671,8 +672,13 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 		if !success {
 			continue
 		}
+		newv, err := vars.Merge(s.log, sub.Vars, instance.Vars)
+		if err != nil {
+			return false, err
+		}
+		sub.Vars = newv
 		if s.eventProcessor != nil {
-			if err := s.eventProcessor(ctx, sub.WorkflowInstanceId, sub.ElementId, sub.TrackingId, sub.Vars); err != nil {
+			if err := s.eventProcessor(ctx, sub.WorkflowInstanceId, sub.ElementId, sub.TrackingId, newv); err != nil {
 				return false, fmt.Errorf("could not process event: %w", err)
 			}
 		}

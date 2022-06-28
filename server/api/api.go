@@ -3,13 +3,13 @@ package api
 import (
 	"context"
 	"fmt"
+	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/health"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/services"
 	"gitlab.com/shar-workflow/shar/server/workflow"
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
@@ -108,7 +108,7 @@ func (s *SharServer) listWorkflows(ctx context.Context, p *emptypb.Empty) (*mode
 }
 
 func (s *SharServer) sendMessage(ctx context.Context, req *model.SendMessageRequest) (*emptypb.Empty, error) {
-	if err := s.ns.PublishMessage(ctx, req.WorkflowInstanceId, req.Name, req.Key); err != nil {
+	if err := s.ns.PublishMessage(ctx, req.WorkflowInstanceId, req.Name, req.Key, req.Vars); err != nil {
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil

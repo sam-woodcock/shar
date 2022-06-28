@@ -26,8 +26,8 @@ type Command struct {
 	wfiID string
 }
 
-func (c *Command) SendMessage(ctx context.Context, name string, key any) error {
-	return c.cl.SendMessage(ctx, c.wfiID, name, key)
+func (c *Command) SendMessage(ctx context.Context, name string, key any, vars model.Vars) error {
+	return c.cl.SendMessage(ctx, c.wfiID, name, key, vars)
 }
 
 type serviceFn func(ctx context.Context, vars model.Vars) (model.Vars, error)
@@ -116,10 +116,12 @@ func (c *Client) listen(ctx context.Context) error {
 				msg = msgs[0]
 			}
 			xctx := context.Background()
+
 			ut := &model.WorkflowState{}
 			if err := proto.Unmarshal(msg.Data, ut); err != nil {
 				fmt.Println(err)
 			}
+			xctx = context.WithValue(xctx, "WORKFLOW_INSTANCE_ID", ut.WorkflowInstanceId)
 			switch ut.ElementType {
 			case "serviceTask":
 				job, err := c.storage.GetJob(xctx, ut.TrackingId)
@@ -338,7 +340,10 @@ func (c *Client) GetWorkflowInstanceStatus(ctx context.Context, id string) ([]*m
 	return res.State, nil
 }
 
-func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, name string, key any) error {
+func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, name string, key any, mvars model.Vars) error {
+	if workflowInstanceID == "" {
+		workflowInstanceID = ctx.Value("WORKFLOW_INSTANCE_ID").(string)
+	}
 	var skey string
 	switch key.(type) {
 	case string:
@@ -346,7 +351,11 @@ func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, nam
 	default:
 		skey = fmt.Sprintf("%+v", key)
 	}
-	req := &model.SendMessageRequest{Name: name, Key: skey, WorkflowInstanceId: workflowInstanceID}
+	b, err := vars.Encode(c.log, mvars)
+	if err != nil {
+		return err
+	}
+	req := &model.SendMessageRequest{Name: name, Key: skey, WorkflowInstanceId: workflowInstanceID, Vars: b}
 	res := &emptypb.Empty{}
 	if err := callAPI(ctx, c.con, messages.ApiSendMessage, req, res); err != nil {
 		return c.clientErr(ctx, "failed to send message: %w", err)
@@ -393,4 +402,8 @@ func callAPI[T proto.Message, U proto.Message](ctx context.Context, con *nats.Co
 		return err
 	}
 	return nil
+}
+
+func WorkflowInstanceID(ctx context.Context) string {
+	return ctx.Value("WORKFLOW_INSTANCE_ID").(string)
 }
