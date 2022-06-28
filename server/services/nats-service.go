@@ -214,6 +214,7 @@ func (s *NatsService) GetWorkflowInstance(ctx context.Context, workflowInstanceI
 }
 
 func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string) error {
+	fmt.Println("Destroy")
 	wfi := &model.WorkflowInstance{}
 	if err := common.LoadObj(s.wfInstance, workflowInstanceId, wfi); err != nil {
 		s.log.Warn("Could not fetch workflow instance",
@@ -243,7 +244,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 			msgId := string(msgIdB)
 			toDelete := make(map[string]struct{})
 			subs := &model.WorkflowInstanceSubscribers{}
-			if err := common.LoadObj(s.wfMsgSubs, msgId, subs); err != nil {
+			if err := common.LoadObj(s.wfMsgSubs, wfi.WorkflowInstanceId, subs); err != nil {
 				s.log.Warn("Could not fetch message subscribers",
 					zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
 					zap.String(keys.WorkflowID, wfi.WorkflowId),
@@ -289,9 +290,6 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 	}
 
 	if err := s.wfInstance.Delete(workflowInstanceId); err != nil {
-		return err
-	}
-	if err := s.wfTracking.Delete(workflowInstanceId); err != nil {
 		return err
 	}
 
@@ -512,6 +510,7 @@ func (s *NatsService) processTraversals(ctx context.Context) {
 		if err := proto.Unmarshal(msg.Data, &traversal); err != nil {
 			return false, fmt.Errorf("could not unmarshal traversal proto: %w", err)
 		}
+		fmt.Printf("ANB.NATSMSG %+v\n", traversal)
 		if s.eventProcessor != nil {
 			if err := s.eventProcessor(ctx, traversal.WorkflowInstanceId, traversal.ElementId, traversal.TrackingId, traversal.Vars); err != nil {
 				return false, fmt.Errorf("could not process event: %w", err)

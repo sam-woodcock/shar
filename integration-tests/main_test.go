@@ -3,6 +3,7 @@ package integration_tests
 import (
 	"fmt"
 	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
 	"go.uber.org/zap"
 	"os"
@@ -19,6 +20,8 @@ func TestMain(m *testing.M) {
 	teardown()
 	os.Exit(code)
 }
+
+const natsURL = "nats://127.0.0.1:4459"
 
 func setup() {
 	var err error
@@ -44,8 +47,8 @@ func setup() {
 	if err != nil {
 		panic(err)
 	}
-	testSharServer = sharsvr.New(l)
-	go testSharServer.Listen("nats://127.0.0.1:4459", 55000)
+	testSharServer = sharsvr.New(l, sharsvr.EphemeralStorage{})
+	go testSharServer.Listen(natsURL, 55000)
 	for {
 		if testSharServer.Ready() {
 			break
@@ -62,4 +65,16 @@ func teardown() {
 	fmt.Println("NATS shut down")
 	fmt.Printf("\033[1;36m%s\033[0m", "> Teardown completed")
 	fmt.Printf("\n")
+}
+
+func GetJetstream() (nats.JetStreamContext, error) {
+	con, err := nats.Connect(natsURL)
+	if err != nil {
+		return nil, err
+	}
+	js, err := con.JetStream()
+	if err != nil {
+		return nil, err
+	}
+	return js, nil
 }

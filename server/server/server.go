@@ -18,22 +18,38 @@ import (
 )
 
 type Server struct {
-	sig           chan os.Signal
-	healthService *health.Checker
-	log           *zap.Logger
-	grpcServer    *gogrpc.Server
-	api           *api.SharServer
+	sig              chan os.Signal
+	healthService    *health.Checker
+	log              *zap.Logger
+	grpcServer       *gogrpc.Server
+	api              *api.SharServer
+	ephemeralStorage bool
+}
+
+type ServerOption interface {
+	configure(server *Server)
+}
+
+type EphemeralStorage struct {
+	ServerOption
+}
+
+func (o EphemeralStorage) configure(server *Server) {
+	server.ephemeralStorage = true
 }
 
 // New creates a new SHAR server.
 // Leave the exporter nil if telemetry is not required
-func New(log *zap.Logger) *Server {
+func New(log *zap.Logger, options ...ServerOption) *Server {
 	s := &Server{
 		sig:           make(chan os.Signal, 10),
 		log:           log,
 		healthService: health.New(),
 	}
-	signal.Notify(s.sig, syscall.SIGINT, syscall.SIGTERM)
+	for _, i := range options {
+		i.configure(s)
+	}
+
 	return s
 }
 
@@ -65,7 +81,7 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 	}()
 	s.log.Info("shar grpc health started")
 
-	ns := s.createServices(natsURL, s.log)
+	ns := s.createServices(natsURL, s.log, s.ephemeralStorage)
 	s.api, err = api.New(s.log, ns)
 	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_SERVING)
 	if err := s.api.Listen(); err != nil {
@@ -90,13 +106,17 @@ func (s *Server) Shutdown() {
 	s.log.Info("shar grpc health stopped")
 }
 
-func (s *Server) createServices(natsURL string, log *zap.Logger) *services.NatsService {
+func (s *Server) createServices(natsURL string, log *zap.Logger, ephemeral bool) *services.NatsService {
 	conn, err := nats.Connect(natsURL)
 	if err != nil {
 		log.Fatal("could not connect to NATS", zap.Error(err), zap.String("url", natsURL))
 	}
 
-	ns, err := services.NewNatsService(log, conn, nats.FileStorage, 4)
+	var store = nats.FileStorage
+	if ephemeral {
+		store = nats.MemoryStorage
+	}
+	ns, err := services.NewNatsService(log, conn, store, 4)
 	if err != nil {
 		log.Fatal("failed to create NATS KV store", zap.Error(err))
 	}

@@ -3,8 +3,10 @@ package integration_tests
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/messages"
 	"go.uber.org/zap"
 	"os"
 	"testing"
@@ -23,19 +25,16 @@ func TestMessaging(t *testing.T) {
 	}()
 
 	// Dial shar
-	cl := client.New(log)
-	if err := cl.Dial("nats://127.0.0.1:4459"); err != nil {
-		panic(err)
-	}
+	cl := client.New(log, client.EphemeralStorage{})
+	err := cl.Dial("nats://127.0.0.1:4459")
+	require.NoError(t, err)
 
 	// Load BPMN workflow
 	b, err := os.ReadFile("../testdata/message-workflow.bpmn")
-	if err != nil {
-		panic(err)
-	}
-	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "MessageDemo", b); err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
+
+	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "MessageDemo", b)
+	require.NoError(t, err)
 
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 
@@ -53,14 +52,28 @@ func TestMessaging(t *testing.T) {
 	// Listen for service tasks
 	go func() {
 		err := cl.Listen(ctx)
-		if err != nil {
-			panic(err)
-		}
+		require.NoError(t, err)
 	}()
 	select {
 	case c := <-complete:
 		fmt.Println("completed " + c.WorkflowInstanceId)
 	}
+
+	// Check consistency
+	js, err := GetJetstream()
+
+	getKeys := func(kv string) []string {
+		messageSubs, err := js.KeyValue(kv)
+		require.NoError(t, err)
+		k, err := messageSubs.Keys()
+		require.NoError(t, err)
+		return k
+	}
+
+	fmt.Println("IDs", getKeys(messages.KvMessageID))
+	fmt.Println("subs", getKeys(messages.KvMessageSubs))
+	fmt.Println("sub", getKeys(messages.KvMessageSub))
+
 }
 
 func instanceComplete(state *model.WorkflowInstanceComplete) error {

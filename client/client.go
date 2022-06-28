@@ -34,21 +34,39 @@ type serviceFn func(ctx context.Context, vars model.Vars) (model.Vars, error)
 type senderFn func(ctx context.Context, client *Command, vars model.Vars) error
 
 type Client struct {
-	js        nats.JetStreamContext
-	SvcTasks  map[string]serviceFn
-	storage   services.Storage
-	log       *zap.Logger
-	con       *nats.Conn
-	complete  chan *model.WorkflowInstanceComplete
-	MsgSender map[string]senderFn
+	js          nats.JetStreamContext
+	SvcTasks    map[string]serviceFn
+	storage     services.Storage
+	log         *zap.Logger
+	con         *nats.Conn
+	complete    chan *model.WorkflowInstanceComplete
+	MsgSender   map[string]senderFn
+	storageType nats.StorageType
 }
 
-func New(log *zap.Logger) *Client {
-	return &Client{
-		SvcTasks:  make(map[string]serviceFn),
-		MsgSender: make(map[string]senderFn),
-		log:       log,
+type ClientOption interface {
+	configure(client *Client)
+}
+
+type EphemeralStorage struct {
+	ClientOption
+}
+
+func (o EphemeralStorage) configure(client *Client) {
+	client.storageType = nats.MemoryStorage
+}
+
+func New(log *zap.Logger, option ...ClientOption) *Client {
+	client := &Client{
+		storageType: nats.FileStorage,
+		SvcTasks:    make(map[string]serviceFn),
+		MsgSender:   make(map[string]senderFn),
+		log:         log,
 	}
+	for _, i := range option {
+		i.configure(client)
+	}
+	return client
 }
 
 func (c *Client) Dial(natsURL string) error {
@@ -62,7 +80,7 @@ func (c *Client) Dial(natsURL string) error {
 	}
 	c.js = js
 	c.con = n
-	c.storage, err = services.NewNatsClientProvider(c.log, js, nats.FileStorage)
+	c.storage, err = services.NewNatsClientProvider(c.log, js, c.storageType)
 	if err != nil {
 		return err
 	}

@@ -6,12 +6,12 @@ import (
 	"encoding/gob"
 	"fmt"
 	"github.com/antonmedv/expr"
+	"github.com/nats-io/nats.go"
+	"github.com/segmentio/ksuid"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/errors/keys"
 	"gitlab.com/shar-workflow/shar/server/messages"
-	"github.com/nats-io/nats.go"
-	"github.com/segmentio/ksuid"
 	"go.uber.org/zap"
 	"sync"
 )
@@ -323,6 +323,7 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiID, elementId, tracki
 			return c.engineErr(ctx, "failed to launch child workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "intermediateCatchEvent":
+		fmt.Printf("ANB.AWAIT %+v\n", el)
 		if err := c.awaitMessage(ctx, wfi.WorkflowId, wfiID, el, vars); err != nil {
 			return c.engineErr(ctx, "failed to await message", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
