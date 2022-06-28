@@ -63,6 +63,7 @@ message SendMessageRequest {
   string name = 1;
   string key = 2;
   string workflowInstanceId = 3;
+  bytes vars = 4;
 }
 
 message WorkflowInstanceComplete {

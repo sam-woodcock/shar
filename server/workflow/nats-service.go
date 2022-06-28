@@ -27,7 +27,7 @@ type NatsService interface {
 	SetMessageCompleteProcessor(processor services.MessageCompleteProcessorFunc)
 	SetCompleteJobProcessor(processor services.CompleteJobProcessorFunc)
 	PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState) error
-	PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string) error
+	PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string, vars []byte) error
 	Conn() common.NatsConn
 	Shutdown()
 }
