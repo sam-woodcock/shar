@@ -80,5 +80,5 @@ func step2(ctx context.Context, vars model.Vars) (model.Vars, error) {
 
 func sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
 	fmt.Println("Sending Message...")
-	return cmd.SendMessage(ctx, "continueMessage", 57)
+	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{})
 }
