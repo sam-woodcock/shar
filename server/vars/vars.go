@@ -35,3 +35,18 @@ func Decode(log *zap.Logger, vars []byte) (model.Vars, error) {
 	}
 	return ret, nil
 }
+
+func Merge(log *zap.Logger, vars []byte, newVars []byte) ([]byte, error) {
+	v1, err := Decode(log, vars)
+	if err != nil {
+		return nil, err
+	}
+	v2, err := Decode(log, newVars)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range v2 {
+		v1[k] = v
+	}
+	return Encode(log, v1)
+}

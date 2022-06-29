@@ -3,6 +3,7 @@ package integration_tests
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
@@ -62,23 +63,29 @@ func TestMessaging(t *testing.T) {
 	// Check consistency
 	js, err := GetJetstream()
 
-	getKeys := func(kv string) []string {
+	getKeys := func(kv string) ([]string, error) {
 		messageSubs, err := js.KeyValue(kv)
-		require.NoError(t, err)
+		if err != nil {
+			return nil, err
+		}
 		k, err := messageSubs.Keys()
-		require.NoError(t, err)
-		return k
+		if err != nil {
+			return nil, err
+		}
+		return k, nil
 	}
 
-	fmt.Println("IDs", getKeys(messages.KvMessageID))
-	fmt.Println("subs", getKeys(messages.KvMessageSubs))
-	fmt.Println("sub", getKeys(messages.KvMessageSub))
+	// Check cleanup
+	ids, err := getKeys(messages.KvMessageID)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(ids))
+	_, err = getKeys(messages.KvMessageSubs)
+	assert.Equal(t, err.Error(), "nats: no keys found")
+	_, err = getKeys(messages.KvMessageSub)
+	assert.Equal(t, err.Error(), "nats: no keys found")
+	_, err = getKeys(messages.KvInstance)
+	assert.Equal(t, err.Error(), "nats: no keys found")
 
-}
-
-func instanceComplete(state *model.WorkflowInstanceComplete) error {
-	fmt.Println("Instance complete")
-	return nil
 }
 
 func step1(ctx context.Context, vars model.Vars) (model.Vars, error) {
@@ -93,5 +100,5 @@ func step2(ctx context.Context, vars model.Vars) (model.Vars, error) {
 
 func sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
 	fmt.Println("Sending Message...")
-	return cmd.SendMessage(ctx, "continueMessage", 57)
+	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{})
 }

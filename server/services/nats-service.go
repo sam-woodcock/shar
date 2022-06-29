@@ -214,7 +214,7 @@ func (s *NatsService) GetWorkflowInstance(ctx context.Context, workflowInstanceI
 }
 
 func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string) error {
-	fmt.Println("Destroy")
+	// Get the workflow instance
 	wfi := &model.WorkflowInstance{}
 	if err := common.LoadObj(s.wfInstance, workflowInstanceId, wfi); err != nil {
 		s.log.Warn("Could not fetch workflow instance",
@@ -222,6 +222,8 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		)
 		return err
 	}
+
+	// Get the workflow
 	wf := &model.Workflow{}
 	if wfi.WorkflowId != "" {
 		if err := common.LoadObj(s.wf, wfi.WorkflowId, wf); err != nil {
@@ -233,65 +235,47 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		}
 	}
 
-	if wf.Name != "" {
-		for _, msg := range wf.Messages {
-			msgIdB, err := common.Load(s.wfMessageID, msg.Name)
+	// Get all the subscriptions
+	subs := &model.WorkflowInstanceSubscribers{}
+	if err := common.LoadObj(s.wfMsgSubs, wfi.WorkflowInstanceId, subs); err != nil {
+		s.log.Warn("Could not fetch message subscribers",
+			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+			zap.String(keys.WorkflowID, wfi.WorkflowId),
+			zap.String(keys.WorkflowName, wf.Name),
+			zap.String(keys.MessageID, wf.Name),
+		)
+	}
+
+	if err := common.UpdateObj(s.wfMsgSubs, workflowInstanceId, &model.WorkflowInstanceSubscribers{}, func(subs *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
+		for i := 0; i < len(subs.List); i++ {
+			err := s.wfMsgSub.Delete(subs.List[i])
 			if err != nil {
-				s.log.Warn("Could not fetch message ID for",
-					zap.String("msg.name", msg.Name),
+				s.log.Warn("Could not delete instance subscriber",
+					zap.String("inst.id", subs.List[i]),
 				)
-			}
-			msgId := string(msgIdB)
-			toDelete := make(map[string]struct{})
-			subs := &model.WorkflowInstanceSubscribers{}
-			if err := common.LoadObj(s.wfMsgSubs, wfi.WorkflowInstanceId, subs); err != nil {
-				s.log.Warn("Could not fetch message subscribers",
-					zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-					zap.String(keys.WorkflowID, wfi.WorkflowId),
-					zap.String(keys.WorkflowName, wf.Name),
-					zap.String(keys.MessageID, wf.Name),
-				)
-			}
-			for _, subID := range subs.List {
-				sub := &model.WorkflowState{}
-				if err := common.LoadObj(s.wfMsgSub, subID, sub); err != nil {
-					s.log.Warn("Could not fetch message subscriber",
-						zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-						zap.String(keys.WorkflowID, wfi.WorkflowId),
-						zap.String(keys.WorkflowName, wf.Name),
-						zap.String("sub.id", subID),
-					)
-					continue
-				}
-				if sub.WorkflowInstanceId == workflowInstanceId {
-					toDelete[subID] = struct{}{}
-				}
-			}
-			if err := common.UpdateObj(s.wfMsgSubs, msgId, &model.WorkflowInstanceSubscribers{}, func(subs *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
-				for i := 0; i < len(subs.List); i++ {
-					val := subs.List[i]
-					if _, ok := toDelete[val]; ok {
-						subs.List = remove(subs.List, val)
-						i--
-						delete(toDelete, val)
-					}
-					err := s.wfMsgSub.Delete(val)
-					if err != nil {
-						s.log.Warn("Could not delete instance subscriber",
-							zap.String("inst.id", val),
-						)
-					}
-				}
-				return subs, nil
-			}); err != nil {
-				return err
 			}
 		}
+		return subs, nil
+	}); err != nil {
+		return err
 	}
 
 	if err := s.wfInstance.Delete(workflowInstanceId); err != nil {
 		return err
 	}
+
+	if err := s.wfMsgSubs.Delete(workflowInstanceId); err != nil {
+		return err
+	}
+
+	state := &model.WorkflowState{
+		WorkflowId:         wf.Name,
+		WorkflowInstanceId: wfi.WorkflowInstanceId,
+		State:              "Terminated",
+		UnixTimeNano:       time.Now().UnixNano(),
+	}
+
+	s.PublishWorkflowState(ctx, messages.WorkflowInstanceTerminated, state)
 
 	return nil
 }
@@ -452,6 +436,10 @@ func (s *NatsService) StartProcessing(ctx context.Context) error {
 	}()
 
 	go func() {
+		s.processWorkflowEvents(ctx)
+	}()
+
+	go func() {
 		s.processMessages(ctx)
 	}()
 
@@ -482,7 +470,7 @@ func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string
 	return nil
 }
 
-func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string) error {
+func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string, vars []byte) error {
 	messageIDb, err := common.Load(s.wfMessageID, name)
 	messageID := string(messageIDb)
 	if err != nil {
@@ -491,6 +479,7 @@ func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID str
 	sharMsg := &model.MessageInstance{
 		MessageId:      messageID,
 		CorrelationKey: key,
+		Vars:           vars,
 	}
 	msg := nats.NewMsg(fmt.Sprintf(messages.WorkflowMessageFormat, workflowInstanceID, messageID))
 	if b, err := proto.Marshal(sharMsg); err != nil {
@@ -510,9 +499,8 @@ func (s *NatsService) processTraversals(ctx context.Context) {
 		if err := proto.Unmarshal(msg.Data, &traversal); err != nil {
 			return false, fmt.Errorf("could not unmarshal traversal proto: %w", err)
 		}
-		fmt.Printf("ANB.NATSMSG %+v\n", traversal)
 		if s.eventProcessor != nil {
-			if err := s.eventProcessor(ctx, traversal.WorkflowInstanceId, traversal.ElementId, traversal.TrackingId, traversal.Vars); err != nil {
+			if err := s.eventProcessor(ctx, traversal.WorkflowInstanceId, traversal.ElementId, traversal.TrackingId, traversal.Vars, false); err != nil {
 				return false, fmt.Errorf("could not process event: %w", err)
 			}
 		}
@@ -670,11 +658,12 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 		if !success {
 			continue
 		}
-		if s.eventProcessor != nil {
-			if err := s.eventProcessor(ctx, sub.WorkflowInstanceId, sub.ElementId, sub.TrackingId, sub.Vars); err != nil {
-				return false, fmt.Errorf("could not process event: %w", err)
-			}
+		newv, err := vars.Merge(s.log, sub.Vars, instance.Vars)
+		if err != nil {
+			return false, err
 		}
+		sub.Vars = newv
+
 		if s.messageCompleteProcessor != nil {
 			if err := s.messageCompleteProcessor(ctx, sub); err != nil {
 				return false, err
@@ -726,4 +715,17 @@ func (s *NatsService) evaluate(ctx context.Context, vars model.Vars, expresssion
 
 func (s *NatsService) Shutdown() {
 	close(s.closing)
+}
+
+func (s *NatsService) processWorkflowEvents(ctx context.Context) {
+	s.process(ctx, messages.WorkflowInstanceAll, "WorkflowConsumer", func(ctx context.Context, msg *nats.Msg) (bool, error) {
+		var job model.WorkflowState
+		if err := proto.Unmarshal(msg.Data, &job); err != nil {
+			return false, err
+		}
+		if msg.Subject == "WORKFLOW.State.Workflow.Complete" {
+			s.DestroyWorkflowInstance(ctx, job.WorkflowInstanceId)
+		}
+		return true, nil
+	})
 }

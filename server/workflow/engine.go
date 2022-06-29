@@ -238,7 +238,7 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, outb
 }
 
 // activityProcessor handles the behaviour of each BPMN element
-func (c *Engine) activityProcessor(ctx context.Context, wfiID, elementId, trackingId string, vars []byte) error {
+func (c *Engine) activityProcessor(ctx context.Context, wfiID, elementId, trackingId string, vars []byte, traverseOnly bool) error {
 	select {
 	case <-c.closing:
 		return errors.ErrClosing
@@ -264,6 +264,11 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiID, elementId, tracki
 	}
 	els := elementTable(process)
 	el := els[elementId]
+
+	if traverseOnly {
+		el.Type = "forceTraversal"
+	}
+
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowActivityExecute, &model.WorkflowState{
 		ElementType:        el.Type,
 		ElementId:          elementId,
@@ -323,7 +328,6 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiID, elementId, tracki
 			return c.engineErr(ctx, "failed to launch child workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "intermediateCatchEvent":
-		fmt.Printf("ANB.AWAIT %+v\n", el)
 		if err := c.awaitMessage(ctx, wfi.WorkflowId, wfiID, el, vars); err != nil {
 			return c.engineErr(ctx, "failed to await message", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
@@ -332,9 +336,6 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiID, elementId, tracki
 			if err := c.returnBack(ctx, wfi.WorkflowInstanceId, *wfi.ParentWorkflowInstanceId, *wfi.ParentElementId, vars); err != nil {
 				return c.engineErr(ctx, "failed to return to originator workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name, zap.String(keys.ParentWorkflowInstanceId, *wfi.ParentWorkflowInstanceId))...)
 			}
-		}
-		if err := c.cleanup(ctx, wfi.WorkflowInstanceId); err != nil {
-			return c.engineErr(ctx, "failed to return to remove workflow instance", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 		workflowComplete = true
 	default:

@@ -10,6 +10,8 @@ import (
 	"os"
 )
 
+var cl *client.Client
+
 func main() {
 	// Create a starting context
 	ctx := context.Background()
@@ -23,29 +25,30 @@ func main() {
 	}()
 
 	// Dial shar
-	cl := client.New(log)
+	cl = client.New(log)
 	if err := cl.Dial(nats.DefaultURL); err != nil {
 		panic(err)
 	}
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("testdata/simple-workflow.bpmn")
+	b, err := os.ReadFile("testdata/message-manual-workflow.bpmn")
 	if err != nil {
 		panic(err)
 	}
-	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "SimpleWorkflowDemo", b); err != nil {
+	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "MessageManualDemo", b); err != nil {
 		panic(err)
 	}
 
 	// Register a service task
-	cl.RegisterServiceTask("SimpleProcess", simpleProcess)
+	cl.RegisterServiceTask("step1", step1)
+	cl.RegisterServiceTask("step2", step2)
 
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	wfiID, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowDemo", model.Vars{})
+	wfiID, err := cl.LaunchWorkflow(ctx, "MessageManualDemo", model.Vars{"orderId": 57})
 	if err != nil {
 		panic(err)
 	}
@@ -66,8 +69,15 @@ func main() {
 	}
 }
 
-// A "Hello World" service task
-func simpleProcess(ctx context.Context, vars model.Vars) (model.Vars, error) {
-	fmt.Println("Hello World")
+func step1(ctx context.Context, vars model.Vars) (model.Vars, error) {
+	fmt.Println("Step 1")
+	fmt.Println("Sending Message...")
+	cl.SendMessage(ctx, "", "continueMessage", 57, model.Vars{"success": 32768})
+	return model.Vars{}, nil
+}
+
+func step2(ctx context.Context, vars model.Vars) (model.Vars, error) {
+	fmt.Println("Step 2")
+	fmt.Println(vars["success"])
 	return model.Vars{}, nil
 }

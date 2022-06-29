@@ -3,12 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"os"
-	"time"
 )
 
 func main() {
@@ -35,7 +34,13 @@ func main() {
 	cl.RegisterServiceTask("BeforeCallingSubProcess", beforeCallingSubProcess)
 	cl.RegisterServiceTask("DuringSubProcess", duringSubProcess)
 	cl.RegisterServiceTask("AfterCallingSubProcess", afterCallingSubProcess)
-	if _, err := cl.LaunchWorkflow(ctx, "MasterWorkflowDemo", model.Vars{}); err != nil {
+
+	// A hook to watch for completion
+	complete := make(chan *model.WorkflowInstanceComplete, 100)
+	cl.RegisterWorkflowInstanceComplete(complete)
+
+	wfiID, err := cl.LaunchWorkflow(ctx, "MasterWorkflowDemo", model.Vars{})
+	if err != nil {
 		panic(err)
 	}
 	go func() {
@@ -44,7 +49,13 @@ func main() {
 			panic(err)
 		}
 	}()
-	time.Sleep(1 * time.Second)
+
+	// wait for the workflow to complete
+	for i := range complete {
+		if i.WorkflowInstanceId == wfiID {
+			break
+		}
+	}
 }
 
 func afterCallingSubProcess(ctx context.Context, vars model.Vars) (model.Vars, error) {

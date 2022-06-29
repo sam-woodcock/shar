@@ -3,12 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"os"
-	"time"
 )
 
 func main() {
@@ -43,8 +42,13 @@ func main() {
 	cl.RegisterServiceTask("step2", step2)
 	cl.RegisterMessageSender("continueMessage", sendMessage)
 
+	// A hook to watch for completion
+	complete := make(chan *model.WorkflowInstanceComplete, 100)
+	cl.RegisterWorkflowInstanceComplete(complete)
+
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "MessageDemo", model.Vars{"orderId": 57}); err != nil {
+	wfiID, err := cl.LaunchWorkflow(ctx, "MessageDemo", model.Vars{"orderId": 57})
+	if err != nil {
 		panic(err)
 	}
 
@@ -55,7 +59,13 @@ func main() {
 			panic(err)
 		}
 	}()
-	time.Sleep(1 * time.Second)
+
+	// wait for the workflow to complete
+	for i := range complete {
+		if i.WorkflowInstanceId == wfiID {
+			break
+		}
+	}
 }
 
 func step1(ctx context.Context, vars model.Vars) (model.Vars, error) {
@@ -70,5 +80,5 @@ func step2(ctx context.Context, vars model.Vars) (model.Vars, error) {
 
 func sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
 	fmt.Println("Sending Message...")
-	return cmd.SendMessage(ctx, "continueMessage", 57)
+	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{})
 }

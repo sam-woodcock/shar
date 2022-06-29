@@ -65,8 +65,13 @@ func main() {
 	// Register a service task
 	cl.RegisterServiceTask("SimpleProcess", simpleProcess)
 
+	// A hook to watch for completion
+	complete := make(chan *model.WorkflowInstanceComplete, 100)
+	cl.RegisterWorkflowInstanceComplete(complete)
+	
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "WorkflowDemo", model.Vars{}); err != nil {
+	wfiID, err := cl.LaunchWorkflow(ctx, "WorkflowDemo", model.Vars{})
+	if err != nil {
 		panic(err)
 	}
 
@@ -77,7 +82,13 @@ func main() {
 			panic(err)
 		}
 	}()
-	time.Sleep(1 * time.Hour)
+	
+	// wait for the workflow to complete
+	for i := range complete {
+		if i.WorkflowInstanceId == wfiID {
+			break
+		}
+	}
 }
 
 // A "Hello World" service task
