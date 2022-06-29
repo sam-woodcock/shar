@@ -7,6 +7,7 @@ import (
 	"gitlab.com/shar-workflow/shar/cli/flag"
 	"gitlab.com/shar-workflow/shar/cli/output"
 	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/model"
 )
 
 var Cmd = &cobra.Command{
@@ -23,7 +24,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	err := shar.SendMessage(ctx, args[0], args[1], flag.Value.CorrelationKey)
+	err := shar.SendMessage(ctx, args[0], args[1], flag.Value.CorrelationKey, model.Vars{})
 	if err != nil {
 		return fmt.Errorf("send message failed: %w", err)
 	}
