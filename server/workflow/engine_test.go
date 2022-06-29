@@ -2,10 +2,10 @@ package workflow
 
 import (
 	"context"
-	"gitlab.com/shar-workflow/shar/model"
 	"github.com/segmentio/ksuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"gitlab.com/shar-workflow/shar/model"
 	"testing"
 )
 
@@ -167,7 +167,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 		}).
 		Return(nil)
 	trackingID := ksuid.New().String()
-	err := eng.activityProcessor(ctx, "test-workflow-instance-id", els["Step1"].Id, trackingID, []byte{})
+	err := eng.activityProcessor(ctx, "test-workflow-instance-id", els["Step1"].Id, trackingID, []byte{}, false)
 	assert.NoError(t, err)
 	svc.AssertExpectations(t)
 

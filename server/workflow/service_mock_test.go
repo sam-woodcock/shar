@@ -270,13 +270,13 @@ func (_m *MockNatsService) ListWorkflows(ctx context.Context) (chan *model.ListW
 	return r0, r1
 }
 
-// PublishMessage provides a mock function with given fields: ctx, workflowInstanceID, name, key
-func (_m *MockNatsService) PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string) error {
-	ret := _m.Called(ctx, workflowInstanceID, name, key)
+// PublishMessage provides a mock function with given fields: ctx, workflowInstanceID, name, key, vars
+func (_m *MockNatsService) PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string, vars []byte) error {
+	ret := _m.Called(ctx, workflowInstanceID, name, key, vars)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
-		r0 = rf(ctx, workflowInstanceID, name, key)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, []byte) error); ok {
+		r0 = rf(ctx, workflowInstanceID, name, key, vars)
 	} else {
 		r0 = ret.Error(0)
 	}
