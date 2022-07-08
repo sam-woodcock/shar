@@ -13,7 +13,9 @@ import (
 	"gitlab.com/shar-workflow/shar/server/errors/keys"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"go.uber.org/zap"
+	"strconv"
 	"sync"
+	"time"
 )
 
 // Engine contains the workflow processing functions
@@ -116,7 +118,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 			ElementId:          el.Id,
 			ElementType:        el.Type,
 			Vars:               nil,
-		}); err != nil {
+		}, 0); err != nil {
 			errs <- c.engineErr(ctx, "failed to publish workflow state", err,
 				zap.String(keys.ParentInstanceElementId, parentElID),
 				zap.String(keys.ParentWorkflowInstanceId, parentwfiID),
@@ -214,17 +216,47 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, outb
 
 		}
 
+		target := el[t.Target]
+		//Deal with timer events
+		var embargo int
+		if target.Type == "timerIntermediateCatchEvent" {
+			if target.Execute[0] == '=' {
+				exVars := c.decodeVars(ctx, vars)
+				program, err := expr.Compile(target.Execute[1:], expr.Env(exVars))
+				if err != nil {
+					return err
+				}
+				res, err := expr.Run(program, exVars)
+				if err != nil {
+					return err
+				}
+				switch res.(type) {
+				case int:
+					embargo = int(time.Now().UnixNano() + res.(int64))
+				default:
+					return fmt.Errorf("delay did not evaluate to a 64 bit integer")
+				}
+			} else {
+				p, err := strconv.Atoi(target.Execute)
+				if err != nil {
+					return err
+				}
+				embargo = int(time.Now().UnixNano() + int64(p))
+			}
+
+		}
+
 		trackingId := ksuid.New().String()
 		// If the conditions passed commit a traversal
 		if ok {
 			if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowTraversalExecute, &model.WorkflowState{
-				ElementType:        el[t.Target].Type,
-				ElementId:          t.Target,
+				ElementType:        target.Type,
+				ElementId:          target.Id,
 				WorkflowId:         wfi.WorkflowId,
 				WorkflowInstanceId: wfi.WorkflowInstanceId,
 				TrackingId:         trackingId,
 				Vars:               vars,
-			}); err != nil {
+			}, embargo); err != nil {
 				c.log.Error("failed to publish workflow state", zap.Error(err))
 				return err
 			}
@@ -275,7 +307,7 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiID, elementId, tracki
 		WorkflowInstanceId: wfiID,
 		WorkflowId:         wfi.WorkflowId,
 		Vars:               vars,
-	}); err != nil {
+	}, 0); err != nil {
 		return c.engineErr(ctx, "failed to publish workflow state", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 	}
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowTraversalComplete, &model.WorkflowState{
@@ -285,7 +317,7 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiID, elementId, tracki
 		WorkflowInstanceId: wfiID,
 		TrackingId:         trackingId,
 		Vars:               vars,
-	}); err != nil {
+	}, 0); err != nil {
 		return c.engineErr(ctx, "failed to publish workflow state", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 	}
 
@@ -327,7 +359,7 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiID, elementId, tracki
 		if _, err := c.launch(ctx, el.Execute, vars, wfiID, el.Id); err != nil {
 			return c.engineErr(ctx, "failed to launch child workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
-	case "intermediateCatchEvent":
+	case "messageIntermediateCatchEvent":
 		if err := c.awaitMessage(ctx, wfi.WorkflowId, wfiID, el, vars); err != nil {
 			return c.engineErr(ctx, "failed to await message", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
@@ -349,7 +381,7 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiID, elementId, tracki
 		WorkflowId:         wfi.WorkflowId,
 		WorkflowInstanceId: wfiID,
 		Vars:               vars,
-	}); err != nil {
+	}, 0); err != nil {
 		return c.engineErr(ctx, "failed to publish workflow state", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 	}
 
@@ -360,7 +392,7 @@ func (c *Engine) activityProcessor(ctx context.Context, wfiID, elementId, tracki
 			WorkflowId:         wfi.WorkflowId,
 			WorkflowInstanceId: wfiID,
 			Vars:               vars,
-		}); err != nil {
+		}, 0); err != nil {
 			return c.engineErr(ctx, "failed to publish workflow state", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	}
@@ -488,7 +520,7 @@ func (c *Engine) startJob(ctx context.Context, subject string, wfID string, wfiI
 		)
 	}
 	job.TrackingId = jobId
-	return c.ns.PublishWorkflowState(ctx, subject, job)
+	return c.ns.PublishWorkflowState(ctx, subject, job, 0)
 }
 
 // elementTable indexes an entire process for quick Id lookups

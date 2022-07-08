@@ -284,13 +284,13 @@ func (_m *MockNatsService) PublishMessage(ctx context.Context, workflowInstanceI
 	return r0
 }
 
-// PublishWorkflowState provides a mock function with given fields: ctx, stateName, state
-func (_m *MockNatsService) PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState) error {
-	ret := _m.Called(ctx, stateName, state)
+// PublishWorkflowState provides a mock function with given fields: ctx, stateName, state, delay
+func (_m *MockNatsService) PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState, delay int) error {
+	ret := _m.Called(ctx, stateName, state, delay)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, *model.WorkflowState) error); ok {
-		r0 = rf(ctx, stateName, state)
+	if rf, ok := ret.Get(0).(func(context.Context, string, *model.WorkflowState, int) error); ok {
+		r0 = rf(ctx, stateName, state, delay)
 	} else {
 		r0 = ret.Error(0)
 	}

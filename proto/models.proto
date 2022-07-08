@@ -35,6 +35,7 @@ message Element {
   Targets outbound = 6;
   Process process = 7;
   string msg = 8;
+  string retries = 9;
 }
 
 message Target {

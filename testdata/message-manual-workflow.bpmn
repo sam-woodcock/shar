@@ -42,7 +42,7 @@
   </bpmn:process>
   <bpmn:message id="Message_3lkfglf" name="continueMessage">
     <bpmn:extensionElements>
-      <zeebe:subscription correlationKey="= orderId" />
+      <zeebe:subscription correlationKey="orderId" />
     </bpmn:extensionElements>
   </bpmn:message>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">

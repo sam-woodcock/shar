@@ -389,7 +389,7 @@ func (c *Client) clientErr(ctx context.Context, msg string, err error, z ...zap.
 
 func (c *Client) fatalClientErr(ctx context.Context, msg string, err error, z ...zap.Field) error {
 	err2 := c.clientErr(ctx, msg, err, z...)
-	return errors.NewErrWorkflowFatal(msg, err2)
+	return fmt.Errorf("%+v %+v %w", msg, err2, errors.ErrWorkflowFatal)
 }
 
 func (c *Client) RegisterWorkflowInstanceComplete(fn chan *model.WorkflowInstanceComplete) {

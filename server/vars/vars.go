@@ -3,6 +3,7 @@ package vars
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors"
 	"go.uber.org/zap"
@@ -15,7 +16,7 @@ func Encode(log *zap.Logger, vars model.Vars) ([]byte, error) {
 	if err := enc.Encode(vars); err != nil {
 		msg := "failed to encode vars"
 		log.Error(msg, zap.Any("vars", vars))
-		return nil, errors.NewErrWorkflowFatal(msg, err)
+		return nil, fmt.Errorf(msg+": %w", errors.ErrWorkflowFatal)
 	}
 	return buf.Bytes(), nil
 }
@@ -31,7 +32,7 @@ func Decode(log *zap.Logger, vars []byte) (model.Vars, error) {
 	if err := d.Decode(&ret); err != nil {
 		msg := "failed to decode vars"
 		log.Error(msg, zap.Any("vars", vars), zap.Error(err))
-		return nil, errors.NewErrWorkflowFatal(msg, err)
+		return nil, fmt.Errorf(msg+": %w", errors.ErrWorkflowFatal)
 	}
 	return ret, nil
 }

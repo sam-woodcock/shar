@@ -101,8 +101,8 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 // shutdown gracefully shuts down the GRPC server, and requests that
 func (s *Server) Shutdown() {
 	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
-	s.grpcServer.GracefulStop()
 	s.api.Shutdown()
+	s.grpcServer.GracefulStop()
 	s.log.Info("shar grpc health stopped")
 }
 

@@ -14,6 +14,13 @@ import (
 )
 
 func TestMessaging(t *testing.T) {
+	//if !intTest {
+	//	t.Skip("Skipping integration test")
+	//}
+	setup()
+	defer teardown()
+	handlers := &testMessagingHandlerDef{}
+
 	// Create a starting context
 	ctx := context.Background()
 
@@ -34,19 +41,19 @@ func TestMessaging(t *testing.T) {
 	b, err := os.ReadFile("../testdata/message-workflow.bpmn")
 	require.NoError(t, err)
 
-	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "MessageDemo", b)
+	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "MessagingTest", b)
 	require.NoError(t, err)
 
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 
 	// Register a service task
-	cl.RegisterServiceTask("step1", step1)
-	cl.RegisterServiceTask("step2", step2)
-	cl.RegisterMessageSender("continueMessage", sendMessage)
+	cl.RegisterServiceTask("step1", handlers.step1)
+	cl.RegisterServiceTask("step2", handlers.step2)
+	cl.RegisterMessageSender("continueMessage", handlers.sendMessage)
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "MessageDemo", model.Vars{"orderId": 57}); err != nil {
+	if _, err := cl.LaunchWorkflow(ctx, "MessagingTest", model.Vars{"orderId": 57}); err != nil {
 		panic(err)
 	}
 
@@ -88,17 +95,20 @@ func TestMessaging(t *testing.T) {
 
 }
 
-func step1(ctx context.Context, vars model.Vars) (model.Vars, error) {
+type testMessagingHandlerDef struct {
+}
+
+func (x *testMessagingHandlerDef) step1(ctx context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Step 1")
 	return model.Vars{}, nil
 }
 
-func step2(ctx context.Context, vars model.Vars) (model.Vars, error) {
+func (x *testMessagingHandlerDef) step2(ctx context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Step 2")
 	return model.Vars{}, nil
 }
 
-func sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
+func (x *testMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
 	fmt.Println("Sending Message...")
 	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{})
 }

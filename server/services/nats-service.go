@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	errors2 "errors"
 	"fmt"
-	"github.com/antonmedv/expr"
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
 	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/common/expression"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/errors/keys"
@@ -18,6 +18,7 @@ import (
 	"gitlab.com/shar-workflow/shar/server/vars"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -275,7 +276,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		UnixTimeNano:       time.Now().UnixNano(),
 	}
 
-	s.PublishWorkflowState(ctx, messages.WorkflowInstanceTerminated, state)
+	s.PublishWorkflowState(ctx, messages.WorkflowInstanceTerminated, state, 0)
 
 	return nil
 }
@@ -456,9 +457,10 @@ func (s *NatsService) SetCompleteJobProcessor(processor CompleteJobProcessorFunc
 	s.eventJobCompleteProcessor = processor
 }
 
-func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState) error {
+func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState, embargo int) error {
 	state.UnixTimeNano = time.Now().UnixNano()
 	msg := nats.NewMsg(stateName)
+	msg.Header.Set("embargo", strconv.Itoa(embargo))
 	if b, err := proto.Marshal(state); err != nil {
 		return err
 	} else {
@@ -553,7 +555,21 @@ func (s *NatsService) process(ctx context.Context, subject string, durable strin
 					// Log Error
 					s.log.Error("message fetch error", zap.Error(err))
 					cancel()
-					return
+					continue
+				}
+				m := msg[0]
+				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
+					e, err := strconv.Atoi(embargo)
+					if err != nil {
+						s.log.Error("bad embargo value", zap.Error(err))
+						cancel()
+						continue
+					}
+					offset := time.Duration(int64(e) - time.Now().UnixNano())
+					if offset > 0 {
+						m.NakWithDelay(offset)
+						continue
+					}
 				}
 				executeCtx := context.Background()
 				ack, err := fn(executeCtx, msg[0])
@@ -651,7 +667,7 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 		if err != nil {
 			return false, err
 		}
-		success, err := s.evaluate(ctx, dv, instance.CorrelationKey+cleanExpression(*sub.Execute))
+		success, err := expression.Eval[bool](s.log, *sub.Execute+"=="+instance.CorrelationKey, dv)
 		if err != nil {
 			return false, err
 		}
@@ -697,20 +713,6 @@ func cleanExpression(s string) string {
 		}
 	}
 	return s
-}
-
-func (s *NatsService) evaluate(ctx context.Context, vars model.Vars, expresssion string) (bool, error) {
-	program, err := expr.Compile(expresssion, expr.Env(vars))
-	if err != nil {
-		s.log.Error("expression compilation error", zap.Error(err), zap.String("expr", expresssion))
-		return false, fmt.Errorf("failed to compile expression: %w", err)
-	}
-	res, err := expr.Run(program, vars)
-	if err != nil {
-		s.log.Error("expression evaluation error", zap.String("expr", expresssion), zap.Error(err))
-		return false, fmt.Errorf("failed to evaluate expression: %w", err)
-	}
-	return res.(bool), nil
 }
 
 func (s *NatsService) Shutdown() {

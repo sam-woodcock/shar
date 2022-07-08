@@ -2,9 +2,11 @@ package parser
 
 import (
 	"errors"
+	"fmt"
 	"github.com/antchfx/xmlquery"
 	"gitlab.com/shar-workflow/shar/model"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -67,6 +69,9 @@ func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i 
 		if i.Data == "sequenceFlow" || i.Data == "incoming" || i.Data == "outgoing" || i.Data == "extensionElements" {
 			return nil
 		}
+		if i.Data == "intermediateCatchEvent" {
+			parseIntermediateCatchEvent(i, el)
+		}
 		parseCoreValues(i, el)
 		parseFlowInOut(doc, i, el)
 		parseDocumentation(i, el)
@@ -82,17 +87,55 @@ func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i 
 	return nil
 }
 
+func parseIntermediateCatchEvent(i *xmlquery.Node, el *model.Element) {
+	subType := i.FirstChild
+	switch subType.Data {
+	case "timerEventDefinition":
+	case "messageEventDefinition":
+
+	}
+}
+
 func parseSubscription(wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string) error {
-	if x := i.SelectElement("bpmn:messageEventDefinition/@messageRef"); x != nil {
-		ref := x.InnerText()
-		el.Msg = msgs[ref]
-		c, err := getCorrelation(wf.Messages, el.Msg)
-		if err != nil {
-			return err
+	if i.Data == "intermediateCatchEvent" {
+		if x := i.SelectElement("bpmn:messageEventDefinition/@messageRef"); x != nil {
+			ref := x.InnerText()
+			el.Type = "messageIntermediateCatchEvent"
+			el.Msg = msgs[ref]
+			c, err := getCorrelation(wf.Messages, el.Msg)
+			if err != nil {
+				return err
+			}
+			el.Execute = c
+			return nil
 		}
-		el.Execute = c
+		if x := i.SelectElement("bpmn:timerEventDefinition/bpmn:timeDuration"); x != nil {
+			ref := x.InnerText()
+			el.Type = "timerIntermediateCatchEvent"
+			dur, err := parseDuration(ref)
+			if err != nil {
+				return err
+			}
+			el.Execute = dur
+			return nil
+		}
 	}
 	return nil
+}
+
+func parseDuration(ref string) (string, error) {
+	ref = strings.TrimSpace(ref)
+	if len(ref) == 0 {
+		return "", fmt.Errorf("empty duration found")
+	}
+	d, err := ParseISO8601(ref)
+	if err != nil {
+		if ref[1] == '=' {
+			return ref, nil
+		}
+		return "", err
+	}
+	return strconv.Itoa(int(d.timeDuration().Nanoseconds())), nil
 }
 
 func getCorrelation(messages []*model.Element, msg string) (string, error) {
@@ -121,6 +164,12 @@ func parseExtensions(doc *xmlquery.Node, el *model.Element, i *xmlquery.Node) {
 	if x := i.SelectElement("bpmn:extensionElements"); x != nil {
 		//Task Definitions
 		if e := x.SelectElement("zeebe:taskDefinition/@type"); e != nil {
+			el.Execute = e.InnerText()
+		}
+		if e := x.SelectElement("zeebe:taskDefinition/@retries"); e != nil {
+			el.Retries = e.InnerText()
+		}
+		if e := x.SelectElement("zeebe:calledElement/@processId"); e != nil {
 			el.Execute = e.InnerText()
 		}
 		if e := x.SelectElement("zeebe:calledElement/@processId"); e != nil {
