@@ -1,6 +1,7 @@
 package messages
 
 const (
+	WorkflowStateAll               = "WORKFLOW.State.>"
 	WorkflowJobExecuteAll          = "WORKFLOW.State.Job.Execute.*"
 	WorkFlowJobCompleteAll         = "WORKFLOW.State.Job.Complete.*"
 	WorkflowJobServiceTaskExecute  = "WORKFLOW.State.Job.Execute.ServiceTask"
@@ -65,4 +66,5 @@ var (
 	KvInstance    = "WORKFLOW_INSTANCE"
 	KvMessageName = "WORKFLOW_MSGNAME"
 	KvMessageID   = "WORKFLOW_MSGID"
+	KvTrace       = "WORKFLOW_TRACKING"
 )

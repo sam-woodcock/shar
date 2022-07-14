@@ -58,12 +58,13 @@ message WorkflowState {
   string workflowInstanceId = 2;
   string elementId = 3;
   string elementType = 4;
-  string trackingId = 5;
-  optional string execute = 6;
-  string state = 7;
-  optional string condition = 8;
-  int64 unixTimeNano = 9;
-  bytes vars = 10;
+  string Id = 5;
+  string parentId = 6;
+  optional string execute = 7;
+  string state = 8;
+  optional string condition = 9;
+  int64 unixTimeNano = 10;
+  bytes vars = 11;
 }
 
 message WorkflowInstance {

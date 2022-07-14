@@ -50,7 +50,6 @@ func TestLaunchWorkflow(t *testing.T) {
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowInstanceId, "test-workflow-instance-id")
 			assert.Equal(t, args[2].(*model.WorkflowState).ElementId, "Step1")
 			assert.Equal(t, args[2].(*model.WorkflowState).ElementType, "serviceTask")
-			assert.NotEmpty(t, args[2].(*model.WorkflowState).TrackingId)
 		}).
 		Return(nil)
 
@@ -84,11 +83,11 @@ func TestTraversal(t *testing.T) {
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowInstanceId, "test-workflow-instance-id")
 			assert.Equal(t, args[2].(*model.WorkflowState).ElementId, "Step1")
 			assert.Equal(t, args[2].(*model.WorkflowState).ElementType, "serviceTask")
-			assert.NotEmpty(t, args[2].(*model.WorkflowState).TrackingId)
+			assert.NotEmpty(t, args[2].(*model.WorkflowState).Id)
 		}).
 		Return(nil)
 
-	err := eng.traverse(ctx, wfi, els["StartEvent"].Outbound, els, []byte{})
+	err := eng.traverse(ctx, wfi, ksuid.New().String(), els["StartEvent"].Outbound, els, []byte{})
 	assert.NoError(t, err)
 	svc.AssertExpectations(t)
 
@@ -131,7 +130,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowInstanceId, "test-workflow-instance-id")
 			assert.Equal(t, args[2].(*model.WorkflowState).ElementId, "Step1")
 			assert.Equal(t, args[2].(*model.WorkflowState).ElementType, "serviceTask")
-			assert.NotEmpty(t, args[2].(*model.WorkflowState).TrackingId)
+			assert.NotEmpty(t, args[2].(*model.WorkflowState).Id)
 		}).
 		Return(nil)
 
@@ -167,7 +166,12 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 		}).
 		Return(nil)
 	trackingID := ksuid.New().String()
-	err := eng.activityProcessor(ctx, "test-workflow-instance-id", els["Step1"].Id, trackingID, []byte{}, false)
+	err := eng.activityProcessor(ctx, &model.WorkflowState{
+		WorkflowInstanceId: "test-workflow-instance-id",
+		ElementId:          els["Step1"].Id,
+		Id:                 trackingID,
+		Vars:               []byte{},
+	}, false)
 	assert.NoError(t, err)
 	svc.AssertExpectations(t)
 
@@ -190,7 +194,7 @@ func TestCompleteJobProcessor(t *testing.T) {
 			WorkflowInstanceId: "test-workflow-instance-id",
 			ElementId:          "Step1",
 			ElementType:        "serviceTask",
-			TrackingId:         trackingID,
+			Id:                 trackingID,
 			Execute:            nil,
 			State:              "",
 			Condition:          nil,
@@ -218,7 +222,7 @@ func TestCompleteJobProcessor(t *testing.T) {
 			assert.Equal(t, "test-workflow-instance-id", args[2].(*model.WorkflowState).WorkflowInstanceId)
 			assert.Equal(t, "EndEvent", args[2].(*model.WorkflowState).ElementId)
 			assert.Equal(t, "endEvent", args[2].(*model.WorkflowState).ElementType)
-			assert.NotEmpty(t, args[2].(*model.WorkflowState).TrackingId)
+			assert.NotEmpty(t, args[2].(*model.WorkflowState).Id)
 		}).
 		Return(nil)
 

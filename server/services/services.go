@@ -5,6 +5,6 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 )
 
-type EventProcessorFunc func(ctx context.Context, workflowInstanceId, elementId, traversalId string, vars []byte, traverseOnly bool) error
+type EventProcessorFunc func(ctx context.Context, traversal *model.WorkflowState, traverseOnly bool) error
 type CompleteJobProcessorFunc func(ctx context.Context, jobId string, vars []byte) error
 type MessageCompleteProcessorFunc func(ctx context.Context, state *model.WorkflowState) error

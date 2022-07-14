@@ -294,17 +294,17 @@ func (s *NatsService) GetLatestVersion(ctx context.Context, workflowName string)
 }
 
 func (s *NatsService) CreateJob(ctx context.Context, job *model.WorkflowState) (string, error) {
-	jobId := ksuid.New()
-	job.TrackingId = jobId.String()
-	if err := common.SaveObj(nil, s.job, jobId.String(), job); err != nil {
+	tid := ksuid.New().String()
+	job.Id = tid
+	if err := common.SaveObj(ctx, s.job, tid, job); err != nil {
 		return "", fmt.Errorf("failed to save job to KV: %w", err)
 	}
-	return jobId.String(), nil
+	return tid, nil
 }
 
-func (s *NatsService) GetJob(ctx context.Context, id string) (*model.WorkflowState, error) {
+func (s *NatsService) GetJob(ctx context.Context, trackingID string) (*model.WorkflowState, error) {
 	job := &model.WorkflowState{}
-	if err := common.LoadObj(s.job, id, job); err != nil {
+	if err := common.LoadObj(s.job, trackingID, job); err != nil {
 		return nil, fmt.Errorf("failed to load job from KV: %w", err)
 	}
 	return job, nil
@@ -396,35 +396,16 @@ func (s *NatsService) StartProcessing(ctx context.Context) error {
 		MaxRequestBatch: 1,
 	}
 
-	if _, err := s.js.StreamInfo(scfg.Name); err == nats.ErrStreamNotFound {
-		if _, err := s.js.AddStream(scfg); err != nil {
-			panic(err)
-		}
-	} else if err != nil {
+	if err := common.EnsureStream(s.js, scfg); err != nil {
+		return err
+	}
+	if err := common.EnsureConsumer(s.js, "WORKFLOW", ccfg); err != nil {
 		panic(err)
 	}
-
-	if _, err := s.js.ConsumerInfo(scfg.Name, ccfg.Durable); err == nats.ErrConsumerNotFound {
-		if _, err := s.js.AddConsumer("WORKFLOW", ccfg); err != nil {
-			panic(err)
-		}
-	} else if err != nil {
+	if err := common.EnsureConsumer(s.js, "WORKFLOW", tcfg); err != nil {
 		panic(err)
 	}
-
-	if _, err := s.js.ConsumerInfo(scfg.Name, tcfg.Durable); err == nats.ErrConsumerNotFound {
-		if _, err := s.js.AddConsumer("WORKFLOW", tcfg); err != nil {
-			panic(err)
-		}
-	} else if err != nil {
-		panic(err)
-	}
-
-	if _, err := s.js.ConsumerInfo(scfg.Name, acfg.Durable); err == nats.ErrConsumerNotFound {
-		if _, err := s.js.AddConsumer("WORKFLOW", acfg); err != nil {
-			panic(err)
-		}
-	} else if err != nil {
+	if err := common.EnsureConsumer(s.js, "WORKFLOW", acfg); err != nil {
 		panic(err)
 	}
 
@@ -496,13 +477,13 @@ func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID str
 }
 
 func (s *NatsService) processTraversals(ctx context.Context) {
-	s.process(ctx, messages.WorkflowTraversalExecute, "Traversal", func(ctx context.Context, msg *nats.Msg) (bool, error) {
+	common.Process(ctx, s.js, s.log, s.closing, messages.WorkflowTraversalExecute, "Traversal", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var traversal model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &traversal); err != nil {
 			return false, fmt.Errorf("could not unmarshal traversal proto: %w", err)
 		}
 		if s.eventProcessor != nil {
-			if err := s.eventProcessor(ctx, traversal.WorkflowInstanceId, traversal.ElementId, traversal.TrackingId, traversal.Vars, false); err != nil {
+			if err := s.eventProcessor(ctx, &traversal, false); err != nil {
 				return false, fmt.Errorf("could not process event: %w", err)
 			}
 		}
@@ -512,84 +493,23 @@ func (s *NatsService) processTraversals(ctx context.Context) {
 }
 
 func (s *NatsService) processTracking(ctx context.Context) {
-	s.process(ctx, "WORKFLOW.>", "Tracking", s.track)
+	common.Process(ctx, s.js, s.log, s.closing, "WORKFLOW.>", "Tracking", 1, s.track)
 	return
 }
 
 func (s *NatsService) processCompletedJobs(ctx context.Context) {
-	s.process(ctx, messages.WorkFlowJobCompleteAll, "JobCompleteConsumer", func(ctx context.Context, msg *nats.Msg) (bool, error) {
+	common.Process(ctx, s.js, s.log, s.closing, messages.WorkFlowJobCompleteAll, "JobCompleteConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var job model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &job); err != nil {
 			return false, err
 		}
 		if s.eventJobCompleteProcessor != nil {
-			if err := s.eventJobCompleteProcessor(ctx, job.TrackingId, job.Vars); err != nil {
+			if err := s.eventJobCompleteProcessor(ctx, job.Id, job.Vars); err != nil {
 				return false, err
 			}
 		}
 		return true, nil
 	})
-}
-
-func (s *NatsService) process(ctx context.Context, subject string, durable string, fn func(ctx context.Context, msg *nats.Msg) (bool, error)) {
-	for i := 0; i < s.concurrency; i++ {
-		go func() {
-			sub, err := s.js.PullSubscribe(subject, durable)
-			if err != nil {
-				s.log.Error("process pull subscribe error", zap.Error(err), zap.String("subject", subject))
-				return
-			}
-			for {
-				select {
-				case <-s.closing:
-					return
-				default:
-				}
-				ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-				msg, err := sub.Fetch(1, nats.Context(ctx))
-				if err != nil {
-					if err == context.DeadlineExceeded {
-						cancel()
-						continue
-					}
-					// Log Error
-					s.log.Error("message fetch error", zap.Error(err))
-					cancel()
-					continue
-				}
-				m := msg[0]
-				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
-					e, err := strconv.Atoi(embargo)
-					if err != nil {
-						s.log.Error("bad embargo value", zap.Error(err))
-						cancel()
-						continue
-					}
-					offset := time.Duration(int64(e) - time.Now().UnixNano())
-					if offset > 0 {
-						m.NakWithDelay(offset)
-						continue
-					}
-				}
-				executeCtx := context.Background()
-				ack, err := fn(executeCtx, msg[0])
-				if err != nil {
-					s.log.Error("processing error", zap.Error(err))
-				}
-				if ack {
-					if err := msg[0].Ack(); err != nil {
-						s.log.Error("processing failed to ack", zap.Error(err))
-					}
-				} else {
-					if err := msg[0].Nak(); err != nil {
-						s.log.Error("processing failed to nak", zap.Error(err))
-					}
-				}
-
-				cancel()
-			}
-		}()
-	}
 }
 
 func (s *NatsService) track(ctx context.Context, msg *nats.Msg) (bool, error) {
@@ -628,7 +548,7 @@ func (s *NatsService) Conn() common.NatsConn {
 }
 
 func (s *NatsService) processMessages(ctx context.Context) {
-	s.process(ctx, messages.WorkflowMessages, "Message", s.processMessage)
+	common.Process(ctx, s.js, s.log, s.closing, messages.WorkflowMessages, "Message", s.concurrency, s.processMessage)
 	return
 }
 
@@ -720,7 +640,7 @@ func (s *NatsService) Shutdown() {
 }
 
 func (s *NatsService) processWorkflowEvents(ctx context.Context) {
-	s.process(ctx, messages.WorkflowInstanceAll, "WorkflowConsumer", func(ctx context.Context, msg *nats.Msg) (bool, error) {
+	common.Process(ctx, s.js, s.log, s.closing, messages.WorkflowInstanceAll, "WorkflowConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var job model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &job); err != nil {
 			return false, err

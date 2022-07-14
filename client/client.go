@@ -142,9 +142,9 @@ func (c *Client) listen(ctx context.Context) error {
 			xctx = context.WithValue(xctx, "WORKFLOW_INSTANCE_ID", ut.WorkflowInstanceId)
 			switch ut.ElementType {
 			case "serviceTask":
-				job, err := c.storage.GetJob(xctx, ut.TrackingId)
+				job, err := c.storage.GetJob(xctx, ut.Id)
 				if err != nil {
-					c.log.Error("failed to get job", zap.Error(err), zap.String("JobId", ut.TrackingId))
+					c.log.Error("failed to get job", zap.Error(err), zap.String("JobId", ut.Id))
 					continue
 				}
 				if svcFn, ok := c.SvcTasks[*job.Execute]; !ok {
@@ -164,7 +164,7 @@ func (c *Client) listen(ctx context.Context) error {
 						c.log.Warn("failed during execution of service task function", zap.Error(err))
 						continue
 					}
-					if err := c.CompleteServiceTask(xctx, ut.TrackingId, newVars); err != nil {
+					if err := c.CompleteServiceTask(xctx, ut.Id, newVars); err != nil {
 						if err := msg.Nak(); err != nil {
 							c.log.Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
 						}
@@ -176,9 +176,9 @@ func (c *Client) listen(ctx context.Context) error {
 					}
 				}
 			case "intermediateThrowEvent":
-				job, err := c.storage.GetJob(xctx, ut.TrackingId)
+				job, err := c.storage.GetJob(xctx, ut.Id)
 				if err != nil {
-					c.log.Error("failed to get send message task", zap.Error(err), zap.String("JobId", ut.TrackingId))
+					c.log.Error("failed to get send message task", zap.Error(err), zap.String("JobId", ut.Id))
 					continue
 				}
 				if sendFn, ok := c.MsgSender[*job.Execute]; !ok {
@@ -197,7 +197,7 @@ func (c *Client) listen(ctx context.Context) error {
 						c.log.Warn("nats listener", zap.Error(err))
 						continue
 					}
-					if err := c.CompleteServiceTask(xctx, ut.TrackingId, make(map[string]any)); err != nil {
+					if err := c.CompleteServiceTask(xctx, ut.Id, make(map[string]any)); err != nil {
 						if err := msg.Nak(); err != nil {
 							c.log.Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
 						}
@@ -241,9 +241,13 @@ func (c *Client) listenWorkflowComplete(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) CompleteUserTask(ctx context.Context, jobId string, newVars model.Vars) error {
+func (c *Client) CompleteUserTask(ctx context.Context, trackingID string, newVars model.Vars) error {
 	vb, err := vars.Encode(c.log, newVars)
-	job := &model.WorkflowState{TrackingId: jobId, Vars: vb}
+	job := &model.WorkflowState{
+		Id:           trackingID,
+		UnixTimeNano: time.Now().UnixNano(),
+		Vars:         vb,
+	}
 	b, err := proto.Marshal(job)
 	if err != nil {
 		return c.clientErr(ctx, "failed to marshal completed user task: %w", err)
@@ -257,12 +261,16 @@ func (c *Client) CompleteUserTask(ctx context.Context, jobId string, newVars mod
 	return nil
 }
 
-func (c *Client) CompleteServiceTask(ctx context.Context, jobId string, newVars model.Vars) error {
+func (c *Client) CompleteServiceTask(ctx context.Context, trackingID string, newVars model.Vars) error {
 	ev, err := vars.Encode(c.log, newVars)
 	if err != nil {
 		return err
 	}
-	job := &model.WorkflowState{TrackingId: jobId, Vars: ev}
+	job := &model.WorkflowState{
+		Id:           trackingID,
+		UnixTimeNano: time.Now().UnixNano(),
+		Vars:         ev,
+	}
 	b, err := proto.Marshal(job)
 	if err != nil {
 		return c.clientErr(ctx, "failed to marshal complete service task: %w", err)
@@ -276,12 +284,16 @@ func (c *Client) CompleteServiceTask(ctx context.Context, jobId string, newVars 
 	return nil
 }
 
-func (c *Client) CompleteManualTask(ctx context.Context, jobId string, newVars model.Vars) error {
+func (c *Client) CompleteManualTask(ctx context.Context, trackingID string, newVars model.Vars) error {
 	ev, err := vars.Encode(c.log, newVars)
 	if err != nil {
 		return err
 	}
-	job := &model.WorkflowState{TrackingId: jobId, Vars: ev}
+	job := &model.WorkflowState{
+		Id:           trackingID,
+		UnixTimeNano: time.Now().UnixNano(),
+		Vars:         ev,
+	}
 	b, err := proto.Marshal(job)
 	if err != nil {
 		return c.clientErr(ctx, "failed to marshal complete manual task: %w", err)

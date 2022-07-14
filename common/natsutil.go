@@ -5,8 +5,10 @@ import (
 	"crypto/rand"
 	"fmt"
 	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 	"math/big"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -107,6 +109,89 @@ func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names
 		} else if err != nil {
 			return fmt.Errorf("failed to obtain bucket: %w", err)
 		}
+	}
+	return nil
+}
+
+func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, msg *nats.Msg) (bool, error)) {
+	for i := 0; i < concurrency; i++ {
+		go func() {
+			sub, err := js.PullSubscribe(subject, durable)
+			if err != nil {
+				log.Error("process pull subscribe error", zap.Error(err), zap.String("subject", subject))
+				return
+			}
+			for {
+				select {
+				case <-closer:
+					return
+				default:
+				}
+				ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+				msg, err := sub.Fetch(1, nats.Context(ctx))
+				if err != nil {
+					if err == context.DeadlineExceeded {
+						cancel()
+						continue
+					}
+					// Log Error
+					log.Error("message fetch error", zap.Error(err))
+					cancel()
+					continue
+				}
+				m := msg[0]
+				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
+					e, err := strconv.Atoi(embargo)
+					if err != nil {
+						log.Error("bad embargo value", zap.Error(err))
+						cancel()
+						continue
+					}
+					offset := time.Duration(int64(e) - time.Now().UnixNano())
+					if offset > 0 {
+						m.NakWithDelay(offset)
+						continue
+					}
+				}
+				executeCtx := context.Background()
+				ack, err := fn(executeCtx, msg[0])
+				if err != nil {
+					log.Error("processing error", zap.Error(err))
+				}
+				if ack {
+					if err := msg[0].Ack(); err != nil {
+						log.Error("processing failed to ack", zap.Error(err))
+					}
+				} else {
+					if err := msg[0].Nak(); err != nil {
+						log.Error("processing failed to nak", zap.Error(err))
+					}
+				}
+
+				cancel()
+			}
+		}()
+	}
+}
+
+func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
+	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); err == nats.ErrConsumerNotFound {
+		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
+			panic(err)
+		}
+	} else if err != nil {
+		return err
+	}
+	return nil
+}
+
+func EnsureStream(js nats.JetStreamContext, streamConfig *nats.StreamConfig) error {
+	if _, err := js.StreamInfo(streamConfig.Name); err == nats.ErrStreamNotFound {
+		if _, err := js.AddStream(streamConfig); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
 	}
 	return nil
 }
