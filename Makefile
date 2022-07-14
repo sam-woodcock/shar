@@ -1,4 +1,4 @@
-default: clean proto server
+default: clean proto server tracing
 
 configure:
 	@echo "\033[92mConfigure\033[0m"
@@ -10,7 +10,7 @@ configure:
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
-all: proto server telemetry
+all: proto server tracing
 
 proto: .FORCE
 	@echo "\033[92mBuild proto\033[0m"
