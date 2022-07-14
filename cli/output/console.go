@@ -16,7 +16,7 @@ func (c *Console) OutputWorkflowInstanceStatus(status []*model.WorkflowState) er
 	fmt.Println("Instance: " + st.WorkflowInstanceId)
 
 	leveledList := pterm.LeveledList{
-		pterm.LeveledListItem{Level: 0, Text: "Tracking ID: " + st.TrackingId},
+		pterm.LeveledListItem{Level: 0, Text: "Tracking ID: " + st.Id},
 		pterm.LeveledListItem{Level: 1, Text: "Element"},
 		pterm.LeveledListItem{Level: 2, Text: "ID: " + st.ElementId},
 		pterm.LeveledListItem{Level: 2, Text: "Type: " + st.ElementType},

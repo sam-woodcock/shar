@@ -69,3 +69,5 @@ package_stage:
     | base64)\"}}}" > /kaniko/.docker/config.json
   - "/kaniko/executor --context build/server --dockerfile build/server/Dockerfile
     --destination $CI_REGISTRY_IMAGE/server:${VER}.$CI_VERSION"
+  - "/kaniko/executor --context build/telemetry --dockerfile build/telemetry/Dockerfile
+    --destination $CI_REGISTRY_IMAGE/telemetry:${VER}.$CI_VERSION"
