@@ -2,12 +2,18 @@ replicaCount: 1
 
 image:
   repository: registry.gitlab.com/shar-workflow/shar/server
+  telemetryRepository: registry.gitlab.com/shar-workflow/shar/telemetry
   pullPolicy: IfNotPresent
-  tag: "0.1.20"
+  tag: "0.1.79"
+
+telemetryImage:
+  repository: registry.gitlab.com/shar-workflow/shar/telemetry
 
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
+
+telemetryName: "shar-telemetry"
 
 # enable the following for a local nats instance simple deployment (not suitable for production)
 integratedNATS:
@@ -19,8 +25,9 @@ integratedJaeger:
 # the following only take effect if the integrated NATS and Jaeger are disabled
 nats:
   url: "nats://127.0.0.1:4222"
+  serviceurl: "nats://shar:4222"
 jaeger:
-  url: "http://127.0.0.1:14268/api/traces"
+  serviceurl: "http://shar:14268/api/traces"
 
 server:
   logLevel: "debug"

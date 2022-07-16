@@ -1,5 +1,3 @@
-// Command jaeger is an example program that creates spans
-// and uploads to Jaeger.
 package main
 
 import (
@@ -19,7 +17,7 @@ import (
 )
 
 const (
-	service     = "trace-demo"
+	service     = "shar"
 	environment = "production"
 	id          = 1
 )

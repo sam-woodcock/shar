@@ -11,6 +11,7 @@ spec:
       targetPort: grpc
       protocol: TCP
       name: grpc
+    {{- if .Values.integratedJaeger.enabled }}
     - port: 16686
       targetPort: jaeger-query
       protocol: TCP
@@ -19,5 +20,12 @@ spec:
       targetPort: jaeger-thrift
       protocol: TCP
       name: jaeger-thrift
+    {{- end }}
+    {{- if .Values.integratedNATS.enabled }}
+    - port: 4222
+      targetPort: nats
+      protocol: TCP
+      name: nats
+    {{- end }}
   selector:
     {{- include "shar.selectorLabels" . | nindent 4 }}

@@ -40,22 +40,10 @@ spec:
           env:
             - name: SHAR_PORT
               value: "50000"
-            {{- if .Values.integratedNATS.enabled }}
             - name: NATS_URL
-              value: "nats://127.0.0.1:4222"
-            {{- else }}
-            - name: NATS_URL
-              value: {{ .Values.nats.url }}
-            {{- end }}
-            {{- if .Values.integratedJaeger.enabled }}
-            - name: JAEGER_URL
-              value: "http://127.0.0.1:14268/api/traces"
-            {{- else }}
-            - name: JAEGER_URL
-              value: {{ .Values.jaeger.url }}
-            {{- end }}
+              value: {{ include "shar.natsURL" . }}
             - name: SHAR_LOG_LEVEL
-              value: {{ .Values.jaeger.url }}
+              value: {{ .Values.service.loglevel }}
           #livenessProbe:
           #  grpc:
           #    port: grpc
@@ -91,6 +79,9 @@ spec:
               protocol: TCP
             - name: jaeger-thrift
               containerPort: 14268
+              protocol: TCP
+            - name: nats
+              containerPort: 4222
               protocol: TCP
         {{- end }}
 
