@@ -71,3 +71,23 @@ message WorkflowInstanceComplete {
   string workflowId = 2;
   string workflowInstanceId = 3;
 }
+
+message CompleteManualTaskRequest {
+  string trackingId = 1;
+  bytes vars = 2;
+}
+
+message CompleteServiceTaskRequest {
+  string trackingId = 1;
+  bytes vars = 2;
+}
+
+message CompleteUserTaskRequest {
+  string trackingId = 1;
+  string owner = 2;
+  bytes vars = 3;
+}
+
+message ListUserTasksRequest {
+  string owner = 1;
+}

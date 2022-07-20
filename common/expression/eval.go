@@ -10,7 +10,7 @@ import (
 func Eval[T any](log *zap.Logger, exp string, vars map[string]interface{}) (retval T, reterr error) {
 	ex, err := expr.Compile(exp)
 	if err != nil {
-		return *new(T), fmt.Errorf(err.Error()+": %w", errors2.ErrWorkflowFatal)
+		return *new(T), fmt.Errorf(err.Error()+": %w", errors2.ErrWorkflowFatal{Err: err})
 	}
 
 	res, err := expr.Run(ex, vars)
@@ -20,7 +20,7 @@ func Eval[T any](log *zap.Logger, exp string, vars map[string]interface{}) (retv
 
 	defer func() {
 		if err := recover(); err != nil {
-			errex := fmt.Errorf("error evaluating expression: %+v: %+v: %w", exp, err, errors2.ErrWorkflowFatal)
+			errex := fmt.Errorf("error evaluating expression: %+v: %+v: %w", exp, err, errors2.ErrWorkflowFatal{Err: err.(error)})
 			log.Error(errex.Error())
 			retval = *new(T)
 			reterr = errex

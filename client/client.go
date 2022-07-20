@@ -9,7 +9,6 @@ import (
 	"gitlab.com/shar-workflow/shar/client/parser"
 	"gitlab.com/shar-workflow/shar/client/services"
 	"gitlab.com/shar-workflow/shar/model"
-	"gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/vars"
 	"go.uber.org/zap"
@@ -44,19 +43,19 @@ type Client struct {
 	storageType nats.StorageType
 }
 
-type ClientOption interface {
+type Option interface {
 	configure(client *Client)
 }
 
 type EphemeralStorage struct {
-	ClientOption
+	Option
 }
 
 func (o EphemeralStorage) configure(client *Client) {
 	client.storageType = nats.MemoryStorage
 }
 
-func New(log *zap.Logger, option ...ClientOption) *Client {
+func New(log *zap.Logger, option ...Option) *Client {
 	client := &Client{
 		storageType: nats.FileStorage,
 		SvcTasks:    make(map[string]serviceFn),
@@ -218,7 +217,7 @@ func (c *Client) listen(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) listenWorkflowComplete(ctx context.Context) error {
+func (c *Client) listenWorkflowComplete(_ context.Context) error {
 	_, err := c.con.Subscribe(messages.WorkflowInstanceTerminated, func(msg *nats.Msg) {
 		st := &model.WorkflowState{}
 		if err := proto.Unmarshal(msg.Data, st); err != nil {
@@ -241,22 +240,24 @@ func (c *Client) listenWorkflowComplete(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) CompleteUserTask(ctx context.Context, trackingID string, newVars model.Vars) error {
-	vb, err := vars.Encode(c.log, newVars)
-	job := &model.WorkflowState{
-		Id:           trackingID,
-		UnixTimeNano: time.Now().UnixNano(),
-		Vars:         vb,
+func (c *Client) ListUserTaskIDs(ctx context.Context, owner string) (*model.UserTasks, error) {
+	res := &model.UserTasks{}
+	req := &model.ListUserTasksRequest{Owner: owner}
+	if err := callAPI(ctx, c.con, messages.ApiListUserTaskIDs, req, res); err != nil {
+		return nil, c.clientErr(ctx, "failed to retrieve user task list: %w", err)
 	}
-	b, err := proto.Marshal(job)
+	return res, nil
+}
+
+func (c *Client) CompleteUserTask(ctx context.Context, owner string, trackingID string, newVars model.Vars) error {
+	ev, err := vars.Encode(c.log, newVars)
 	if err != nil {
-		return c.clientErr(ctx, "failed to marshal completed user task: %w", err)
+		return err
 	}
-	msg := nats.NewMsg(messages.WorkflowJobUserTaskComplete)
-	msg.Data = b
-	_, err = c.js.PublishMsg(msg)
-	if err != nil {
-		return c.clientErr(ctx, "failed to publish complete user task: %w", err)
+	res := &emptypb.Empty{}
+	req := &model.CompleteUserTaskRequest{Owner: owner, TrackingId: trackingID, Vars: ev}
+	if err := callAPI(ctx, c.con, messages.ApiCompleteUserTask, req, res); err != nil {
+		return c.clientErr(ctx, "failed to complete manual task: %w", err)
 	}
 	return nil
 }
@@ -266,20 +267,10 @@ func (c *Client) CompleteServiceTask(ctx context.Context, trackingID string, new
 	if err != nil {
 		return err
 	}
-	job := &model.WorkflowState{
-		Id:           trackingID,
-		UnixTimeNano: time.Now().UnixNano(),
-		Vars:         ev,
-	}
-	b, err := proto.Marshal(job)
-	if err != nil {
-		return c.clientErr(ctx, "failed to marshal complete service task: %w", err)
-	}
-	msg := nats.NewMsg(messages.WorkflowJobServiceTaskComplete)
-	msg.Data = b
-	_, err = c.js.PublishMsg(msg)
-	if err != nil {
-		return c.clientErr(ctx, "failed to publish complete service task: %w", err)
+	res := &emptypb.Empty{}
+	req := &model.CompleteServiceTaskRequest{TrackingId: trackingID, Vars: ev}
+	if err := callAPI(ctx, c.con, messages.ApiCompleteServiceTask, req, res); err != nil {
+		return c.clientErr(ctx, "failed to complete manual task: %w", err)
 	}
 	return nil
 }
@@ -289,20 +280,10 @@ func (c *Client) CompleteManualTask(ctx context.Context, trackingID string, newV
 	if err != nil {
 		return err
 	}
-	job := &model.WorkflowState{
-		Id:           trackingID,
-		UnixTimeNano: time.Now().UnixNano(),
-		Vars:         ev,
-	}
-	b, err := proto.Marshal(job)
-	if err != nil {
-		return c.clientErr(ctx, "failed to marshal complete manual task: %w", err)
-	}
-	msg := nats.NewMsg(messages.WorkflowJobManualTaskComplete)
-	msg.Data = b
-	_, err = c.js.PublishMsg(msg)
-	if err != nil {
-		return c.clientErr(ctx, "failed to publish complete manual task: %w", err)
+	res := &emptypb.Empty{}
+	req := &model.CompleteManualTaskRequest{TrackingId: trackingID, Vars: ev}
+	if err := callAPI(ctx, c.con, messages.ApiCompleteManualTask, req, res); err != nil {
+		return c.clientErr(ctx, "failed to complete manual task: %w", err)
 	}
 	return nil
 }
@@ -393,22 +374,22 @@ func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, nam
 	return nil
 }
 
-func (c *Client) clientErr(ctx context.Context, msg string, err error, z ...zap.Field) error {
+func (c *Client) clientErr(_ context.Context, msg string, err error, z ...zap.Field) error {
 	z = append(z, zap.Error(err))
-	c.log.Error(msg, z...)
+	//c.log.Error(msg, z...)
 	return err
 }
 
 func (c *Client) fatalClientErr(ctx context.Context, msg string, err error, z ...zap.Field) error {
 	err2 := c.clientErr(ctx, msg, err, z...)
-	return fmt.Errorf("%+v %+v %w", msg, err2, errors.ErrWorkflowFatal)
+	return fmt.Errorf("%+v %w", msg, err2)
 }
 
 func (c *Client) RegisterWorkflowInstanceComplete(fn chan *model.WorkflowInstanceComplete) {
 	c.complete = fn
 }
 
-func callAPI[T proto.Message, U proto.Message](ctx context.Context, con *nats.Conn, subject string, command T, ret U) error {
+func callAPI[T proto.Message, U proto.Message](_ context.Context, con *nats.Conn, subject string, command T, ret U) error {
 	b, err := proto.Marshal(command)
 	if err != nil {
 		return err
@@ -432,8 +413,4 @@ func callAPI[T proto.Message, U proto.Message](ctx context.Context, con *nats.Co
 		return err
 	}
 	return nil
-}
-
-func WorkflowInstanceID(ctx context.Context) string {
-	return ctx.Value("WORKFLOW_INSTANCE_ID").(string)
 }

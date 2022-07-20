@@ -8,10 +8,12 @@ import (
 	"github.com/antonmedv/expr"
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
+	"gitlab.com/shar-workflow/shar/common/expression"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/errors/keys"
 	"gitlab.com/shar-workflow/shar/server/messages"
+	"gitlab.com/shar-workflow/shar/server/vars"
 	"go.uber.org/zap"
 	"strconv"
 	"sync"
@@ -162,7 +164,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 }
 
 // encodeVars encodes the map of workflow variables into a go binary to be sent across the wire.
-func (c *Engine) encodeVars(ctx context.Context, vars model.Vars) []byte {
+func (c *Engine) encodeVars(_ context.Context, vars model.Vars) []byte {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	if err := enc.Encode(vars); err != nil {
@@ -172,7 +174,7 @@ func (c *Engine) encodeVars(ctx context.Context, vars model.Vars) []byte {
 }
 
 // decodeVars decodes a go binary object containing workflow variables.
-func (c *Engine) decodeVars(ctx context.Context, vars []byte) model.Vars {
+func (c *Engine) decodeVars(_ context.Context, vars []byte) model.Vars {
 	ret := make(map[string]any)
 	if vars == nil {
 		return ret
@@ -214,22 +216,14 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, pare
 
 			// TODO: Cache compilation.
 			exVars := c.decodeVars(ctx, vars)
-			program, err := expr.Compile(ex, expr.Env(exVars))
+			res, err := expression.Eval[bool](c.log, ex, exVars)
 			if err != nil {
-
 				return err
 			}
-			res, err := expr.Run(program, exVars)
-			if err != nil {
-
-				return err
-			}
-			if !res.(bool) {
+			if !res {
 				ok = false
-
 				break
 			}
-
 		}
 
 		target := el[t.Target]
@@ -349,15 +343,15 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 	switch el.Type {
 	case "serviceTask":
 		if err := c.startJob(ctx, messages.WorkflowJobServiceTaskExecute, wfi.WorkflowId, traversal.WorkflowInstanceId, traversal.ParentId, el, "", traversal.Vars); err != nil {
-			return c.engineErr(ctx, "failed to start job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
+			return c.engineErr(ctx, "failed to start srvice task job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "userTask":
 		if err := c.startJob(ctx, messages.WorkflowJobUserTaskExecute, wfi.WorkflowId, traversal.WorkflowInstanceId, traversal.ParentId, el, "", traversal.Vars); err != nil {
-			return c.engineErr(ctx, "failed to start job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
+			return c.engineErr(ctx, "failed to start user task job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "manualTask":
 		if err := c.startJob(ctx, messages.WorkflowJobManualTaskExecute, wfi.WorkflowId, traversal.WorkflowInstanceId, traversal.ParentId, el, "", traversal.Vars); err != nil {
-			return c.engineErr(ctx, "failed to start job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
+			return c.engineErr(ctx, "failed to start manual task job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "intermediateThrowEvent":
 		wf, err := c.ns.GetWorkflow(ctx, wfi.WorkflowId)
@@ -376,7 +370,7 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 			return fmt.Errorf("unknown workflow message name: %s", el.Execute)
 		}
 		if err := c.startJob(ctx, messages.WorkflowJobSendMessageExecute, wfi.WorkflowId, traversal.WorkflowInstanceId, traversal.ParentId, el, wf.Messages[ix].Execute, traversal.Vars); err != nil {
-			return c.engineErr(ctx, "failed to start job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
+			return c.engineErr(ctx, "failed to start message job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "callActivity":
 		if _, err := c.launch(ctx, el.Execute, traversal.Vars, traversal.WorkflowInstanceId, el.Id); err != nil {
@@ -530,19 +524,39 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobID string, vars []
 	return nil
 }
 
-func (c *Engine) startJob(ctx context.Context, subject, wfID, wfiID, parentTrackingID string, el *model.Element, condition string, vars []byte) error {
+func (c *Engine) startJob(ctx context.Context, subject, wfID, wfiID, parentTrackingID string, el *model.Element, condition string, v []byte) error {
 	trackingId := ksuid.New()
 	job := &model.WorkflowState{
 		Id:                 trackingId.String(),
 		ParentId:           parentTrackingID,
 		WorkflowId:         wfID,
 		WorkflowInstanceId: wfiID,
-		Vars:               vars,
+		Vars:               v,
 		ElementType:        el.Type,
 		ElementId:          el.Id,
 		Execute:            &el.Execute,
 		Condition:          &condition,
 	}
+
+	vx, err := vars.Decode(c.log, v)
+	if err != nil {
+		return err
+	}
+
+	if el.Type == "userTask" {
+		owners, err := c.evaluateOwners(el.Candidates, vx)
+		if err != nil {
+			return err
+		}
+		groups, err := c.evaluateOwners(el.CandidateGroups, vx)
+		if err != nil {
+			return err
+		}
+
+		job.Owners = owners
+		job.Groups = groups
+	}
+
 	jobId, err := c.ns.CreateJob(ctx, job)
 
 	if err != nil {
@@ -557,6 +571,28 @@ func (c *Engine) startJob(ctx context.Context, subject, wfID, wfiID, parentTrack
 	}
 	job.Id = jobId
 	return c.ns.PublishWorkflowState(ctx, subject, job, 0)
+}
+
+func (c *Engine) evaluateOwners(owners string, vars model.Vars) ([]string, error) {
+	jobGroups := make([]string, 0, 0)
+	groups, err := expression.Eval[interface{}](c.log, owners, vars)
+	if err != nil {
+		return nil, err
+	}
+	switch groups.(type) {
+	case string:
+		jobGroups = append(jobGroups, groups.(string))
+	case []string:
+		jobGroups = append(jobGroups, groups.([]string)...)
+	}
+	for i, v := range jobGroups {
+		id, err := c.ns.OwnerId(v)
+		if err != nil {
+			return nil, err
+		}
+		jobGroups[i] = id
+	}
+	return jobGroups, nil
 }
 
 // elementTable indexes an entire process for quick Id lookups
@@ -578,7 +614,7 @@ func indexProcessElements(elements []*model.Element, el map[string]*model.Elemen
 	}
 }
 
-func (c *Engine) engineErr(ctx context.Context, msg string, err error, z ...zap.Field) error {
+func (c *Engine) engineErr(_ context.Context, msg string, err error, z ...zap.Field) error {
 	z = append(z, zap.Error(err))
 	c.log.Error(msg, z...)
 
@@ -642,4 +678,49 @@ func (c *Engine) messageCompleteProcessor(ctx context.Context, state *model.Work
 	}
 	els := elementTable(wf)
 	return c.traverse(ctx, wfi, state.ParentId, els[state.ElementId].Outbound, els, state.Vars)
+}
+
+func (c *Engine) CompleteManualTask(ctx context.Context, trackingID string, newvars []byte) error {
+	job, err := c.ns.GetJob(ctx, trackingID)
+	if err != nil {
+		return err
+	}
+	if job.Vars, err = vars.Merge(c.log, job.Vars, newvars); err != nil {
+		return err
+	}
+	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowJobManualTaskComplete, job, 0); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Engine) CompleteServiceTask(ctx context.Context, trackingID string, newvars []byte) error {
+	job, err := c.ns.GetJob(ctx, trackingID)
+	if err != nil {
+		return err
+	}
+	if job.Vars, err = vars.Merge(c.log, job.Vars, newvars); err != nil {
+		return err
+	}
+	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowJobServiceTaskComplete, job, 0); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Engine) CompleteUserTask(ctx context.Context, trackingID string, newvars []byte) error {
+	job, err := c.ns.GetJob(ctx, trackingID)
+	if err != nil {
+		return err
+	}
+	if job.Vars, err = vars.Merge(c.log, job.Vars, newvars); err != nil {
+		return err
+	}
+	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowJobUserTaskComplete, job, 0); err != nil {
+		return err
+	}
+	if err := c.ns.CloseUserTask(trackingID); err != nil {
+		return err
+	}
+	return nil
 }

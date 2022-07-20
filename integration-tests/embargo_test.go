@@ -14,9 +14,6 @@ import (
 )
 
 func TestEmbargo(t *testing.T) {
-	//if !intTest {
-	//	t.Skip("Skipping integration test")
-	//}
 	setup()
 	defer teardown()
 	// Create a starting context

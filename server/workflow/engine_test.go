@@ -5,7 +5,9 @@ import (
 	"github.com/segmentio/ksuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/vars"
 	"testing"
 )
 
@@ -166,11 +168,13 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 		}).
 		Return(nil)
 	trackingID := ksuid.New().String()
-	err := eng.activityProcessor(ctx, &model.WorkflowState{
+	v, err := vars.Encode(nil, model.Vars{})
+	require.NoError(t, err)
+	err = eng.activityProcessor(ctx, &model.WorkflowState{
 		WorkflowInstanceId: "test-workflow-instance-id",
 		ElementId:          els["Step1"].Id,
 		Id:                 trackingID,
-		Vars:               []byte{},
+		Vars:               v,
 	}, false)
 	assert.NoError(t, err)
 	svc.AssertExpectations(t)

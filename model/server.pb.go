@@ -656,6 +656,226 @@ func (x *WorkflowInstanceComplete) GetWorkflowInstanceId() string {
 	return ""
 }
 
+type CompleteManualTaskRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	TrackingId string `protobuf:"bytes,1,opt,name=trackingId,proto3" json:"trackingId,omitempty"`
+	Vars       []byte `protobuf:"bytes,2,opt,name=vars,proto3" json:"vars,omitempty"`
+}
+
+func (x *CompleteManualTaskRequest) Reset() {
+	*x = CompleteManualTaskRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_server_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CompleteManualTaskRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteManualTaskRequest) ProtoMessage() {}
+
+func (x *CompleteManualTaskRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_server_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteManualTaskRequest.ProtoReflect.Descriptor instead.
+func (*CompleteManualTaskRequest) Descriptor() ([]byte, []int) {
+	return file_server_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *CompleteManualTaskRequest) GetTrackingId() string {
+	if x != nil {
+		return x.TrackingId
+	}
+	return ""
+}
+
+func (x *CompleteManualTaskRequest) GetVars() []byte {
+	if x != nil {
+		return x.Vars
+	}
+	return nil
+}
+
+type CompleteServiceTaskRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	TrackingId string `protobuf:"bytes,1,opt,name=trackingId,proto3" json:"trackingId,omitempty"`
+	Vars       []byte `protobuf:"bytes,2,opt,name=vars,proto3" json:"vars,omitempty"`
+}
+
+func (x *CompleteServiceTaskRequest) Reset() {
+	*x = CompleteServiceTaskRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_server_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CompleteServiceTaskRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteServiceTaskRequest) ProtoMessage() {}
+
+func (x *CompleteServiceTaskRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_server_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteServiceTaskRequest.ProtoReflect.Descriptor instead.
+func (*CompleteServiceTaskRequest) Descriptor() ([]byte, []int) {
+	return file_server_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *CompleteServiceTaskRequest) GetTrackingId() string {
+	if x != nil {
+		return x.TrackingId
+	}
+	return ""
+}
+
+func (x *CompleteServiceTaskRequest) GetVars() []byte {
+	if x != nil {
+		return x.Vars
+	}
+	return nil
+}
+
+type CompleteUserTaskRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	TrackingId string `protobuf:"bytes,1,opt,name=trackingId,proto3" json:"trackingId,omitempty"`
+	Owner      string `protobuf:"bytes,2,opt,name=owner,proto3" json:"owner,omitempty"`
+	Vars       []byte `protobuf:"bytes,3,opt,name=vars,proto3" json:"vars,omitempty"`
+}
+
+func (x *CompleteUserTaskRequest) Reset() {
+	*x = CompleteUserTaskRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_server_proto_msgTypes[14]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CompleteUserTaskRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteUserTaskRequest) ProtoMessage() {}
+
+func (x *CompleteUserTaskRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_server_proto_msgTypes[14]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteUserTaskRequest.ProtoReflect.Descriptor instead.
+func (*CompleteUserTaskRequest) Descriptor() ([]byte, []int) {
+	return file_server_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *CompleteUserTaskRequest) GetTrackingId() string {
+	if x != nil {
+		return x.TrackingId
+	}
+	return ""
+}
+
+func (x *CompleteUserTaskRequest) GetOwner() string {
+	if x != nil {
+		return x.Owner
+	}
+	return ""
+}
+
+func (x *CompleteUserTaskRequest) GetVars() []byte {
+	if x != nil {
+		return x.Vars
+	}
+	return nil
+}
+
+type ListUserTasksRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Owner string `protobuf:"bytes,1,opt,name=owner,proto3" json:"owner,omitempty"`
+}
+
+func (x *ListUserTasksRequest) Reset() {
+	*x = ListUserTasksRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_server_proto_msgTypes[15]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ListUserTasksRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUserTasksRequest) ProtoMessage() {}
+
+func (x *ListUserTasksRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_server_proto_msgTypes[15]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUserTasksRequest.ProtoReflect.Descriptor instead.
+func (*ListUserTasksRequest) Descriptor() ([]byte, []int) {
+	return file_server_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ListUserTasksRequest) GetOwner() string {
+	if x != nil {
+		return x.Owner
+	}
+	return ""
+}
+
 var File_server_proto protoreflect.FileDescriptor
 
 var file_server_proto_rawDesc = []byte{
@@ -719,10 +939,29 @@ var file_server_proto_rawDesc = []byte{
 	0x6c, 0x6f, 0x77, 0x49, 0x64, 0x12, 0x2e, 0x0a, 0x12, 0x77, 0x6f, 0x72, 0x6b, 0x66, 0x6c, 0x6f,
 	0x77, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x49, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28,
 	0x09, 0x52, 0x12, 0x77, 0x6f, 0x72, 0x6b, 0x66, 0x6c, 0x6f, 0x77, 0x49, 0x6e, 0x73, 0x74, 0x61,
-	0x6e, 0x63, 0x65, 0x49, 0x64, 0x42, 0x25, 0x5a, 0x23, 0x67, 0x69, 0x74, 0x6c, 0x61, 0x62, 0x2e,
-	0x63, 0x6f, 0x6d, 0x2f, 0x73, 0x68, 0x61, 0x72, 0x2d, 0x77, 0x6f, 0x72, 0x6b, 0x66, 0x6c, 0x6f,
-	0x77, 0x2f, 0x73, 0x68, 0x61, 0x72, 0x2f, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x62, 0x06, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x33,
+	0x6e, 0x63, 0x65, 0x49, 0x64, 0x22, 0x4f, 0x0a, 0x19, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74,
+	0x65, 0x4d, 0x61, 0x6e, 0x75, 0x61, 0x6c, 0x54, 0x61, 0x73, 0x6b, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x12, 0x1e, 0x0a, 0x0a, 0x74, 0x72, 0x61, 0x63, 0x6b, 0x69, 0x6e, 0x67, 0x49, 0x64,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x74, 0x72, 0x61, 0x63, 0x6b, 0x69, 0x6e, 0x67,
+	0x49, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x76, 0x61, 0x72, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c,
+	0x52, 0x04, 0x76, 0x61, 0x72, 0x73, 0x22, 0x50, 0x0a, 0x1a, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65,
+	0x74, 0x65, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x54, 0x61, 0x73, 0x6b, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x12, 0x1e, 0x0a, 0x0a, 0x74, 0x72, 0x61, 0x63, 0x6b, 0x69, 0x6e, 0x67,
+	0x49, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x74, 0x72, 0x61, 0x63, 0x6b, 0x69,
+	0x6e, 0x67, 0x49, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x76, 0x61, 0x72, 0x73, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x0c, 0x52, 0x04, 0x76, 0x61, 0x72, 0x73, 0x22, 0x63, 0x0a, 0x17, 0x43, 0x6f, 0x6d, 0x70,
+	0x6c, 0x65, 0x74, 0x65, 0x55, 0x73, 0x65, 0x72, 0x54, 0x61, 0x73, 0x6b, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x12, 0x1e, 0x0a, 0x0a, 0x74, 0x72, 0x61, 0x63, 0x6b, 0x69, 0x6e, 0x67, 0x49,
+	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x74, 0x72, 0x61, 0x63, 0x6b, 0x69, 0x6e,
+	0x67, 0x49, 0x64, 0x12, 0x14, 0x0a, 0x05, 0x6f, 0x77, 0x6e, 0x65, 0x72, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x05, 0x6f, 0x77, 0x6e, 0x65, 0x72, 0x12, 0x12, 0x0a, 0x04, 0x76, 0x61, 0x72,
+	0x73, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x76, 0x61, 0x72, 0x73, 0x22, 0x2c, 0x0a,
+	0x14, 0x4c, 0x69, 0x73, 0x74, 0x55, 0x73, 0x65, 0x72, 0x54, 0x61, 0x73, 0x6b, 0x73, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x14, 0x0a, 0x05, 0x6f, 0x77, 0x6e, 0x65, 0x72, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x6f, 0x77, 0x6e, 0x65, 0x72, 0x42, 0x25, 0x5a, 0x23, 0x67,
+	0x69, 0x74, 0x6c, 0x61, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x73, 0x68, 0x61, 0x72, 0x2d, 0x77,
+	0x6f, 0x72, 0x6b, 0x66, 0x6c, 0x6f, 0x77, 0x2f, 0x73, 0x68, 0x61, 0x72, 0x2f, 0x6d, 0x6f, 0x64,
+	0x65, 0x6c, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -737,7 +976,7 @@ func file_server_proto_rawDescGZIP() []byte {
 	return file_server_proto_rawDescData
 }
 
-var file_server_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_server_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_server_proto_goTypes = []interface{}{
 	(*LaunchWorkflowRequest)(nil),            // 0: LaunchWorkflowRequest
 	(*CancelWorkflowInstanceRequest)(nil),    // 1: CancelWorkflowInstanceRequest
@@ -751,11 +990,15 @@ var file_server_proto_goTypes = []interface{}{
 	(*ListWorkflowResult)(nil),               // 9: ListWorkflowResult
 	(*SendMessageRequest)(nil),               // 10: SendMessageRequest
 	(*WorkflowInstanceComplete)(nil),         // 11: WorkflowInstanceComplete
-	(*WorkflowState)(nil),                    // 12: WorkflowState
+	(*CompleteManualTaskRequest)(nil),        // 12: CompleteManualTaskRequest
+	(*CompleteServiceTaskRequest)(nil),       // 13: CompleteServiceTaskRequest
+	(*CompleteUserTaskRequest)(nil),          // 14: CompleteUserTaskRequest
+	(*ListUserTasksRequest)(nil),             // 15: ListUserTasksRequest
+	(*WorkflowState)(nil),                    // 16: WorkflowState
 }
 var file_server_proto_depIdxs = []int32{
 	5,  // 0: ListWorkflowInstanceResponse.result:type_name -> ListWorkflowInstanceResult
-	12, // 1: WorkflowInstanceStatus.state:type_name -> WorkflowState
+	16, // 1: WorkflowInstanceStatus.state:type_name -> WorkflowState
 	9,  // 2: ListWorkflowsResponse.result:type_name -> ListWorkflowResult
 	3,  // [3:3] is the sub-list for method output_type
 	3,  // [3:3] is the sub-list for method input_type
@@ -915,6 +1158,54 @@ func file_server_proto_init() {
 				return nil
 			}
 		}
+		file_server_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CompleteManualTaskRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_server_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CompleteServiceTaskRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_server_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CompleteUserTaskRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_server_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ListUserTasksRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -922,7 +1213,7 @@ func file_server_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_server_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

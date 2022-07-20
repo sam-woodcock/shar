@@ -10,8 +10,6 @@ import (
 	"os"
 )
 
-var cl *client.Client
-
 func main() {
 	// Create a starting context
 	ctx := context.Background()
@@ -25,30 +23,30 @@ func main() {
 	}()
 
 	// Dial shar
-	cl = client.New(log)
+	cl := client.New(log)
 	if err := cl.Dial(nats.DefaultURL); err != nil {
 		panic(err)
 	}
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("testdata/message-manual-workflow.bpmn")
+	b, err := os.ReadFile("testdata/usertask.bpmn")
 	if err != nil {
 		panic(err)
 	}
-	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "MessageManualDemo", b); err != nil {
+	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "UserTaskWorkflowDemo", b); err != nil {
 		panic(err)
 	}
 
 	// Register a service task
-	cl.RegisterServiceTask("step1", step1)
-	cl.RegisterServiceTask("step2", step2)
+	cl.RegisterServiceTask("Prepare", prepare)
+	cl.RegisterServiceTask("Complete", complete)
 
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	wfiID, err := cl.LaunchWorkflow(ctx, "MessageManualDemo", model.Vars{"orderId": 57})
+	wfiID, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowDemo", model.Vars{"OrderId": 68})
 	if err != nil {
 		panic(err)
 	}
@@ -69,17 +67,17 @@ func main() {
 	}
 }
 
-func step1(ctx context.Context, _ model.Vars) (model.Vars, error) {
-	fmt.Println("Step 1")
-	fmt.Println("Sending Message...")
-	if err := cl.SendMessage(ctx, "", "continueMessage", 57, model.Vars{"success": 32768}); err != nil {
-		return nil, err
-	}
-	return model.Vars{}, nil
+// A "Hello World" service task
+func prepare(_ context.Context, vars model.Vars) (model.Vars, error) {
+	fmt.Println("Preparing")
+	oid := vars["OrderId"].(int64)
+	return model.Vars{"OrderId": oid + 1}, nil
 }
 
-func step2(_ context.Context, vars model.Vars) (model.Vars, error) {
-	fmt.Println("Step 2")
-	fmt.Println(vars["success"])
+// A "Hello World" service task
+func complete(_ context.Context, vars model.Vars) (model.Vars, error) {
+	fmt.Println("OrderId", vars["OrderId"])
+	fmt.Println("Forename", vars["Forename"])
+	fmt.Println("Surname", vars["Surname"])
 	return model.Vars{}, nil
 }

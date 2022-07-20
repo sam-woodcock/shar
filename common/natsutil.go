@@ -58,11 +58,11 @@ func Load(wf nats.KeyValue, k string) ([]byte, error) {
 	if b, err := wf.Get(k); err == nil {
 		return b.Value(), nil
 	} else {
-		return nil, fmt.Errorf("failed to load value into KV: %w", err)
+		return nil, fmt.Errorf("failed to load value from KV: %w", err)
 	}
 }
 
-func SaveObj(ctx context.Context, wf nats.KeyValue, k string, v proto.Message) error {
+func SaveObj(_ context.Context, wf nats.KeyValue, k string, v proto.Message) error {
 	if b, err := proto.Marshal(v); err == nil {
 		return Save(wf, k, b)
 	} else {
@@ -149,7 +149,10 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, clo
 					}
 					offset := time.Duration(int64(e) - time.Now().UnixNano())
 					if offset > 0 {
-						m.NakWithDelay(offset)
+						if err != m.NakWithDelay(offset) {
+							log.Warn("failed to nak with delay")
+						}
+						cancel()
 						continue
 					}
 				}
@@ -167,7 +170,6 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, clo
 						log.Error("processing failed to nak", zap.Error(err))
 					}
 				}
-
 				cancel()
 			}
 		}()

@@ -17,7 +17,7 @@ var Cmd = &cobra.Command{
 	Args:  cobra.ExactValidArgs(1),
 }
 
-func run(cmd *cobra.Command, args []string) error {
+func run(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
 	wfiID := args[0]
 

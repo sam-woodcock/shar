@@ -58,16 +58,16 @@ func main() {
 	}
 }
 
-func afterCallingSubProcess(ctx context.Context, vars model.Vars) (model.Vars, error) {
+func afterCallingSubProcess(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println(vars["x"])
 	return model.Vars{}, nil
 }
 
-func duringSubProcess(ctx context.Context, vars model.Vars) (model.Vars, error) {
+func duringSubProcess(_ context.Context, vars model.Vars) (model.Vars, error) {
 	x := vars["x"].(int)
 	return model.Vars{"x": x + 41}, nil
 }
 
-func beforeCallingSubProcess(ctx context.Context, vars model.Vars) (model.Vars, error) {
+func beforeCallingSubProcess(_ context.Context, _ model.Vars) (model.Vars, error) {
 	return model.Vars{"x": 1}, nil
 }

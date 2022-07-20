@@ -36,6 +36,8 @@ message Element {
   Process process = 7;
   string msg = 8;
   string retries = 9;
+  string candidates = 10;
+  string candidateGroups = 11;
 }
 
 message Target {
@@ -65,6 +67,8 @@ message WorkflowState {
   optional string condition = 9;
   int64 unixTimeNano = 10;
   bytes vars = 11;
+  repeated string owners = 12;
+  repeated string groups = 13;
 }
 
 message WorkflowInstance {
@@ -82,4 +86,8 @@ message MessageInstance {
 
 message WorkflowInstanceSubscribers {
   repeated string list = 1; // stateId
+}
+
+message UserTasks {
+  repeated string id = 1;
 }

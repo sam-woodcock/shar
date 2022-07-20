@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
@@ -85,7 +86,7 @@ func (s *SharServer) getWorkflowInstanceStatus(ctx context.Context, req *model.G
 	return res, nil
 }
 
-func (s *SharServer) listWorkflows(ctx context.Context, p *emptypb.Empty) (*model.ListWorkflowsResponse, error) {
+func (s *SharServer) listWorkflows(ctx context.Context, _ *emptypb.Empty) (*model.ListWorkflowsResponse, error) {
 	res, errs := s.ns.ListWorkflows(ctx)
 	ret := make([]*model.ListWorkflowResult, 0)
 	var done bool
@@ -112,6 +113,18 @@ func (s *SharServer) sendMessage(ctx context.Context, req *model.SendMessageRequ
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil
+}
+
+func (s *SharServer) completeManualTask(ctx context.Context, req *model.CompleteManualTaskRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, s.engine.CompleteManualTask(ctx, req.TrackingId, req.Vars)
+}
+
+func (s *SharServer) completeServiceTask(ctx context.Context, req *model.CompleteServiceTaskRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, s.engine.CompleteServiceTask(ctx, req.TrackingId, req.Vars)
+}
+
+func (s *SharServer) completeUserTask(ctx context.Context, req *model.CompleteUserTaskRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, s.engine.CompleteUserTask(ctx, req.TrackingId, req.Vars)
 }
 
 var shutdownOnce sync.Once
@@ -154,15 +167,54 @@ func (s *SharServer) Listen() error {
 	if err != nil {
 		return err
 	}
+	_, err = listen(con, log, messages.ApiCompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask)
+	if err != nil {
+		return err
+	}
+	_, err = listen(con, log, messages.ApiCompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask)
+	if err != nil {
+		return err
+	}
+	_, err = listen(con, log, messages.ApiCompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask)
+	if err != nil {
+		return err
+	}
+	_, err = listen(con, log, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage)
+	if err != nil {
+		return err
+	}
+	_, err = listen(con, log, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage)
+	if err != nil {
+		return err
+	}
+	_, err = listen(con, log, messages.ApiListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs)
+	if err != nil {
+		return err
+	}
 	s.log.Info("shar api listener started")
 	return nil
+}
+
+func (s *SharServer) listUserTaskIDs(ctx context.Context, req *model.ListUserTasksRequest) (*model.UserTasks, error) {
+	oid, err := s.ns.OwnerId(req.Owner)
+	if err != nil {
+		return nil, err
+	}
+	ut, err := s.ns.GetUserTaskIDs(ctx, oid)
+	if errors.Is(err, nats.ErrKeyNotFound) {
+		return &model.UserTasks{Id: []string{}}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return ut, nil
 }
 
 func listen[T proto.Message, U proto.Message](con common.NatsConn, log *zap.Logger, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
 	sub, err := con.Subscribe(subject, func(msg *nats.Msg) {
 		ctx := context.Background()
 		if err := callApi(ctx, req, msg, fn); err != nil {
-			log.Error("registering listener for "+subject+" failed", zap.Error(err))
+			log.Error("API call for "+subject+" failed", zap.Error(err))
 		}
 	})
 	if err != nil {
