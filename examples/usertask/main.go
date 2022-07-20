@@ -8,6 +8,7 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 	"go.uber.org/zap"
 	"os"
+	"time"
 )
 
 func main() {
@@ -46,7 +47,7 @@ func main() {
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	wfiID, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowDemo", model.Vars{"OrderId": 68})
+	wfiID, err := cl.LaunchWorkflow(ctx, "UserTaskWorkflowDemo", model.Vars{"OrderId": 68})
 	if err != nil {
 		panic(err)
 	}
@@ -58,6 +59,24 @@ func main() {
 			panic(err)
 		}
 	}()
+
+	go func() {
+		for {
+			tsk, err := cl.ListUserTaskIDs(ctx, "andrei")
+			if err == nil && tsk.Id != nil {
+				cl.CompleteUserTask(ctx, "andrei", tsk.Id[0], model.Vars{"Forename": "Brangelina", "Surname": "Miggins"})
+				return
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}()
+
+	// wait for the workflow to complete
+	for i := range complete {
+		if i.WorkflowInstanceId == wfiID {
+			break
+		}
+	}
 
 	// wait for the workflow to complete
 	for i := range complete {
