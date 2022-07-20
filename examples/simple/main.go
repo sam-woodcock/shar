@@ -67,7 +67,7 @@ func main() {
 }
 
 // A "Hello World" service task
-func simpleProcess(ctx context.Context, vars model.Vars) (model.Vars, error) {
+func simpleProcess(_ context.Context, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Hello World")
 	return model.Vars{}, nil
 }

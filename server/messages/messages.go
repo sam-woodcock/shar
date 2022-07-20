@@ -34,6 +34,10 @@ const (
 	ApiGetWorkflowStatus      = "WORKFLOW.Api.GetWorkflowInstanceStatus"
 	ApiCancelWorkflowInstance = "WORKFLOW.Api.CancelWorkflowInstance"
 	ApiSendMessage            = "WORKFLOW.Api.SendMessage"
+	ApiCompleteManualTask     = "WORKFLOW.Api.CompleteManualTask"
+	ApiCompleteServiceTask    = "WORKFLOW.Api.CompleteServiceTask"
+	ApiCompleteUserTask       = "WORKFLOW.Api.CompleteUserTask"
+	ApiListUserTaskIDs        = "WORKFLOW.Api.ListUserTaskIDs"
 )
 
 var AllMessages = []string{
@@ -67,4 +71,7 @@ var (
 	KvMessageName = "WORKFLOW_MSGNAME"
 	KvMessageID   = "WORKFLOW_MSGID"
 	KvTrace       = "WORKFLOW_TRACKING"
+	KvUserTask    = "WORKFLOW_USERTASK"
+	KvOwnerName   = "WORKFLOW_OWNERNAME"
+	KvOwnerId     = "WORKFLOW_OWNERID"
 )

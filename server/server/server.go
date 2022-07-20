@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/server/api"
@@ -26,12 +27,12 @@ type Server struct {
 	ephemeralStorage bool
 }
 
-type ServerOption interface {
+type Option interface {
 	configure(server *Server)
 }
 
 type EphemeralStorage struct {
-	ServerOption
+	Option
 }
 
 func (o EphemeralStorage) configure(server *Server) {
@@ -40,7 +41,7 @@ func (o EphemeralStorage) configure(server *Server) {
 
 // New creates a new SHAR server.
 // Leave the exporter nil if telemetry is not required
-func New(log *zap.Logger, options ...ServerOption) *Server {
+func New(log *zap.Logger, options ...Option) *Server {
 	s := &Server{
 		sig:           make(chan os.Signal, 10),
 		log:           log,
@@ -98,7 +99,7 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 	}
 }
 
-// shutdown gracefully shuts down the GRPC server, and requests that
+// Shutdown gracefully shuts down the GRPC server, and requests that
 func (s *Server) Shutdown() {
 	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
 	s.api.Shutdown()
@@ -110,6 +111,14 @@ func (s *Server) createServices(natsURL string, log *zap.Logger, ephemeral bool)
 	conn, err := nats.Connect(natsURL)
 	if err != nil {
 		log.Fatal("could not connect to NATS", zap.Error(err), zap.String("url", natsURL))
+	}
+
+	if js, err := conn.JetStream(); err != nil {
+		panic(errors.New("cannot form JetSteram connection"))
+	} else {
+		if _, err := js.AccountInfo(); err != nil {
+			panic(errors.New("could not contact JetStream. ensure it is enabled on the specified NATS instance"))
+		}
 	}
 
 	var store = nats.FileStorage

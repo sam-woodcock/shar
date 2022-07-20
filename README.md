@@ -21,15 +21,16 @@ Many give Go developers a native client to run workflows, but the engines remain
 
 ## How do I use SHAR?
 The following example assumes you have started the SHAR server. A [docker compose file](deploy/compose/docker-compose.yml) is provided to make this simple.
+
 ```go
 package main
 
 import (
 	"context"
 	"fmt"
+	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"os"
 	"time"
@@ -68,7 +69,7 @@ func main() {
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	cl.RegisterWorkflowInstanceComplete(complete)
-	
+
 	// Launch the workflow
 	wfiID, err := cl.LaunchWorkflow(ctx, "WorkflowDemo", model.Vars{})
 	if err != nil {
@@ -82,7 +83,7 @@ func main() {
 			panic(err)
 		}
 	}()
-	
+
 	// wait for the workflow to complete
 	for i := range complete {
 		if i.WorkflowInstanceId == wfiID {

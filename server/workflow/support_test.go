@@ -2,9 +2,9 @@ package workflow
 
 import (
 	"bytes"
+	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client/parser"
 	"gitlab.com/shar-workflow/shar/model"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"os"
 	"testing"

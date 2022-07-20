@@ -1,8 +1,8 @@
 package vars
 
 import (
-	"gitlab.com/shar-workflow/shar/model"
 	"github.com/stretchr/testify/assert"
+	"gitlab.com/shar-workflow/shar/model"
 	"go.uber.org/zap"
 	"testing"
 )

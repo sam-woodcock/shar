@@ -7,12 +7,16 @@ import (
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
 	"go.uber.org/zap"
 	"os"
+	"sync"
 	"testing"
 	"time"
 )
 
 var testNatsServer *server.Server
 var testSharServer *sharsvr.Server
+
+var lock sync.Mutex
+var finalVars map[string]interface{}
 
 func TestMain(m *testing.M) {
 	//	setup()
@@ -23,10 +27,9 @@ func TestMain(m *testing.M) {
 
 const natsURL = "nats://127.0.0.1:4459"
 
-var intTest = os.Getenv("SHAR_INTEGRATION_TEST") == ""
-
+//goland:noinspection GoNilness
 func setup() {
-
+	finalVars = make(map[string]interface{})
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		panic(err)
@@ -128,7 +131,7 @@ func setup() {
 		Tags:                       nil,
 		OCSPConfig:                 nil,
 	})
-	testNatsServer.SetLogger(nl, true, true)
+	testNatsServer.SetLogger(nl, false, false)
 	if err != nil {
 		panic(err)
 	}
@@ -137,7 +140,7 @@ func setup() {
 		panic("could not start NATS")
 	}
 	fmt.Println("NATS started")
-	l, err := zap.NewDevelopment()
+	l := zap.NewNop()
 	if err != nil {
 		panic(err)
 	}

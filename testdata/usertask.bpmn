@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_0zfw1vh" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.0.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.0.0">
+  <bpmn:process id="TestUserTasks" name="Test User Tasks" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_1onvh1a</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_1onvh1a" sourceRef="StartEvent_1" targetRef="Prepare" />
+    <bpmn:serviceTask id="Prepare" name="Prepare">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="Prepare" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1onvh1a</bpmn:incoming>
+      <bpmn:outgoing>Flow_03yc9q6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="UserTaskActivity" name="Do User Task">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition assignee="&#34;andrei&#34;" candidateGroups="&#34;admins&#34;" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_03yc9q6</bpmn:incoming>
+      <bpmn:outgoing>Flow_0re7l16</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_03yc9q6" sourceRef="Prepare" targetRef="UserTaskActivity" />
+    <bpmn:endEvent id="Event_183gqkb">
+      <bpmn:incoming>Flow_101lyz8</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0re7l16" sourceRef="UserTaskActivity" targetRef="Complete" />
+    <bpmn:sequenceFlow id="Flow_101lyz8" sourceRef="Complete" targetRef="Event_183gqkb" />
+    <bpmn:serviceTask id="Complete" name="Complete">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="Complete" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0re7l16</bpmn:incoming>
+      <bpmn:outgoing>Flow_101lyz8</bpmn:outgoing>
+    </bpmn:serviceTask>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="TestUserTasks">
+      <bpmndi:BPMNEdge id="Flow_101lyz8_di" bpmnElement="Flow_101lyz8">
+        <di:waypoint x="680" y="117" />
+        <di:waypoint x="712" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0re7l16_di" bpmnElement="Flow_0re7l16">
+        <di:waypoint x="530" y="117" />
+        <di:waypoint x="580" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_03yc9q6_di" bpmnElement="Flow_03yc9q6">
+        <di:waypoint x="360" y="117" />
+        <di:waypoint x="430" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1onvh1a_di" bpmnElement="Flow_1onvh1a">
+        <di:waypoint x="215" y="117" />
+        <di:waypoint x="260" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="179" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_15okt18_di" bpmnElement="Prepare">
+        <dc:Bounds x="260" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1goamsa_di" bpmnElement="UserTaskActivity">
+        <dc:Bounds x="430" y="77" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_183gqkb_di" bpmnElement="Event_183gqkb">
+        <dc:Bounds x="712" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0ami6v7_di" bpmnElement="Complete">
+        <dc:Bounds x="580" y="77" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -58,7 +58,7 @@ func ensureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names
 	return nil
 }
 
-func (s *NatsClientProvider) GetJob(ctx context.Context, id string) (*model.WorkflowState, error) {
+func (s *NatsClientProvider) GetJob(_ context.Context, id string) (*model.WorkflowState, error) {
 	job := &model.WorkflowState{}
 	if err := common.LoadObj(s.job, id, job); err != nil {
 		return nil, err

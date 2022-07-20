@@ -11,7 +11,7 @@ import (
 
 var Cmd = &cobra.Command{
 	Use:   "list",
-	Short: "List running workflow instances",
+	Short: "Lists user tasks",
 	Long:  ``,
 	RunE:  run,
 	Args:  cobra.ExactValidArgs(1),
@@ -19,17 +19,20 @@ var Cmd = &cobra.Command{
 
 func run(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
-	wfName := args[0]
 	shar := client.New(output.Logger)
 	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	res, err := shar.ListWorkflowInstance(ctx, wfName)
+	ut, err := shar.ListUserTaskIDs(ctx, args[0])
 	if err != nil {
-		return fmt.Errorf("failed to list workflows: %w", err)
+		return fmt.Errorf("send message failed: %w", err)
 	}
-	for _, v := range res {
-		fmt.Println("instance:", v.Id, "version: ", v.Version)
+	for i, v := range ut.Id {
+		fmt.Println(i, v)
 	}
 	return nil
+}
+
+func init() {
+	Cmd.Flags().StringVarP(&flag.Value.CorrelationKey, flag.CorrelationKey, flag.CorrelationKeyShort, "", "a correlation key for the message")
 }

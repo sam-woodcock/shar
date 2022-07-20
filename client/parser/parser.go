@@ -87,7 +87,7 @@ func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i 
 	return nil
 }
 
-func parseIntermediateCatchEvent(i *xmlquery.Node, el *model.Element) {
+func parseIntermediateCatchEvent(i *xmlquery.Node, _ *model.Element) {
 	subType := i.FirstChild
 	switch subType.Data {
 	case "timerEventDefinition":
@@ -182,6 +182,17 @@ func parseExtensions(doc *xmlquery.Node, el *model.Element, i *xmlquery.Node) {
 			f := doc.SelectElement("//zeebe:userTaskForm[@id=\"" + name + "\"]").InnerText()
 			el.Execute = f
 		}
+
+		//Assignment Definition
+		if e := x.SelectElement("zeebe:assignmentDefinition/@assignee"); e != nil {
+			el.Candidates = e.InnerText()
+		}
+
+		//Assignment Definition
+		if e := x.SelectElement("zeebe:assignmentDefinition/@candidateGroups"); e != nil {
+			el.CandidateGroups = e.InnerText()
+		}
+
 		//Messages
 		if e := x.SelectElement("zeebe:subscription/@correlationKey"); e != nil {
 			el.Execute = e.InnerText()

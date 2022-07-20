@@ -137,8 +137,8 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 			}
 			return false, nil
 		}
-	case "WORKFLOW.State.Workflow.Complete":
-	case "WORKFLOW.State.Workflow.Terminated":
+	case messages.WorkflowInstanceComplete:
+	case messages.WorkflowInstanceTerminated:
 	}
 	return true, nil
 }
@@ -177,7 +177,7 @@ func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.Work
 	spanID := common.KSuidTo64bit(oldState.Id)
 	parentID := common.KSuidTo64bit(oldState.ParentId)
 	parentSpan := trace.SpanContext{}
-	if len(parentID) > 0 {
+	if len(oldState.ParentId) > 0 {
 		parentSpan = trace.NewSpanContext(trace.SpanContextConfig{
 			TraceID: traceID,
 			SpanID:  parentID,

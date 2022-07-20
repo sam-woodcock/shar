@@ -1,6 +1,9 @@
 package errors
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 var (
 	ErrClosing                  = errors.New("grpc server is shutting down")
@@ -8,4 +11,11 @@ var (
 	ErrWorkflowNotFound         = errors.New("workflow not found")
 )
 
-var ErrWorkflowFatal = errors.New("a fatal workflow error occurred, workflow instance terminating")
+// ErrWorkflowFatal signifys that the workflow must terniate
+type ErrWorkflowFatal struct {
+	Err error
+}
+
+func (e ErrWorkflowFatal) Error() string {
+	return fmt.Sprintf("%s", e.Err)
+}

@@ -8,6 +8,7 @@ import (
 	"testing"
 )
 
+//goland:noinspection GoNilness
 func TestParseWorkflowDuration(t *testing.T) {
 	b, err := os.ReadFile("../../testdata/test-timer-parse-duration.bpmn")
 	require.NoError(t, err)
