@@ -5,6 +5,7 @@ import (
 	"gitlab.com/shar-workflow/shar/cli/commands/bpmn"
 	"gitlab.com/shar-workflow/shar/cli/commands/instance"
 	"gitlab.com/shar-workflow/shar/cli/commands/message"
+	"gitlab.com/shar-workflow/shar/cli/commands/usertask"
 	"gitlab.com/shar-workflow/shar/cli/commands/workflow"
 	"gitlab.com/shar-workflow/shar/cli/flag"
 	"gitlab.com/shar-workflow/shar/cli/output"
@@ -38,6 +39,7 @@ func init() {
 	rootCmd.AddCommand(instance.Cmd)
 	rootCmd.AddCommand(workflow.Cmd)
 	rootCmd.AddCommand(message.Cmd)
+	rootCmd.AddCommand(usertask.Cmd)
 	rootCmd.PersistentFlags().StringVarP(&flag.Value.Server, flag.Server, flag.ServerShort, nats.DefaultURL, "sets the address of a NATS server")
 	rootCmd.PersistentFlags().StringVarP(&flag.Value.LogLevel, flag.LogLevel, flag.LogLevelShort, "error", "sets the logging level for the CLI")
 	var err error

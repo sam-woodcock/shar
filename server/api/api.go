@@ -191,6 +191,10 @@ func (s *SharServer) Listen() error {
 	if err != nil {
 		return err
 	}
+	_, err = listen(con, log, messages.ApiGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask)
+	if err != nil {
+		return err
+	}
 	s.log.Info("shar api listener started")
 	return nil
 }
@@ -208,6 +212,14 @@ func (s *SharServer) listUserTaskIDs(ctx context.Context, req *model.ListUserTas
 		return nil, err
 	}
 	return ut, nil
+}
+
+func (s *SharServer) getUserTask(ctx context.Context, req *model.GetUserTaskRequest) (*model.WorkflowState, error) {
+	job, err := s.ns.GetJob(ctx, req.TrackingId)
+	if err != nil {
+		return nil, err
+	}
+	return job, nil
 }
 
 func listen[T proto.Message, U proto.Message](con common.NatsConn, log *zap.Logger, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {

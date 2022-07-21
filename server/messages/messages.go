@@ -38,6 +38,7 @@ const (
 	ApiCompleteServiceTask    = "WORKFLOW.Api.CompleteServiceTask"
 	ApiCompleteUserTask       = "WORKFLOW.Api.CompleteUserTask"
 	ApiListUserTaskIDs        = "WORKFLOW.Api.ListUserTaskIDs"
+	ApiGetUserTask            = "WORKFLOW.Api.GetUserTask"
 )
 
 var AllMessages = []string{

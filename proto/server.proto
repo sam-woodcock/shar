@@ -91,3 +91,8 @@ message CompleteUserTaskRequest {
 message ListUserTasksRequest {
   string owner = 1;
 }
+
+message GetUserTaskRequest {
+  string owner = 1;
+  string trackingId = 2;
+}

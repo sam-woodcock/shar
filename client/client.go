@@ -155,7 +155,16 @@ func (c *Client) listen(ctx context.Context) error {
 					if err != nil {
 						c.log.Error("failed to decode vars", zap.Error(err), zap.String("fn", *job.Execute))
 					}
-					newVars, err := svcFn(xctx, dv)
+					newVars, err := func() (v model.Vars, e error) {
+						defer func() {
+							if r := recover(); r != nil {
+								v = model.Vars{}
+								e = fmt.Errorf("call to service task \"%s\" terminated in panic: %w", *ut.Execute, r.(error))
+							}
+						}()
+						v, e = svcFn(xctx, dv)
+						return
+					}()
 					if err != nil {
 						if err := msg.Nak(); err != nil {
 							c.log.Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
@@ -349,6 +358,15 @@ func (c *Client) GetWorkflowInstanceStatus(ctx context.Context, id string) ([]*m
 		return nil, c.clientErr(ctx, "failed to launch workflow: %w", err)
 	}
 	return res.State, nil
+}
+
+func (c *Client) GetUserTask(ctx context.Context, owner string, trackingID string) (*model.WorkflowState, error) {
+	req := &model.GetUserTaskRequest{Owner: owner, TrackingId: trackingID}
+	res := &model.WorkflowState{}
+	if err := callAPI(ctx, c.con, messages.ApiGetWorkflowStatus, req, res); err != nil {
+		return nil, c.clientErr(ctx, "failed to launch workflow: %w", err)
+	}
+	return res, nil
 }
 
 func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, name string, key any, mvars model.Vars) error {

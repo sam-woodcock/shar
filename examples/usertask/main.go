@@ -77,19 +77,12 @@ func main() {
 			break
 		}
 	}
-
-	// wait for the workflow to complete
-	for i := range complete {
-		if i.WorkflowInstanceId == wfiID {
-			break
-		}
-	}
 }
 
 // A "Hello World" service task
 func prepare(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Preparing")
-	oid := vars["OrderId"].(int64)
+	oid := vars["OrderId"].(int)
 	return model.Vars{"OrderId": oid + 1}, nil
 }
 

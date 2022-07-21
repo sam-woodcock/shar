@@ -28,7 +28,11 @@ func run(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("send message failed: %w", err)
 	}
 	for i, v := range ut.Id {
-		fmt.Println(i, v)
+		ut, err := shar.GetUserTask(ctx, args[0], v)
+		if err != nil {
+			return fmt.Errorf("failed to get user task %s: %w", v, err)
+		}
+		fmt.Println(i, ut)
 	}
 	return nil
 }
