@@ -14,10 +14,9 @@ all: proto server tracing
 
 proto: .FORCE
 	@echo "\033[92mBuild proto\033[0m"
-	#protoc -Iproto --go-grpc_out=paths=source_relative:./goproto $(shell find proto -iname "*.proto");
-	protoc -Iproto --go_out=paths=source_relative:./model $(shell find proto -iname "*.proto");
-	protoc -Iproto --go-grpc_out=paths=source_relative:./model $(shell find proto -iname "*.proto");
-
+	cd proto; protoc --go_opt=M=gitlab.com --go_out=../model shar-workflow/models.proto;
+	mv model/gitlab.com/shar-workflow/shar/model/models.pb.go model/
+	rm -rf model/gitlab.com
 server: .FORCE
 	mkdir -p build/server
 	cd server/cmd/shar; go build

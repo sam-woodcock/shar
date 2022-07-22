@@ -91,3 +91,87 @@ message WorkflowInstanceSubscribers {
 message UserTasks {
   repeated string id = 1;
 }
+
+
+message LaunchWorkflowRequest {
+  string name = 1;
+  bytes vars = 2;
+}
+
+message CancelWorkflowInstanceRequest {
+  string id = 1;
+}
+
+message GetWorkflowInstanceStatusRequest {
+  string id = 1;
+}
+
+message ListWorkflowInstanceRequest {
+  string workflowName = 1;
+}
+
+message ListWorkflowInstanceResponse {
+  repeated ListWorkflowInstanceResult result = 1;
+}
+
+
+message ListWorkflowInstanceResult {
+  string id = 1;
+  int32 version = 2;
+}
+
+message WorkflowInstanceInfo {
+  string id = 1;
+  string workflowId = 2;
+}
+
+message WorkflowInstanceStatus {
+  repeated WorkflowState state = 1;
+}
+
+message ListWorkflowsResponse {
+  repeated ListWorkflowResult result = 1;
+}
+
+message ListWorkflowResult {
+  string name = 1;
+  int32 version = 2;
+}
+
+message SendMessageRequest {
+  string name = 1;
+  string key = 2;
+  string workflowInstanceId = 3;
+  bytes vars = 4;
+}
+
+message WorkflowInstanceComplete {
+  string workflowName = 1;
+  string workflowId = 2;
+  string workflowInstanceId = 3;
+}
+
+message CompleteManualTaskRequest {
+  string trackingId = 1;
+  bytes vars = 2;
+}
+
+message CompleteServiceTaskRequest {
+  string trackingId = 1;
+  bytes vars = 2;
+}
+
+message CompleteUserTaskRequest {
+  string trackingId = 1;
+  string owner = 2;
+  bytes vars = 3;
+}
+
+message ListUserTasksRequest {
+  string owner = 1;
+}
+
+message GetUserTaskRequest {
+  string owner = 1;
+  string trackingId = 2;
+}
