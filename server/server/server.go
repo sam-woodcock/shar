@@ -125,7 +125,7 @@ func (s *Server) createServices(natsURL string, log *zap.Logger, ephemeral bool)
 	if ephemeral {
 		store = nats.MemoryStorage
 	}
-	ns, err := services.NewNatsService(log, conn, store, 4)
+	ns, err := services.NewNatsService(log, conn, store, 6)
 	if err != nil {
 		log.Fatal("failed to create NATS KV store", zap.Error(err))
 	}

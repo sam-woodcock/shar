@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	errors2 "errors"
 	"fmt"
 	"github.com/antonmedv/expr"
 	"github.com/nats-io/nats.go"
@@ -290,7 +291,7 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 	}
 
 	wfi, err := c.ns.GetWorkflowInstance(ctx, traversal.WorkflowInstanceId)
-	if err == errors.ErrWorkflowInstanceNotFound {
+	if err == errors.ErrWorkflowInstanceNotFound || errors2.Is(err, nats.ErrKeyNotFound) {
 		c.log.Warn("workflow instance not found, cancelling activity", zap.Error(err), zap.String(keys.WorkflowInstanceID, traversal.WorkflowInstanceId))
 		return nil
 	} else if err != nil {

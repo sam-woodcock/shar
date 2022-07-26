@@ -227,6 +227,9 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		s.log.Warn("Could not fetch workflow instance",
 			zap.String(keys.WorkflowInstanceID, workflowInstanceId),
 		)
+		if errors2.Is(err, nats.ErrKeyNotFound) {
+			return nil
+		}
 		return err
 	}
 
@@ -385,6 +388,7 @@ func (s *NatsService) StartProcessing(ctx context.Context) error {
 		AckPolicy:       nats.AckExplicitPolicy,
 		FilterSubject:   messages.WorkflowTraversalExecute,
 		MaxRequestBatch: 1,
+		MaxAckPending:   -1,
 	}
 
 	tcfg := &nats.ConsumerConfig{
@@ -402,6 +406,7 @@ func (s *NatsService) StartProcessing(ctx context.Context) error {
 		AckPolicy:       nats.AckExplicitPolicy,
 		FilterSubject:   messages.ApiAll,
 		MaxRequestBatch: 1,
+		MaxAckPending:   -1,
 	}
 
 	if err := common.EnsureStream(s.js, scfg); err != nil {

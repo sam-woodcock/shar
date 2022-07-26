@@ -179,14 +179,6 @@ func (s *SharServer) Listen() error {
 	if err != nil {
 		return err
 	}
-	_, err = listen(con, log, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage)
-	if err != nil {
-		return err
-	}
-	_, err = listen(con, log, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage)
-	if err != nil {
-		return err
-	}
 	_, err = listen(con, log, messages.ApiListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs)
 	if err != nil {
 		return err
