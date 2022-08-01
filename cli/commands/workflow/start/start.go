@@ -10,10 +10,11 @@ import (
 	"gitlab.com/shar-workflow/shar/cli/output"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/common"
-	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
+	"gitlab.com/shar-workflow/shar/common/valueparsing"
+	"gitlab.com/shar-workflow/shar/model"
 )
 
 var Cmd = &cobra.Command{
@@ -25,12 +26,21 @@ var Cmd = &cobra.Command{
 }
 
 func run(_ *cobra.Command, args []string) error {
+	var vars *model.Vars
+	var err error
+	if len(flag.Value.Vars) > 0 {
+		vars, err = valueparsing.Parse(flag.Value.Vars)
+		if err != nil {
+			return err
+		}
+	}
+
 	ctx := context.Background()
 	shar := client.New(output.Logger)
 	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	wfiID, err := shar.LaunchWorkflow(ctx, args[0], nil)
+	wfiID, err := shar.LaunchWorkflow(ctx, args[0], *vars)
 	if err != nil {
 		return fmt.Errorf("workflow launch failed: %w", err)
 	}
@@ -95,4 +105,5 @@ func run(_ *cobra.Command, args []string) error {
 
 func init() {
 	Cmd.PersistentFlags().BoolVarP(&flag.Value.DebugTrace, flag.DebugTrace, flag.DebugTraceShort, false, "enable debug trace for selected workflow")
+	Cmd.PersistentFlags().StringSliceVarP(&flag.Value.Vars, flag.Vars, flag.VarsShort, []string{}, "pass variables to given workflow")
 }
