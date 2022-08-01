@@ -3,10 +3,17 @@ package start
 import (
 	"context"
 	"fmt"
+
+	"github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
 	"gitlab.com/shar-workflow/shar/cli/flag"
 	"gitlab.com/shar-workflow/shar/cli/output"
 	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/messages"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 var Cmd = &cobra.Command{
@@ -28,5 +35,64 @@ func run(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("workflow launch failed: %w", err)
 	}
 	fmt.Println("workflow instance started. instance-id:", wfiID)
+
+	if flag.Value.DebugTrace {
+		// Create logger
+		log, _ := zap.NewDevelopment()
+
+		// Connect to a server
+		nc, _ := nats.Connect(nats.DefaultURL)
+
+		// Get Jetstream
+		js, err := nc.JetStream()
+		if err != nil {
+			panic(err)
+		}
+
+		if err := common.EnsureBuckets(js, nats.FileStorage, []string{"WORKFLOW_DEBUG"}); err != nil {
+			panic(err)
+		}
+
+		if err := common.EnsureConsumer(js, "WORKFLOW", &nats.ConsumerConfig{
+			Durable:       "Tracing",
+			Description:   "Sequential Trace Consumer",
+			DeliverPolicy: nats.DeliverAllPolicy,
+			FilterSubject: "WORKFLOW.State.>",
+			AckPolicy:     nats.AckExplicitPolicy,
+		}); err != nil {
+			panic(err)
+		}
+
+		ctx = context.Background()
+		closer := make(chan struct{})
+		workflowMessages := make(chan *nats.Msg)
+
+		common.Process(ctx, js, log, closer, messages.WorkflowStateAll, "Tracing", 1, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+			workflowMessages <- msg
+			return true, nil
+		})
+
+		c := output.Console{}
+		for msg := range workflowMessages {
+			var state = model.WorkflowState{}
+			err := proto.Unmarshal(msg.Data, &state)
+			if err != nil {
+				log.Error("unable to unmarshal message", zap.Error(err))
+				return err
+			}
+			if state.WorkflowInstanceId == wfiID {
+				c.OutputWorkflowInstanceStatus([]*model.WorkflowState{&state})
+			}
+			// Check end states once they are implemented
+			// if state.State == "" {
+			// 	close(closer)
+			// 	close(workflowMessages)
+			// }
+		}
+	}
 	return nil
+}
+
+func init() {
+	Cmd.PersistentFlags().BoolVarP(&flag.Value.DebugTrace, flag.DebugTrace, flag.DebugTraceShort, false, "enable debug trace for selected workflow")
 }
