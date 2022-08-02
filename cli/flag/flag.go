@@ -4,6 +4,8 @@ const (
 	CorrelationKey      = "correlationKey"
 	Server              = "server"
 	LogLevel            = "loglevel"
+	Vars				= "vars"
+	VarsShort			= "v"
 	CorrelationKeyShort = "k"
 	ServerShort         = "s"
 	LogLevelShort       = "l"
@@ -16,6 +18,7 @@ type Set struct {
 	LogLevel       string
 	CorrelationKey string
 	DebugTrace	   bool
+	Vars		   []string
 }
 
 var Value Set
