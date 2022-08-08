@@ -15,7 +15,7 @@ import (
 
 type NatsConn interface {
 	JetStream(opts ...nats.JSOpt) (nats.JetStreamContext, error)
-	Subscribe(subject string, fn nats.MsgHandler) (*nats.Subscription, error)
+	QueueSubscribe(subj string, queue string, cb nats.MsgHandler) (*nats.Subscription, error)
 }
 
 func UpdateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []byte, msg proto.Message) ([]byte, error)) error {
