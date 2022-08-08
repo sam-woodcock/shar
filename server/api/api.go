@@ -139,6 +139,7 @@ func (s *SharServer) Shutdown() {
 func (s *SharServer) Listen() error {
 	con := s.ns.Conn()
 	log := s.log
+
 	_, err := listen(con, log, messages.ApiStoreWorkflow, &model.Workflow{}, s.storeWorkflow)
 	if err != nil {
 		return err
@@ -215,7 +216,7 @@ func (s *SharServer) getUserTask(ctx context.Context, req *model.GetUserTaskRequ
 }
 
 func listen[T proto.Message, U proto.Message](con common.NatsConn, log *zap.Logger, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
-	sub, err := con.Subscribe(subject, func(msg *nats.Msg) {
+	sub, err := con.QueueSubscribe(subject, subject, func(msg *nats.Msg) {
 		ctx := context.Background()
 		if err := callApi(ctx, req, msg, fn); err != nil {
 			log.Error("API call for "+subject+" failed", zap.Error(err))

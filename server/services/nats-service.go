@@ -388,7 +388,7 @@ func (s *NatsService) StartProcessing(ctx context.Context) error {
 		AckPolicy:       nats.AckExplicitPolicy,
 		FilterSubject:   messages.WorkflowTraversalExecute,
 		MaxRequestBatch: 1,
-		MaxAckPending:   -1,
+		MaxAckPending:   65536,
 	}
 
 	tcfg := &nats.ConsumerConfig{
