@@ -38,7 +38,7 @@ func Parse(arr []string) (*model.Vars, error) {
 }
 
 func extract(text string) (key string, _type string, value string) {
-	re := regexp.MustCompile(`"([A-Za-z0-9]*)":([A-Za-z0-9]*)\((.*)\)`)
+	re := regexp.MustCompile(`([A-Za-z0-9]*):([A-Za-z0-9]*)\((.*)\)`)
 	arr := re.FindAllStringSubmatch(text, -1)
 
 	key = arr[0][1]
