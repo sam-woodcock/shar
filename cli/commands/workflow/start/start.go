@@ -26,7 +26,7 @@ var Cmd = &cobra.Command{
 }
 
 func run(_ *cobra.Command, args []string) error {
-	var vars *model.Vars
+	vars := &model.Vars{}
 	var err error
 	if len(flag.Value.Vars) > 0 {
 		vars, err = valueparsing.Parse(flag.Value.Vars)
@@ -105,5 +105,5 @@ func run(_ *cobra.Command, args []string) error {
 
 func init() {
 	Cmd.PersistentFlags().BoolVarP(&flag.Value.DebugTrace, flag.DebugTrace, flag.DebugTraceShort, false, "enable debug trace for selected workflow")
-	Cmd.PersistentFlags().StringSliceVarP(&flag.Value.Vars, flag.Vars, flag.VarsShort, []string{}, "pass variables to given workflow")
+	Cmd.PersistentFlags().StringSliceVarP(&flag.Value.Vars, flag.Vars, flag.VarsShort, []string{}, "pass variables to given workflow, eg --vars \"orderId:int(78),serviceId:string(hello)\"")
 }
