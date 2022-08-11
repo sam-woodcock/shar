@@ -3,11 +3,13 @@ package client
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client/parser"
 	"gitlab.com/shar-workflow/shar/client/services"
+	"gitlab.com/shar-workflow/shar/common/workflow"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/vars"
@@ -68,8 +70,8 @@ func New(log *zap.Logger, option ...Option) *Client {
 	return client
 }
 
-func (c *Client) Dial(natsURL string) error {
-	n, err := nats.Connect(natsURL)
+func (c *Client) Dial(natsURL string, opts ...nats.Option) error {
+	n, err := nats.Connect(natsURL, opts...)
 	if err != nil {
 		return c.clientErr(context.Background(), "failed to connect to nats", err)
 	}
@@ -166,10 +168,23 @@ func (c *Client) listen(ctx context.Context) error {
 						return
 					}()
 					if err != nil {
-						if err := msg.Nak(); err != nil {
-							c.log.Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
+						var handled bool
+						wfe := &workflow.Error{}
+						if errors.As(err, wfe) {
+							res := &model.HandleWorkflowErrorResponse{}
+							req := &model.HandleWorkflowErrorRequest{TrackingId: ut.Id, ErrorCode: wfe.Code}
+							if err2 := callAPI(ctx, c.con, messages.ApiHandleWorkflowError, req, res); err2 != nil {
+								c.log.Error("failed to handle workflow error", zap.Any("workflowError", wfe), zap.Error(err2))
+								continue
+							}
+							handled = res.Handled
 						}
-						c.log.Warn("failed during execution of service task function", zap.Error(err))
+						if !handled {
+							if err := msg.Nak(); err != nil {
+								c.log.Warn("nak failed", zap.Error(err), zap.String("subject", msg.Subject))
+							}
+							c.log.Warn("failed during execution of service task function", zap.Error(err))
+						}
 						continue
 					}
 					if err := c.CompleteServiceTask(xctx, ut.Id, newVars); err != nil {
@@ -237,6 +252,8 @@ func (c *Client) listenWorkflowComplete(_ context.Context) error {
 			c.complete <- &model.WorkflowInstanceComplete{
 				WorkflowInstanceId: st.WorkflowInstanceId,
 				WorkflowId:         st.WorkflowId,
+				WorkflowState:      st.State,
+				Error:              st.Error,
 			}
 			if err := msg.Ack(); err != nil {
 				c.log.Error("send message ack failed", zap.Error(err), zap.String("subject", msg.Subject))
@@ -313,7 +330,7 @@ func (c *Client) LoadBPMNWorkflowFromBytes(ctx context.Context, name string, b [
 
 func (c *Client) CancelWorkflowInstance(ctx context.Context, instanceID string) error {
 	res := &emptypb.Empty{}
-	req := &model.CancelWorkflowInstanceRequest{Id: instanceID}
+	req := &model.CancelWorkflowInstanceRequest{Id: instanceID, State: model.CancellationState_Terminated}
 	if err := callAPI(ctx, c.con, messages.ApiCancelWorkflowInstance, req, res); err != nil {
 		return c.clientErr(ctx, "failed to cancel workflow instance: %w", err)
 	}

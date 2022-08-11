@@ -184,6 +184,7 @@ func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.Work
 		})
 	}
 
+	st := oldState.State.String()
 	at := map[string]*string{
 		keys.ElementID:          &oldState.ElementId,
 		keys.ElementType:        &oldState.ElementType,
@@ -191,7 +192,7 @@ func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.Work
 		keys.WorkflowInstanceID: &oldState.WorkflowInstanceId,
 		keys.Condition:          oldState.Condition,
 		keys.Execute:            oldState.Execute,
-		keys.State:              &oldState.State,
+		keys.State:              &st,
 		"trackingId":            &oldState.Id,
 		"parentTrId":            &oldState.ParentId,
 	}

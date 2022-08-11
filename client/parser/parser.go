@@ -15,6 +15,7 @@ const bpmnNS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 
 func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 	msgs := make(map[string]string)
+	errs := make(map[string]string)
 	doc, err := xmlquery.Parse(rdr)
 	if err != nil {
 		return nil, err
@@ -29,8 +30,9 @@ func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 			Elements: make([]*model.Element, 0),
 		}
 		msgXml := doc.SelectElements("//bpmn:message")
+		errXml := doc.SelectElements("//bpmn:error")
 		pr.Name = prXml.SelectAttr("id")
-		if err := parseProcess(doc, wf, prXml, pr, msgXml, msgs); err != nil {
+		if err := parseProcess(doc, wf, prXml, pr, msgXml, errXml, msgs, errs); err != nil {
 			return nil, err
 		}
 		wf.Process[pr.Name] = pr
@@ -38,15 +40,22 @@ func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 	return wf, nil
 }
 
-func parseProcess(doc *xmlquery.Node, wf *model.Workflow, prXml *xmlquery.Node, pr *model.Process, msgXml []*xmlquery.Node, msgs map[string]string) error {
+func parseProcess(doc *xmlquery.Node, wf *model.Workflow, prXml *xmlquery.Node, pr *model.Process, msgXml []*xmlquery.Node, errXml []*xmlquery.Node, msgs map[string]string, errs map[string]string) error {
 	for _, i := range prXml.SelectElements("*") {
-		if err := parseElements(doc, wf, pr, i, msgs); err != nil {
+		if err := parseElements(doc, wf, pr, i, msgs, errs); err != nil {
 			return err
 		}
 	}
 	if msgXml != nil {
 		parseMessages(doc, wf, msgXml, msgs)
 	}
+	if errXml != nil {
+		parseErrors(doc, wf, errXml, errs)
+	}
+	for _, i := range prXml.SelectElements("//bpmn:boundaryEvent") {
+		parseBoundaryEvent(i, pr)
+	}
+
 	return nil
 }
 
@@ -63,28 +72,87 @@ func parseMessages(doc *xmlquery.Node, wf *model.Workflow, msgNodes []*xmlquery.
 	wf.Messages = m
 }
 
-func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i *xmlquery.Node, msgs map[string]string) error {
+func parseErrors(doc *xmlquery.Node, wf *model.Workflow, errNodes []*xmlquery.Node, errs map[string]string) {
+	m := make([]*model.Error, len(errNodes))
+	for i, x := range errNodes {
+		m[i] = &model.Error{
+			Id:   x.SelectElement("@id").InnerText(),
+			Name: x.SelectElement("@name").InnerText(),
+			Code: x.SelectElement("@errorCode").InnerText(),
+		}
+		errs[m[i].Id] = m[i].Name
+	}
+	wf.Errors = m
+}
+
+func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i *xmlquery.Node, msgs map[string]string, errs map[string]string) error {
 	if i.NamespaceURI == bpmnNS {
 		el := &model.Element{Type: i.Data}
-		if i.Data == "sequenceFlow" || i.Data == "incoming" || i.Data == "outgoing" || i.Data == "extensionElements" {
+
+		// These are handled specially
+		if i.Data == "sequenceFlow" || i.Data == "incoming" || i.Data == "outgoing" || i.Data == "extensionElements" || i.Data == "boundaryEvent" {
 			return nil
 		}
+
+		// Intermediate catch events need special processing
 		if i.Data == "intermediateCatchEvent" {
 			parseIntermediateCatchEvent(i, el)
 		}
+
 		parseCoreValues(i, el)
 		parseFlowInOut(doc, i, el)
 		parseDocumentation(i, el)
+		parseElementErrors(doc, i, el)
 		parseExtensions(doc, el, i)
-		if err := parseSubprocess(doc, wf, el, i, msgs); err != nil {
+		if err := parseSubprocess(doc, wf, el, i, msgs, errs); err != nil {
 			return err
 		}
-		if err := parseSubscription(wf, el, i, msgs); err != nil {
+		if err := parseSubscription(wf, el, i, msgs, errs); err != nil {
 			return err
 		}
 		pr.Elements = append(pr.Elements, el)
 	}
 	return nil
+}
+
+func parseElementErrors(doc *xmlquery.Node, i *xmlquery.Node, el *model.Element) {
+	if errorRef := i.SelectElement("//bpmn:errorEventDefinition/@errorRef"); errorRef != nil {
+		fmt.Println("error", errorRef.InnerText())
+		tg := doc.SelectElement("//*[@id=\"" + errorRef.InnerText() + "\"]")
+		fmt.Println(tg.InnerText())
+		el.Error = &model.Error{
+			Id:   tg.SelectAttr("id"),
+			Code: tg.SelectAttr("errorCode"),
+			Name: tg.SelectAttr("name"),
+		}
+	}
+}
+
+func parseBoundaryEvent(i *xmlquery.Node, pr *model.Process) {
+	attach := i.SelectAttr("attachedToRef")
+	var el *model.Element
+	for _, i := range pr.Elements {
+		if i.Id == attach {
+			el = i
+			break
+		}
+	}
+	if errorRef := i.SelectElement("//bpmn:errorEventDefinition/@errorRef"); errorRef != nil {
+		fmt.Println(attach, errorRef.InnerText())
+		allFlow := i.SelectElements("..//bpmn:sequenceFlow")
+		flowId := i.SelectElement("//bpmn:outgoing").InnerText()
+		var target string
+		for _, v := range allFlow {
+			if v.SelectAttr("id") == flowId {
+				target = v.SelectAttr("targetRef")
+			}
+		}
+		el.Errors = append(el.Errors, &model.CatchError{
+			Id:      i.SelectElement("//bpmn:errorEventDefinition/@id").InnerText(),
+			ErrorId: errorRef.InnerText(),
+			Target:  target,
+		})
+	}
 }
 
 func parseIntermediateCatchEvent(i *xmlquery.Node, _ *model.Element) {
@@ -96,7 +164,7 @@ func parseIntermediateCatchEvent(i *xmlquery.Node, _ *model.Element) {
 	}
 }
 
-func parseSubscription(wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string) error {
+func parseSubscription(wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string, errs map[string]string) error {
 	if i.Data == "intermediateCatchEvent" {
 		if x := i.SelectElement("bpmn:messageEventDefinition/@messageRef"); x != nil {
 			ref := x.InnerText()
@@ -147,12 +215,12 @@ func getCorrelation(messages []*model.Element, msg string) (string, error) {
 	return "", errors.New("could not find message: " + msg)
 }
 
-func parseSubprocess(doc *xmlquery.Node, wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string) error {
+func parseSubprocess(doc *xmlquery.Node, wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string, errs map[string]string) error {
 	if i.Data == "subProcess" {
 		pr := &model.Process{
 			Elements: make([]*model.Element, 0),
 		}
-		if err := parseProcess(doc, wf, i, pr, nil, msgs); err != nil {
+		if err := parseProcess(doc, wf, i, pr, nil, nil, msgs, errs); err != nil {
 			return err
 		}
 		el.Process = pr

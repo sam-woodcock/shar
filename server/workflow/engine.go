@@ -9,6 +9,7 @@ import (
 	"github.com/antonmedv/expr"
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
+	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/expression"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors"
@@ -111,7 +112,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 	}
 
 	// index the workflow
-	els := elementTable(wf)
+	els := common.ElementTable(wf)
 	errs := make(chan error)
 	wg := sync.WaitGroup{}
 
@@ -284,6 +285,7 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, pare
 
 // activityProcessor handles the behaviour of each BPMN element
 func (c *Engine) activityProcessor(ctx context.Context, traversal *model.WorkflowState, traverseOnly bool) error {
+	state := model.CancellationState_Executing
 	select {
 	case <-c.closing:
 		return errors.ErrClosing
@@ -307,7 +309,7 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 			zap.String(keys.WorkflowID, wfi.WorkflowId),
 		)
 	}
-	els := elementTable(process)
+	els := common.ElementTable(process)
 	el := els[traversal.ElementId]
 
 	if traverseOnly {
@@ -338,8 +340,6 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 	}, 0); err != nil {
 		return c.engineErr(ctx, "failed to publish workflow state", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 	}
-
-	var workflowComplete bool
 
 	switch el.Type {
 	case "serviceTask":
@@ -386,8 +386,15 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 			if err := c.returnBack(ctx, wfi.WorkflowInstanceId, *wfi.ParentWorkflowInstanceId, *wfi.ParentElementId, traversal.Vars); err != nil {
 				return c.engineErr(ctx, "failed to return to originator workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name, zap.String(keys.ParentWorkflowInstanceId, *wfi.ParentWorkflowInstanceId))...)
 			}
+
+		} else {
+			if len(el.Errors) == 0 {
+				state = model.CancellationState_Completed
+			} else {
+				state = model.CancellationState_Errored
+
+			}
 		}
-		workflowComplete = true
 	default:
 		if err := c.traverse(ctx, wfi, trackingId, el.Outbound, els, traversal.Vars); err != nil {
 			return c.engineErr(ctx, "failed to return to traverse", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
@@ -400,18 +407,22 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 		WorkflowId:         wfi.WorkflowId,
 		WorkflowInstanceId: traversal.WorkflowInstanceId,
 		ParentId:           wfi.WorkflowInstanceId,
+		State:              state,
+		Error:              el.Error,
 		Vars:               traversal.Vars,
 	}, 0); err != nil {
 		return c.engineErr(ctx, "failed to publish workflow state", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 	}
 
-	if workflowComplete {
+	if state == model.CancellationState_Completed || state == model.CancellationState_Errored || state == model.CancellationState_Terminated {
 		if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowInstanceComplete, &model.WorkflowState{
 			Id:                 wfi.WorkflowInstanceId,
 			WorkflowId:         wfi.WorkflowId,
 			WorkflowInstanceId: traversal.WorkflowInstanceId,
 			ElementId:          traversal.ElementId,
 			ElementType:        el.Type,
+			Error:              el.Error,
+			State:              state,
 		}, 0); err != nil {
 			return c.engineErr(ctx, "failed to publish workflow state", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
@@ -452,7 +463,7 @@ func (c *Engine) returnBack(ctx context.Context, wfiID string, parentwfiID strin
 			zap.String(keys.ElementID, parentElID),
 		)
 	}
-	index := elementTable(pwf)
+	index := common.ElementTable(pwf)
 	el := index[parentElID]
 	err = c.traverse(ctx, pwfi, "", el.Outbound, index, vars)
 	if err != nil {
@@ -468,8 +479,8 @@ func (c *Engine) returnBack(ctx context.Context, wfiID string, parentwfiID strin
 }
 
 // cleanup is responsible for destroying a workflow instance
-func (c *Engine) cleanup(ctx context.Context, wfiID string) error {
-	if err := c.ns.DestroyWorkflowInstance(ctx, wfiID); err != nil {
+func (c *Engine) cleanup(ctx context.Context, wfiID string, state model.CancellationState, wfError *model.Error) error {
+	if err := c.ns.DestroyWorkflowInstance(ctx, wfiID, state, wfError); err != nil {
 		return fmt.Errorf("failed to destroy workflow instance: %w", err)
 	}
 	return nil
@@ -509,7 +520,7 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobID string, vars []
 			zap.String(keys.WorkflowID, wfi.WorkflowId),
 		)
 	}
-	els := elementTable(wf)
+	els := common.ElementTable(wf)
 	el := els[job.ElementId]
 	if err := c.traverse(ctx, wfi, jobID, el.Outbound, els, vars); err != nil {
 		return c.engineErr(ctx, "failed to launch traversal", err,
@@ -535,6 +546,7 @@ func (c *Engine) startJob(ctx context.Context, subject, wfID, wfiID, parentTrack
 		Vars:               v,
 		ElementType:        el.Type,
 		ElementId:          el.Id,
+		Error:              el.Error,
 		Execute:            &el.Execute,
 		Condition:          &condition,
 	}
@@ -596,25 +608,6 @@ func (c *Engine) evaluateOwners(owners string, vars model.Vars) ([]string, error
 	return jobGroups, nil
 }
 
-// elementTable indexes an entire process for quick Id lookups
-func elementTable(process *model.Workflow) map[string]*model.Element {
-	el := make(map[string]*model.Element)
-	for _, i := range process.Process {
-		indexProcessElements(i.Elements, el)
-	}
-	return el
-}
-
-// indexProcessElements is the recursive part of the index
-func indexProcessElements(elements []*model.Element, el map[string]*model.Element) {
-	for _, i := range elements {
-		el[i.Id] = i
-		if i.Process != nil {
-			indexProcessElements(i.Process.Elements, el)
-		}
-	}
-}
-
 func (c *Engine) engineErr(_ context.Context, msg string, err error, z ...zap.Field) error {
 	z = append(z, zap.Error(err))
 	c.log.Error(msg, z...)
@@ -633,8 +626,11 @@ func (c *Engine) Shutdown() {
 	}
 }
 
-func (c *Engine) CancelWorkflowInstance(ctx context.Context, id string) error {
-	return c.ns.DestroyWorkflowInstance(ctx, id)
+func (c *Engine) CancelWorkflowInstance(ctx context.Context, id string, state model.CancellationState, wfError *model.Error) error {
+	if state == model.CancellationState_Executing {
+		return errors2.New("executing is an invalid cancellation state")
+	}
+	return c.ns.DestroyWorkflowInstance(ctx, id, state, wfError)
 }
 
 func (c *Engine) awaitMessage(ctx context.Context, wfID string, wfiID string, parentTrackingID string, el *model.Element, vars []byte) error {
@@ -644,6 +640,7 @@ func (c *Engine) awaitMessage(ctx context.Context, wfID string, wfiID string, pa
 		WorkflowInstanceId: wfiID,
 		ElementId:          el.Id,
 		ElementType:        el.Type,
+		Error:              el.Error,
 		Id:                 trackingId,
 		Execute:            &el.Execute,
 		Condition:          &el.Msg,
@@ -677,7 +674,7 @@ func (c *Engine) messageCompleteProcessor(ctx context.Context, state *model.Work
 	if err != nil {
 		return err
 	}
-	els := elementTable(wf)
+	els := common.ElementTable(wf)
 	return c.traverse(ctx, wfi, state.ParentId, els[state.ElementId].Outbound, els, state.Vars)
 }
 

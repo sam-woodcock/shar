@@ -220,7 +220,7 @@ func (s *NatsService) GetWorkflowInstance(_ context.Context, workflowInstanceId 
 	return wfi, nil
 }
 
-func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string) error {
+func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string, state model.CancellationState, wfError *model.Error) error {
 	// Get the workflow instance
 	wfi := &model.WorkflowInstance{}
 	if err := common.LoadObj(s.wfInstance, workflowInstanceId, wfi); err != nil {
@@ -278,14 +278,19 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		return err
 	}
 
-	state := &model.WorkflowState{
+	tState := &model.WorkflowState{
 		WorkflowId:         wf.Name,
 		WorkflowInstanceId: wfi.WorkflowInstanceId,
-		State:              "Terminated",
+		State:              state,
+		Error:              wfError,
 		UnixTimeNano:       time.Now().UnixNano(),
 	}
 
-	if err := s.PublishWorkflowState(ctx, messages.WorkflowInstanceTerminated, state, 0); err != nil {
+	if tState.Error != nil {
+		tState.State = model.CancellationState_Errored
+	}
+
+	if err := s.PublishWorkflowState(ctx, messages.WorkflowInstanceTerminated, tState, 0); err != nil {
 		return err
 	}
 
@@ -375,51 +380,9 @@ func (s *NatsService) GetWorkflowInstanceStatus(_ context.Context, id string) (*
 }
 
 func (s *NatsService) StartProcessing(ctx context.Context) error {
-	scfg := &nats.StreamConfig{
-		Name:      "WORKFLOW",
-		Subjects:  messages.AllMessages,
-		Storage:   s.storageType,
-		Retention: nats.InterestPolicy,
-	}
 
-	ccfg := &nats.ConsumerConfig{
-		Durable:         "Traversal",
-		Description:     "Traversal processing queue",
-		AckPolicy:       nats.AckExplicitPolicy,
-		FilterSubject:   messages.WorkflowTraversalExecute,
-		MaxRequestBatch: 1,
-		MaxAckPending:   65536,
-	}
-
-	tcfg := &nats.ConsumerConfig{
-		Durable:         "Tracking",
-		Description:     "Tracking queue for sequential processing",
-		AckPolicy:       nats.AckExplicitPolicy,
-		FilterSubject:   "WORKFLOW.>",
-		MaxAckPending:   1,
-		MaxRequestBatch: 1,
-	}
-
-	acfg := &nats.ConsumerConfig{
-		Durable:         "API",
-		Description:     "Api queue",
-		AckPolicy:       nats.AckExplicitPolicy,
-		FilterSubject:   messages.ApiAll,
-		MaxRequestBatch: 1,
-		MaxAckPending:   -1,
-	}
-
-	if err := common.EnsureStream(s.js, scfg); err != nil {
+	if err := common.SetUpNats(s.js, s.storageType); err != nil {
 		return err
-	}
-	if err := common.EnsureConsumer(s.js, "WORKFLOW", ccfg); err != nil {
-		panic(err)
-	}
-	if err := common.EnsureConsumer(s.js, "WORKFLOW", tcfg); err != nil {
-		panic(err)
-	}
-	if err := common.EnsureConsumer(s.js, "WORKFLOW", acfg); err != nil {
-		panic(err)
 	}
 
 	go func() {
@@ -658,7 +621,7 @@ func (s *NatsService) processWorkflowEvents(ctx context.Context) {
 			return false, err
 		}
 		if msg.Subject == "WORKFLOW.State.Workflow.Complete" {
-			if err := s.DestroyWorkflowInstance(ctx, job.WorkflowInstanceId); err != nil {
+			if err := s.DestroyWorkflowInstance(ctx, job.WorkflowInstanceId, job.State, job.Error); err != nil {
 				return false, err
 			}
 		}

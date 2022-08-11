@@ -107,13 +107,13 @@ func (_m *MockNatsService) CreateWorkflowInstance(ctx context.Context, wfInstanc
 	return r0, r1
 }
 
-// DestroyWorkflowInstance provides a mock function with given fields: ctx, workflowInstanceId
-func (_m *MockNatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string) error {
-	ret := _m.Called(ctx, workflowInstanceId)
+// DestroyWorkflowInstance provides a mock function with given fields: ctx, workflowInstanceId, state, wfError
+func (_m *MockNatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string, state model.CancellationState, wfError *model.Error) error {
+	ret := _m.Called(ctx, workflowInstanceId, state, wfError)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = rf(ctx, workflowInstanceId)
+	if rf, ok := ret.Get(0).(func(context.Context, string, model.CancellationState, *model.Error) error); ok {
+		r0 = rf(ctx, workflowInstanceId, state, wfError)
 	} else {
 		r0 = ret.Error(0)
 	}

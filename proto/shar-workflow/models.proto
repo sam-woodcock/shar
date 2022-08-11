@@ -9,6 +9,7 @@ message Workflow {
   string Name = 1;
   map<string,Process> Process = 2;
   repeated Element messages = 3;
+  repeated Error errors = 4;
 }
 
 message Process {
@@ -38,12 +39,26 @@ message Element {
   string retries = 9;
   string candidates = 10;
   string candidateGroups = 11;
+  repeated CatchError errors = 12;
+  Error error = 13;
 }
 
 message Target {
   string id          = 1;
   repeated string conditions =2;
   string target     =3;
+}
+
+message Error {
+  string id = 1;
+  string name = 2;
+  string code = 3;
+}
+
+message CatchError {
+  string id      = 1;
+  string errorId = 2;
+  string target  = 3;
 }
 
 message Targets {
@@ -63,12 +78,13 @@ message WorkflowState {
   string Id = 5;
   string parentId = 6;
   optional string execute = 7;
-  string state = 8;
+  CancellationState state = 8;
   optional string condition = 9;
   int64 unixTimeNano = 10;
   bytes vars = 11;
   repeated string owners = 12;
   repeated string groups = 13;
+  Error error = 14;
 }
 
 message WorkflowInstance {
@@ -98,8 +114,17 @@ message LaunchWorkflowRequest {
   bytes vars = 2;
 }
 
+enum CancellationState {
+  Executing = 0;
+  Completed = 1;
+  Terminated = 2;
+  Errored = 3;
+}
+
 message CancelWorkflowInstanceRequest {
   string id = 1;
+  CancellationState state = 2;
+  Error error = 3;
 }
 
 message GetWorkflowInstanceStatusRequest {
@@ -149,6 +174,8 @@ message WorkflowInstanceComplete {
   string workflowName = 1;
   string workflowId = 2;
   string workflowInstanceId = 3;
+  CancellationState workflowState = 4;
+  Error error = 5;
 }
 
 message CompleteManualTaskRequest {
@@ -174,4 +201,14 @@ message ListUserTasksRequest {
 message GetUserTaskRequest {
   string owner = 1;
   string trackingId = 2;
+}
+
+message HandleWorkflowErrorRequest {
+  string trackingId = 1;
+  string errorCode = 2;
+  string message = 3;
+}
+
+message HandleWorkflowErrorResponse {
+  bool handled = 1;
 }
