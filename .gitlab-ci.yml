@@ -22,7 +22,7 @@ include:
 - template: Security/Dependency-Scanning.gitlab-ci.yml
 - template: Security/License-Scanning.gitlab-ci.yml
 build_stage:
-  image: registry.gitlab.com/shar-workflow/build-go/build-go:1.0.1
+  image: registry.gitlab.com/shar-workflow/build-go/build-go:1.0.2
   stage: build
   rules:
   - if: "$CI_COMMIT_TAG"
@@ -33,6 +33,15 @@ build_stage:
   artifacts:
     paths:
     - build
+test_stage:
+  image: registry.gitlab.com/shar-workflow/build-go/build-go:1.0.2
+  stage: test
+  rules:
+  - if: "$CI_COMMIT_TAG"
+    when: never
+  - if: "$CI_PIPELINE_IID"
+  script:
+  - go test ./...
 tag_stage:
   stage: tag
   rules:
