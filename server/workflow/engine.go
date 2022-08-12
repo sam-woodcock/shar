@@ -1,9 +1,7 @@
 package workflow
 
 import (
-	"bytes"
 	"context"
-	"encoding/gob"
 	errors2 "errors"
 	"fmt"
 	"github.com/antonmedv/expr"
@@ -161,20 +159,6 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 	return wfi.WorkflowInstanceId, nil
 }
 
-// decodeVars decodes a go binary object containing workflow variables.
-func (c *Engine) decodeVars(_ context.Context, vars []byte) model.Vars {
-	ret := make(map[string]any)
-	if vars == nil {
-		return ret
-	}
-	r := bytes.NewReader(vars)
-	d := gob.NewDecoder(r)
-	if err := d.Decode(&ret); err != nil {
-		c.log.Error("failed to decode vars", zap.Any("vars", vars))
-	}
-	return ret
-}
-
 // forEachStartElement finds all start elements for a given process and executes a function on the element.
 func forEachStartElement(wf *model.Workflow, fn func(element *model.Element) error) error {
 	for _, pr := range wf.Process {
@@ -192,7 +176,7 @@ func forEachStartElement(wf *model.Workflow, fn func(element *model.Element) err
 }
 
 // traverse traverses all outbound connections provided the conditions passed if available.
-func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, parentTrackingId string, outbound *model.Targets, el map[string]*model.Element, vars []byte) error {
+func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, parentTrackingId string, outbound *model.Targets, el map[string]*model.Element, v []byte) error {
 	if outbound == nil {
 		return nil
 	}
@@ -203,7 +187,10 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, pare
 		for _, ex := range t.Conditions {
 
 			// TODO: Cache compilation.
-			exVars := c.decodeVars(ctx, vars)
+			exVars, err := vars.Decode(c.log, v)
+			if err != nil {
+				return err
+			}
 			res, err := expression.Eval[bool](c.log, ex, exVars)
 			if err != nil {
 				return err
@@ -219,7 +206,10 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, pare
 		var embargo int
 		if target.Type == "timerIntermediateCatchEvent" {
 			if target.Execute[0] == '=' {
-				exVars := c.decodeVars(ctx, vars)
+				exVars, err := vars.Decode(c.log, v)
+				if err != nil {
+					return err
+				}
 				program, err := expr.Compile(target.Execute[1:], expr.Env(exVars))
 				if err != nil {
 					return err
@@ -255,7 +245,7 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, pare
 				WorkflowInstanceId: wfi.WorkflowInstanceId,
 				Id:                 trackingId,
 				ParentId:           parentTrackingId,
-				Vars:               vars,
+				Vars:               v,
 			}, embargo); err != nil {
 				c.log.Error("failed to publish workflow state", zap.Error(err))
 				return err
