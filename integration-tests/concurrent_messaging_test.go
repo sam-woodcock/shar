@@ -60,7 +60,7 @@ func TestConcurrentMessaging(t *testing.T) {
 
 	instances := make(map[string]struct{})
 
-	for inst := 0; inst < 1000; inst++ {
+	for inst := 0; inst < 200; inst++ {
 		go func() {
 			// Launch the workflow
 			if wfiID, err := cl.LaunchWorkflow(ctx, "MessagingTest", model.Vars{"orderId": 57}); err != nil {
