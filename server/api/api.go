@@ -241,7 +241,7 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		if err != nil {
 			return nil, fmt.Errorf("workflow-fatal: can't handle error code %s as the workflow doesn't support it, and failed to cancel the workflow: %w", req.ErrorCode, err)
 		}
-		return nil, errors.New(fmt.Sprintf("workflow-fatal: can't handle error code %s as the workflow doesn't support it", req.ErrorCode))
+		return nil, fmt.Errorf("workflow-fatal: can't handle error code %s as the workflow doesn't support it", req.ErrorCode)
 	}
 
 	// Get the errors associated with this element
