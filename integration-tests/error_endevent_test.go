@@ -22,6 +22,7 @@ func TestEndEventError(t *testing.T) {
 
 	defer func() {
 		if err := log.Sync(); err != nil {
+			fmt.Println("could not sync log")
 		}
 	}()
 
@@ -85,5 +86,4 @@ func mayFail3(_ context.Context, vars model.Vars) (model.Vars, error) {
 // A "Hello World" service task
 func fixSituation3(_ context.Context, vars model.Vars) (model.Vars, error) {
 	panic("this event should not fire")
-	return model.Vars{}, nil
 }

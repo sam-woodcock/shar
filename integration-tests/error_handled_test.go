@@ -22,6 +22,7 @@ func TestHandleError(t *testing.T) {
 
 	defer func() {
 		if err := log.Sync(); err != nil {
+			fmt.Println("could not sync log")
 		}
 	}()
 
