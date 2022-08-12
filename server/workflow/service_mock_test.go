@@ -33,13 +33,13 @@ func (_m *MockNatsService) AwaitMsg(ctx context.Context, state *model.WorkflowSt
 	return r0
 }
 
-// CloseUserTask provides a mock function with given fields: trackingID
-func (_m *MockNatsService) CloseUserTask(trackingID string) error {
-	ret := _m.Called(trackingID)
+// CloseUserTask provides a mock function with given fields: ctx, trackingID
+func (_m *MockNatsService) CloseUserTask(ctx context.Context, trackingID string) error {
+	ret := _m.Called(ctx, trackingID)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string) error); ok {
-		r0 = rf(trackingID)
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, trackingID)
 	} else {
 		r0 = ret.Error(0)
 	}

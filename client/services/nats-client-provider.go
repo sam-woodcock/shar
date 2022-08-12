@@ -11,7 +11,6 @@ import (
 
 type NatsClientProvider struct {
 	wf         nats.KeyValue
-	latestWf   nats.KeyValue
 	wfInstance nats.KeyValue
 	log        *zap.Logger
 	job        nats.KeyValue

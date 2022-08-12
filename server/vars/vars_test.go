@@ -2,6 +2,7 @@ package vars
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/model"
 	"go.uber.org/zap"
 	"testing"
@@ -15,8 +16,9 @@ func TestEncodeDecodeVars(t *testing.T) {
 	v["third"] = 5.98
 
 	e, err := Encode(log, v)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	d, err := Decode(log, e)
+	require.NoError(t, err)
 	assert.Equal(t, v["first"], d["first"])
 	assert.Equal(t, v["second"], d["second"])
 	assert.Equal(t, v["third"], d["third"])

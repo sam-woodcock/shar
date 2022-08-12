@@ -41,7 +41,7 @@ test_stage:
     when: never
   - if: "$CI_PIPELINE_IID"
   script:
-  - go test ./...
+  - make test
 tag_stage:
   stage: tag
   rules:

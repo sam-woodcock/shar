@@ -52,7 +52,7 @@ func (s *NatsService) AwaitMsg(ctx context.Context, state *model.WorkflowState) 
 	if err := common.SaveObj(ctx, s.wfMsgSub, id, state); err != nil {
 		return err
 	}
-	if err := common.UpdateObj(s.wfMsgSubs, state.WorkflowInstanceId, &model.WorkflowInstanceSubscribers{}, func(v *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
+	if err := common.UpdateObj(ctx, s.wfMsgSubs, state.WorkflowInstanceId, &model.WorkflowInstanceSubscribers{}, func(v *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
 		v.List = append(v.List, id)
 		return v, nil
 	}); err != nil {
@@ -142,7 +142,7 @@ func NewNatsService(log *zap.Logger, conn common.NatsConn, storageType nats.Stor
 	return ms, nil
 }
 
-func (s *NatsService) StoreWorkflow(_ context.Context, wf *model.Workflow) (string, error) {
+func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (string, error) {
 	wfID := ksuid.New().String()
 	b, err := json.Marshal(wf)
 	if err != nil {
@@ -153,7 +153,7 @@ func (s *NatsService) StoreWorkflow(_ context.Context, wf *model.Workflow) (stri
 		return "", fmt.Errorf("could not marshal workflow: %s", wf.Name)
 	}
 	hash := h.Sum(nil)
-	err = common.SaveObj(nil, s.wf, wfID, wf)
+	err = common.SaveObj(ctx, s.wf, wfID, wf)
 	if err != nil {
 		return "", fmt.Errorf("could not save workflow: %s", wf.Name)
 	}
@@ -169,7 +169,7 @@ func (s *NatsService) StoreWorkflow(_ context.Context, wf *model.Workflow) (stri
 			return "", err
 		}
 	}
-	if err := common.UpdateObj(s.wfVersion, wf.Name, &model.WorkflowVersions{}, func(v *model.WorkflowVersions) (*model.WorkflowVersions, error) {
+	if err := common.UpdateObj(ctx, s.wfVersion, wf.Name, &model.WorkflowVersions{}, func(v *model.WorkflowVersions) (*model.WorkflowVersions, error) {
 		if v.Version == nil || len(v.Version) == 0 {
 			v.Version = make([]*model.WorkflowVersion, 0, 1)
 		} else {
@@ -197,14 +197,14 @@ func (s *NatsService) GetWorkflow(_ context.Context, workflowId string) (*model.
 	return wf, nil
 }
 
-func (s *NatsService) CreateWorkflowInstance(_ context.Context, wfInstance *model.WorkflowInstance) (*model.WorkflowInstance, error) {
+func (s *NatsService) CreateWorkflowInstance(ctx context.Context, wfInstance *model.WorkflowInstance) (*model.WorkflowInstance, error) {
 	wfiID := ksuid.New().String()
 	wfInstance.WorkflowInstanceId = wfiID
-	if err := common.SaveObj(nil, s.wfInstance, wfiID, wfInstance); err != nil {
+	if err := common.SaveObj(ctx, s.wfInstance, wfiID, wfInstance); err != nil {
 		return nil, fmt.Errorf("failed to save workflow instance object to KV: %w", err)
 	}
 	subs := &model.WorkflowInstanceSubscribers{List: []string{}}
-	if err := common.SaveObj(nil, s.wfMsgSubs, wfiID, subs); err != nil {
+	if err := common.SaveObj(ctx, s.wfMsgSubs, wfiID, subs); err != nil {
 		return nil, fmt.Errorf("failed to save workflow instance object to KV: %w", err)
 	}
 	return wfInstance, nil
@@ -256,7 +256,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		)
 	}
 
-	if err := common.UpdateObj(s.wfMsgSubs, workflowInstanceId, &model.WorkflowInstanceSubscribers{}, func(subs *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
+	if err := common.UpdateObj(ctx, s.wfMsgSubs, workflowInstanceId, &model.WorkflowInstanceSubscribers{}, func(subs *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
 		for i := 0; i < len(subs.List); i++ {
 			err := s.wfMsgSub.Delete(subs.List[i])
 			if err != nil {
@@ -467,7 +467,7 @@ func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string
 	}
 	if stateName == messages.WorkflowJobUserTaskExecute {
 		for _, i := range append(state.Owners, state.Groups...) {
-			if err := s.OpenUserTask(i, state.Id); err != nil {
+			if err := s.OpenUserTask(ctx, i, state.Id); err != nil {
 				return err
 			}
 		}
@@ -511,12 +511,10 @@ func (s *NatsService) processTraversals(ctx context.Context) {
 		}
 		return true, nil
 	})
-	return
 }
 
 func (s *NatsService) processTracking(ctx context.Context) {
 	common.Process(ctx, s.js, s.log, s.closing, "WORKFLOW.>", "Tracking", 1, s.track)
-	return
 }
 
 func (s *NatsService) processCompletedJobs(ctx context.Context) {
@@ -534,7 +532,7 @@ func (s *NatsService) processCompletedJobs(ctx context.Context) {
 	})
 }
 
-func (s *NatsService) track(_ context.Context, msg *nats.Msg) (bool, error) {
+func (s *NatsService) track(ctx context.Context, msg *nats.Msg) (bool, error) {
 	kv, err := s.js.KeyValue(messages.KvTracking)
 	if err != nil {
 		return false, err
@@ -550,7 +548,7 @@ func (s *NatsService) track(_ context.Context, msg *nats.Msg) (bool, error) {
 		if err := proto.Unmarshal(msg.Data, st); err != nil {
 			return false, err
 		}
-		if err := common.SaveObj(nil, kv, st.WorkflowInstanceId, st); err != nil {
+		if err := common.SaveObj(ctx, kv, st.WorkflowInstanceId, st); err != nil {
 			return false, err
 		}
 	case messages.WorkflowInstanceComplete:
@@ -571,7 +569,6 @@ func (s *NatsService) Conn() common.NatsConn {
 
 func (s *NatsService) processMessages(ctx context.Context) {
 	common.Process(ctx, s.js, s.log, s.closing, messages.WorkflowMessages, "Message", s.concurrency, s.processMessage)
-	return
 }
 
 func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, error) {
@@ -627,7 +624,7 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 				return false, err
 			}
 		}
-		if err := common.UpdateObj(s.wfMsgSubs, workflowInstanceId, &model.WorkflowInstanceSubscribers{}, func(v *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
+		if err := common.UpdateObj(ctx, s.wfMsgSubs, workflowInstanceId, &model.WorkflowInstanceSubscribers{}, func(v *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
 			remove(v.List, i)
 			return v, nil
 		}); err != nil {
@@ -666,7 +663,7 @@ func (s *NatsService) processWorkflowEvents(ctx context.Context) {
 	})
 }
 
-func (s *NatsService) CloseUserTask(trackingID string) error {
+func (s *NatsService) CloseUserTask(ctx context.Context, trackingID string) error {
 	job := &model.WorkflowState{}
 	if err := common.LoadObj(s.job, trackingID, job); err != nil {
 		return err
@@ -676,7 +673,7 @@ func (s *NatsService) CloseUserTask(trackingID string) error {
 	var reterr error
 	allIDs := append(job.Owners, job.Groups...)
 	for _, i := range allIDs {
-		if err := common.UpdateObj(s.wfUserTasks, i, &model.UserTasks{}, func(msg *model.UserTasks) (*model.UserTasks, error) {
+		if err := common.UpdateObj(ctx, s.wfUserTasks, i, &model.UserTasks{}, func(msg *model.UserTasks) (*model.UserTasks, error) {
 			msg.Id = remove(msg.Id, trackingID)
 			return msg, nil
 		}); err != nil {
@@ -686,8 +683,8 @@ func (s *NatsService) CloseUserTask(trackingID string) error {
 	return reterr
 }
 
-func (s *NatsService) OpenUserTask(owner string, id string) error {
-	return common.UpdateObj(s.wfUserTasks, owner, &model.UserTasks{}, func(msg *model.UserTasks) (*model.UserTasks, error) {
+func (s *NatsService) OpenUserTask(ctx context.Context, owner string, id string) error {
+	return common.UpdateObj(ctx, s.wfUserTasks, owner, &model.UserTasks{}, func(msg *model.UserTasks) (*model.UserTasks, error) {
 		msg.Id = append(msg.Id, id)
 		return msg, nil
 	})

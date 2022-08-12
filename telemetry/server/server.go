@@ -23,26 +23,6 @@ import (
 	"time"
 )
 
-var executeMessage = map[string]struct{}{
-	messages.WorkflowJobServiceTaskExecute: {},
-	messages.WorkflowJobUserTaskExecute:    {},
-	messages.WorkflowJobManualTaskExecute:  {},
-	messages.WorkflowJobSendMessageExecute: {},
-	messages.WorkflowInstanceExecute:       {},
-	messages.WorkflowActivityExecute:       {},
-	//messages.WorkflowTraversalExecute:      {},
-}
-
-var completeMessage = map[string]struct{}{
-	messages.WorkflowJobServiceTaskComplete: {},
-	messages.WorkflowJobUserTaskComplete:    {},
-	messages.WorkflowJobManualTaskComplete:  {},
-	messages.WorkflowJobSendMessageComplete: {},
-	messages.WorkflowInstanceComplete:       {},
-	messages.WorkflowActivityComplete:       {},
-	//messages.WorkflowTraversalComplete:      {},
-}
-
 type Server struct {
 	log    *zap.Logger
 	js     nats.JetStreamContext

@@ -34,7 +34,7 @@ func UpdateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []b
 		if err != nil {
 			maxJitter := &big.Int{}
 			maxJitter.SetInt64(5000)
-			if strings.Index(err.Error(), "wrong last sequence") > -1 {
+			if strings.Contains(err.Error(), "wrong last sequence") {
 				dur, err := rand.Int(rand.Reader, maxJitter) // Jitter
 				if err != nil {
 					panic("could not read random")
@@ -78,9 +78,9 @@ func LoadObj(wf nats.KeyValue, k string, v proto.Message) error {
 	}
 }
 
-func UpdateObj[T proto.Message](wf nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) error {
+func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) error {
 	if oldk, err := wf.Get(k); err == nats.ErrKeyNotFound || (err == nil && oldk.Value() == nil) {
-		if err := SaveObj(nil, wf, k, msg); err != nil {
+		if err := SaveObj(ctx, wf, k, msg); err != nil {
 			return err
 		}
 	}

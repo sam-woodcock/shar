@@ -24,6 +24,7 @@ func TestEmbargo(t *testing.T) {
 
 	defer func() {
 		if err := log.Sync(); err != nil {
+			fmt.Println("log sync failed")
 		}
 	}()
 
@@ -58,6 +59,7 @@ func TestEmbargo(t *testing.T) {
 	select {
 	case c := <-complete:
 		fmt.Println("completed " + c.WorkflowInstanceId)
+	case <-time.After(20 * time.Second):
 	}
 
 	d := time.Duration(time.Now().UnixNano() - sw)

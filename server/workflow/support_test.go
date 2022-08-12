@@ -14,7 +14,7 @@ func setupTestWorkflow(t *testing.T, workflowName string) (*zap.Logger, *Engine,
 	svc := &MockNatsService{}
 	log, _ := zap.NewDevelopment()
 	eng, err := NewEngine(log, svc)
-
+	require.NoError(t, err)
 	b, err := os.ReadFile("../../testdata/" + workflowName)
 	require.NoError(t, err)
 	wf, err := parser.Parse("TestWorkflow", bytes.NewBuffer(b))

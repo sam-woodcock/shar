@@ -23,6 +23,7 @@ func TestUserTasks(t *testing.T) {
 
 	defer func() {
 		if err := log.Sync(); err != nil {
+			fmt.Println("failed to sync log")
 		}
 	}()
 

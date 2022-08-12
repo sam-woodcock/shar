@@ -23,12 +23,8 @@ import (
 
 // Engine contains the workflow processing functions
 type Engine struct {
-	con     *nats.Conn
-	js      nats.JetStreamContext
 	log     *zap.Logger
 	closing chan struct{}
-	closed  chan struct{}
-	mx      sync.Mutex
 	ns      NatsService
 }
 
@@ -162,16 +158,6 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 		)
 	}
 	return wfi.WorkflowInstanceId, nil
-}
-
-// encodeVars encodes the map of workflow variables into a go binary to be sent across the wire.
-func (c *Engine) encodeVars(_ context.Context, vars model.Vars) []byte {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(vars); err != nil {
-		c.log.Error("failed to encode vars", zap.Any("vars", vars))
-	}
-	return buf.Bytes()
 }
 
 // decodeVars decodes a go binary object containing workflow variables.
@@ -467,14 +453,16 @@ func (c *Engine) returnBack(ctx context.Context, wfiID string, parentwfiID strin
 	return nil
 }
 
+/*
 // cleanup is responsible for destroying a workflow instance
-func (c *Engine) cleanup(ctx context.Context, wfiID string) error {
-	if err := c.ns.DestroyWorkflowInstance(ctx, wfiID); err != nil {
-		return fmt.Errorf("failed to destroy workflow instance: %w", err)
-	}
-	return nil
-}
 
+	func (c *Engine) cleanup(ctx context.Context, wfiID string) error {
+		if err := c.ns.DestroyWorkflowInstance(ctx, wfiID); err != nil {
+			return fmt.Errorf("failed to destroy workflow instance: %w", err)
+		}
+		return nil
+	}
+*/
 func (c *Engine) completeJobProcessor(ctx context.Context, jobID string, vars []byte) error {
 	select {
 	case <-c.closing:
@@ -575,16 +563,16 @@ func (c *Engine) startJob(ctx context.Context, subject, wfID, wfiID, parentTrack
 }
 
 func (c *Engine) evaluateOwners(owners string, vars model.Vars) ([]string, error) {
-	jobGroups := make([]string, 0, 0)
+	jobGroups := make([]string, 0)
 	groups, err := expression.Eval[interface{}](c.log, owners, vars)
 	if err != nil {
 		return nil, err
 	}
-	switch groups.(type) {
+	switch groups := groups.(type) {
 	case string:
-		jobGroups = append(jobGroups, groups.(string))
+		jobGroups = append(jobGroups, groups)
 	case []string:
-		jobGroups = append(jobGroups, groups.([]string)...)
+		jobGroups = append(jobGroups, groups...)
 	}
 	for i, v := range jobGroups {
 		id, err := c.ns.OwnerId(v)
@@ -720,7 +708,7 @@ func (c *Engine) CompleteUserTask(ctx context.Context, trackingID string, newvar
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowJobUserTaskComplete, job, 0); err != nil {
 		return err
 	}
-	if err := c.ns.CloseUserTask(trackingID); err != nil {
+	if err := c.ns.CloseUserTask(ctx, trackingID); err != nil {
 		return err
 	}
 	return nil

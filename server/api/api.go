@@ -7,7 +7,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/model"
-	"gitlab.com/shar-workflow/shar/server/health"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/services"
 	"gitlab.com/shar-workflow/shar/server/workflow"
@@ -21,7 +20,6 @@ import (
 
 type SharServer struct {
 	log    *zap.Logger
-	health *health.Checker
 	ns     *services.NatsService
 	engine *workflow.Engine
 }
