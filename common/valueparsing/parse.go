@@ -1,8 +1,10 @@
 package valueparsing
 
 import (
+	"errors"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"gitlab.com/shar-workflow/shar/model"
 )
@@ -10,8 +12,11 @@ import (
 func Parse(arr []string) (*model.Vars, error) {
 	vars := model.Vars{}
 	for _, elem := range arr {
-		key, _type, value := extract(elem)
-		switch _type {
+		key, varType, value, err := extract(elem)
+		if err != nil {
+			return nil, err
+		}
+		switch varType {
 		case "int":
 			intVal, err := strconv.Atoi(value)
 			if err != nil {
@@ -32,18 +37,28 @@ func Parse(arr []string) (*model.Vars, error) {
 			vars[key] = float64Value
 		case "string":
 			vars[key] = value
+		case "bool":
+			vars[key], err = strconv.ParseBool(value)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	return &vars, nil
 }
 
-func extract(text string) (key string, _type string, value string) {
-	re := regexp.MustCompile(`([A-Za-z0-9]*):([A-Za-z0-9]*)\((.*)\)`)
+func extract(text string) (string, string, string, error) {
+	re := regexp.MustCompile(`([\"A-Za-z0-9]*):([A-Za-z0-9]*)\((.*)\)`)
 	arr := re.FindAllStringSubmatch(text, -1)
-
-	key = arr[0][1]
-	_type = arr[0][2]
-	value = arr[0][3]
-
-	return
+	if len(arr) > 0 && len(arr[0]) > 3 {
+		key := arr[0][1]
+		value := arr[0][3]
+		varType := arr[0][2]
+		if !strings.HasPrefix(key, "") || !strings.HasSuffix(key, "") {
+			return "", "", "", errors.New("identifier " + text + " not correctly quoted")
+		}
+		return strings.Trim(key, "\""), varType, value, nil
+	} else {
+		return "", "", "", errors.New("could not extract var from " + text)
+	}
 }

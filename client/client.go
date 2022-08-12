@@ -10,6 +10,7 @@ import (
 	"gitlab.com/shar-workflow/shar/client/parser"
 	"gitlab.com/shar-workflow/shar/client/services"
 	"gitlab.com/shar-workflow/shar/common/workflow"
+	"gitlab.com/shar-workflow/shar/common/ctxkey"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/vars"
@@ -140,7 +141,7 @@ func (c *Client) listen(ctx context.Context) error {
 			if err := proto.Unmarshal(msg.Data, ut); err != nil {
 				fmt.Println(err)
 			}
-			xctx = context.WithValue(xctx, "WORKFLOW_INSTANCE_ID", ut.WorkflowInstanceId)
+			xctx = context.WithValue(xctx, ctxkey.WorkflowInstanceId, ut.WorkflowInstanceId)
 			switch ut.ElementType {
 			case "serviceTask":
 				job, err := c.storage.GetJob(xctx, ut.Id)
@@ -388,7 +389,7 @@ func (c *Client) GetUserTask(ctx context.Context, owner string, trackingID strin
 
 func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, name string, key any, mvars model.Vars) error {
 	if workflowInstanceID == "" {
-		workflowInstanceID = ctx.Value("WORKFLOW_INSTANCE_ID").(string)
+		workflowInstanceID = ctx.Value(ctxkey.WorkflowInstanceId).(string)
 	}
 	var skey string
 	switch key.(type) {
@@ -411,13 +412,8 @@ func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, nam
 
 func (c *Client) clientErr(_ context.Context, msg string, err error, z ...zap.Field) error {
 	z = append(z, zap.Error(err))
-	//c.log.Error(msg, z...)
+	c.log.Error(msg, z...)
 	return err
-}
-
-func (c *Client) fatalClientErr(ctx context.Context, msg string, err error, z ...zap.Field) error {
-	err2 := c.clientErr(ctx, msg, err, z...)
-	return fmt.Errorf("%+v %w", msg, err2)
 }
 
 func (c *Client) RegisterWorkflowInstanceComplete(fn chan *model.WorkflowInstanceComplete) {

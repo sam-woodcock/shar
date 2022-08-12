@@ -10,11 +10,11 @@ import (
 	"gitlab.com/shar-workflow/shar/cli/output"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/common/valueparsing"
+	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
-	"gitlab.com/shar-workflow/shar/common/valueparsing"
-	"gitlab.com/shar-workflow/shar/model"
 )
 
 var Cmd = &cobra.Command{
@@ -91,7 +91,10 @@ func run(_ *cobra.Command, args []string) error {
 				return err
 			}
 			if state.WorkflowInstanceId == wfiID {
-				c.OutputWorkflowInstanceStatus([]*model.WorkflowState{&state})
+				err := c.OutputWorkflowInstanceStatus([]*model.WorkflowState{&state})
+				if err != nil {
+					return err
+				}
 			}
 			// Check end states once they are implemented
 			// if state.State == "" {

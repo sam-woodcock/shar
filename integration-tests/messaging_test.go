@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 	"os"
 	"testing"
+	"time"
 )
 
 //goland:noinspection GoNilness
@@ -27,6 +28,7 @@ func TestMessaging(t *testing.T) {
 
 	defer func() {
 		if err := log.Sync(); err != nil {
+			fmt.Println("log sync failed")
 		}
 	}()
 
@@ -63,10 +65,12 @@ func TestMessaging(t *testing.T) {
 	select {
 	case c := <-complete:
 		fmt.Println("completed " + c.WorkflowInstanceId)
+	case <-time.After(20 * time.Second):
 	}
 
 	// Check consistency
 	js, err := GetJetstream()
+	require.NoError(t, err)
 
 	getKeys := func(kv string) ([]string, error) {
 		messageSubs, err := js.KeyValue(kv)

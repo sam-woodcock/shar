@@ -30,7 +30,7 @@ type NatsService interface {
 	PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string, vars []byte) error
 	Conn() common.NatsConn
 	Shutdown()
-	CloseUserTask(trackingID string) error
+	CloseUserTask(ctx context.Context, trackingID string) error
 	OwnerId(name string) (string, error)
 	OwnerName(id string) (string, error)
 }

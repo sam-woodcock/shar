@@ -84,6 +84,9 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 
 	ns := s.createServices(natsURL, s.log, s.ephemeralStorage)
 	s.api, err = api.New(s.log, ns)
+	if err != nil {
+		panic(err)
+	}
 	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_SERVING)
 	if err := s.api.Listen(); err != nil {
 		panic(err)
