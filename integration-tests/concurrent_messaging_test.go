@@ -26,12 +26,6 @@ func TestConcurrentMessaging(t *testing.T) {
 	// Create logger
 	log, _ := zap.NewDevelopment()
 
-	defer func() {
-		if err := log.Sync(); err != nil {
-			fmt.Println("log sync failed")
-		}
-	}()
-
 	// Dial shar
 	cl := client.New(log, client.EphemeralStorage{})
 	err := cl.Dial("nats://127.0.0.1:4459")
@@ -41,7 +35,7 @@ func TestConcurrentMessaging(t *testing.T) {
 	b, err := os.ReadFile("../testdata/message-workflow.bpmn")
 	require.NoError(t, err)
 
-	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "MessagingTest", b)
+	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestConcurrentMessaging", b)
 	require.NoError(t, err)
 
 	complete := make(chan *model.WorkflowInstanceComplete, 101)
@@ -63,14 +57,14 @@ func TestConcurrentMessaging(t *testing.T) {
 	for inst := 0; inst < 200; inst++ {
 		go func() {
 			// Launch the workflow
-			if wfiID, err := cl.LaunchWorkflow(ctx, "MessagingTest", model.Vars{"orderId": 57}); err != nil {
+			if wfiID, err := cl.LaunchWorkflow(ctx, "TestConcurrentMessaging", model.Vars{"orderId": 57}); err != nil {
 				panic(err)
 			} else {
 				instances[wfiID] = struct{}{}
 			}
 		}()
 	}
-	for inst := 0; inst < 1000; inst++ {
+	for inst := 0; inst < 200; inst++ {
 		select {
 		case c := <-complete:
 			fmt.Println("completed " + c.WorkflowInstanceId)
@@ -112,15 +106,18 @@ type testConcurrentMessagingHandlerDef struct {
 
 func (x *testConcurrentMessagingHandlerDef) step1(_ context.Context, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Step 1")
+	time.Sleep(1 * time.Second)
 	return model.Vars{}, nil
 }
 
 func (x *testConcurrentMessagingHandlerDef) step2(_ context.Context, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Step 2")
+	time.Sleep(1 * time.Second)
 	return model.Vars{}, nil
 }
 
 func (x *testConcurrentMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, _ model.Vars) error {
+
 	fmt.Println("Sending Message...")
 	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{})
 }

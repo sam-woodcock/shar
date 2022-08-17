@@ -25,6 +25,7 @@ type Engine struct {
 	log     *zap.Logger
 	closing chan struct{}
 	ns      NatsService
+	stats   *model.WorkflowStats
 }
 
 // NewEngine returns an instance of the core workflow engine.
@@ -473,9 +474,10 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobID string, vars []
 
 	job, err := c.ns.GetJob(ctx, jobID)
 	if err != nil {
-		return c.engineErr(ctx, "failed to locate job", err,
+		c.log.Warn("failed to locate job", zap.Error(err),
 			zap.String(keys.JobID, jobID),
 		)
+		return nil
 	}
 
 	wfi, err := c.ns.GetWorkflowInstance(ctx, job.WorkflowInstanceId)
@@ -483,7 +485,7 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobID string, vars []
 		c.log.Warn("workflow instance not found, cancelling job processing", zap.Error(err), zap.String(keys.WorkflowInstanceID, job.WorkflowInstanceId))
 		return nil
 	} else if err != nil {
-		return c.engineErr(ctx, "failed to get workflow instance for job", err,
+		c.log.Warn("failed to get workflow instance for job", zap.Error(err),
 			zap.String(keys.JobType, job.ElementType),
 			zap.String(keys.JobID, jobID),
 		)

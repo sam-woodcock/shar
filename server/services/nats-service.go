@@ -20,6 +20,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -45,6 +46,14 @@ type NatsService struct {
 	ownerName                 nats.KeyValue
 	ownerId                   nats.KeyValue
 	conn                      common.NatsConn
+	workflowStats             *model.WorkflowStats
+	statsMx                   sync.Mutex
+}
+
+func (s *NatsService) WorkflowStats() model.WorkflowStats {
+	s.statsMx.Lock()
+	defer s.statsMx.Unlock()
+	return *s.workflowStats
 }
 
 func (s *NatsService) AwaitMsg(ctx context.Context, state *model.WorkflowState) error {
@@ -102,12 +111,13 @@ func NewNatsService(log *zap.Logger, conn common.NatsConn, storageType nats.Stor
 		return nil, fmt.Errorf("failed to open jetstream: %w", err)
 	}
 	ms := &NatsService{
-		conn:        conn,
-		js:          js,
-		log:         log,
-		concurrency: concurrency,
-		storageType: storageType,
-		closing:     make(chan struct{}),
+		conn:          conn,
+		js:            js,
+		log:           log,
+		concurrency:   concurrency,
+		storageType:   storageType,
+		closing:       make(chan struct{}),
+		workflowStats: &model.WorkflowStats{},
 	}
 	kvs := make(map[string]*nats.KeyValue)
 
@@ -184,6 +194,7 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 	}); err != nil {
 		return "", fmt.Errorf("could not update workflow version for: %s", wf.Name)
 	}
+	go s.incrementWorkflowCount()
 	return wfID, nil
 }
 
@@ -207,6 +218,7 @@ func (s *NatsService) CreateWorkflowInstance(ctx context.Context, wfInstance *mo
 	if err := common.SaveObj(ctx, s.wfMsgSubs, wfiID, subs); err != nil {
 		return nil, fmt.Errorf("failed to save workflow instance object to KV: %w", err)
 	}
+	s.incrementWorkflowStarted()
 	return wfInstance, nil
 }
 
@@ -293,7 +305,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 	if err := s.PublishWorkflowState(ctx, messages.WorkflowInstanceTerminated, tState, 0); err != nil {
 		return err
 	}
-
+	s.incrementWorkflowCompleted()
 	return nil
 }
 
@@ -549,7 +561,7 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 		return true, nil
 	}
 	workflowInstanceId := subj[2]
-
+	fmt.Println("processing message")
 	subs := &model.WorkflowInstanceSubscribers{}
 	if err := common.LoadObj(s.wfMsgSubs, workflowInstanceId, subs); err != nil {
 		return true, nil
@@ -687,4 +699,22 @@ func (s *NatsService) OwnerName(id string) (string, error) {
 		return "", err
 	}
 	return string(nm.Value()), nil
+}
+
+func (s *NatsService) incrementWorkflowCount() {
+	s.statsMx.Lock()
+	s.workflowStats.Workflows++
+	s.statsMx.Unlock()
+}
+
+func (s *NatsService) incrementWorkflowCompleted() {
+	s.statsMx.Lock()
+	s.workflowStats.InstancesComplete++
+	s.statsMx.Unlock()
+}
+
+func (s *NatsService) incrementWorkflowStarted() {
+	s.statsMx.Lock()
+	s.workflowStats.InstancesStarted++
+	s.statsMx.Unlock()
 }

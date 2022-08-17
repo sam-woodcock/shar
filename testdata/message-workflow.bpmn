@@ -28,15 +28,15 @@
   </bpmn:process>
   <bpmn:process id="Process_03llwnm" isExecutable="false">
     <bpmn:intermediateCatchEvent id="ReceiveMessage" name="Receive Continue Message">
-      <bpmn:incoming>Flow_0regvkm</bpmn:incoming>
+      <bpmn:incoming>Flow_0b7z5v8</bpmn:incoming>
       <bpmn:outgoing>Flow_0nfs5sn</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MessageEventDefinition_1ndb9hy" messageRef="Message_3lkfglf" />
     </bpmn:intermediateCatchEvent>
     <bpmn:endEvent id="Event_0t1avz3">
       <bpmn:incoming>Flow_0fqsoiu</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:startEvent id="Event_1vcfiz1">
-      <bpmn:outgoing>Flow_0regvkm</bpmn:outgoing>
+    <bpmn:startEvent id="StartEvent_2">
+      <bpmn:outgoing>Flow_0b7z5v8</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:serviceTask id="Step2" name="Step 2">
       <bpmn:extensionElements>
@@ -47,7 +47,7 @@
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_0nfs5sn" sourceRef="ReceiveMessage" targetRef="Step2" />
     <bpmn:sequenceFlow id="Flow_0fqsoiu" sourceRef="Step2" targetRef="Event_0t1avz3" />
-    <bpmn:sequenceFlow id="Flow_0regvkm" sourceRef="Event_1vcfiz1" targetRef="ReceiveMessage" />
+    <bpmn:sequenceFlow id="Flow_0b7z5v8" sourceRef="StartEvent_2" targetRef="ReceiveMessage" />
   </bpmn:process>
   <bpmn:message id="Message_3lkfglf" name="continueMessage">
     <bpmn:extensionElements>
@@ -83,10 +83,6 @@
       <bpmndi:BPMNShape id="Participant_0pzg05b_di" bpmnElement="Participant_0pzg05b" isHorizontal="true">
         <dc:Bounds x="129" y="240" width="551" height="160" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_0regvkm_di" bpmnElement="Flow_0regvkm">
-        <di:waypoint x="218" y="320" />
-        <di:waypoint x="382" y="320" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_0fqsoiu_di" bpmnElement="Flow_0fqsoiu">
         <di:waypoint x="560" y="320" />
         <di:waypoint x="602" y="320" />
@@ -94,6 +90,10 @@
       <bpmndi:BPMNEdge id="Flow_0nfs5sn_di" bpmnElement="Flow_0nfs5sn">
         <di:waypoint x="418" y="320" />
         <di:waypoint x="460" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0b7z5v8_di" bpmnElement="Flow_0b7z5v8">
+        <di:waypoint x="218" y="320" />
+        <di:waypoint x="382" y="320" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="Event_03c4rvb_di" bpmnElement="ReceiveMessage">
         <dc:Bounds x="382" y="302" width="36" height="36" />
@@ -104,7 +104,7 @@
       <bpmndi:BPMNShape id="Event_0t1avz3_di" bpmnElement="Event_0t1avz3">
         <dc:Bounds x="602" y="302" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_1vcfiz1_di" bpmnElement="Event_1vcfiz1">
+      <bpmndi:BPMNShape id="Event_1vcfiz1_di" bpmnElement="StartEvent_2">
         <dc:Bounds x="182" y="302" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_120jttp_di" bpmnElement="Step2">

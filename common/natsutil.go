@@ -131,6 +131,7 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, clo
 				msg, err := sub.Fetch(1, nats.Context(ctx))
 				if err != nil {
 					if err == context.DeadlineExceeded {
+						log.Error("context deadline exceeded", zap.Error(err))
 						cancel()
 						continue
 					}

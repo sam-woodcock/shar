@@ -43,7 +43,7 @@ func setup() {
 		ClientAdvertise:       "",
 		Trace:                 false,
 		Debug:                 false,
-		TraceVerbose:          true,
+		TraceVerbose:          false,
 		NoLog:                 false,
 		NoSigs:                false,
 		NoSublistCache:        false,
@@ -140,7 +140,8 @@ func setup() {
 		panic("could not start NATS")
 	}
 	fmt.Println("NATS started")
-	l := zap.NewNop()
+
+	l, err := zap.NewDevelopment()
 	if err != nil {
 		panic(err)
 	}
@@ -157,6 +158,7 @@ func setup() {
 }
 
 func teardown() {
+	time.Sleep(1 * time.Second)
 	testSharServer.Shutdown()
 	testNatsServer.Shutdown()
 	fmt.Println("NATS shut down")
@@ -182,12 +184,12 @@ type NatsLogger struct {
 
 // Log a notice statement
 func (n *NatsLogger) Noticef(format string, v ...interface{}) {
-	n.l.Info(fmt.Sprintf(format, v...))
+	//n.l.Info(fmt.Sprintf(format, v...))
 }
 
 // Log a warning statement
 func (n *NatsLogger) Warnf(format string, v ...interface{}) {
-	n.l.Warn(fmt.Sprintf(format, v...))
+	//n.l.Warn(fmt.Sprintf(format, v...))
 }
 
 // Log a fatal error

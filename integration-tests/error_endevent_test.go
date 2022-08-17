@@ -20,12 +20,6 @@ func TestEndEventError(t *testing.T) {
 	// Create logger
 	log, _ := zap.NewDevelopment()
 
-	defer func() {
-		if err := log.Sync(); err != nil {
-			fmt.Println("could not sync log")
-		}
-	}()
-
 	// Dial shar
 	cl := client.New(log)
 	if err := cl.Dial("nats://127.0.0.1:4459"); err != nil {
@@ -37,7 +31,7 @@ func TestEndEventError(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "HandleErrorsTest", b); err != nil {
+	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "TestEndEventError", b); err != nil {
 		panic(err)
 	}
 
@@ -50,7 +44,7 @@ func TestEndEventError(t *testing.T) {
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	wfiID, err := cl.LaunchWorkflow(ctx, "HandleErrorsTest", model.Vars{})
+	wfiID, err := cl.LaunchWorkflow(ctx, "TestEndEventError", model.Vars{})
 	if err != nil {
 		panic(err)
 	}

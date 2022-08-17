@@ -203,6 +203,14 @@ message GetUserTaskRequest {
   string trackingId = 2;
 }
 
+message GetUserTaskResponse {
+  string trackingId = 1;
+  string owner = 2;
+  string description = 3;
+  string name = 4;
+  bytes vars = 5;
+}
+
 message HandleWorkflowErrorRequest {
   string trackingId = 1;
   string errorCode = 2;
@@ -211,4 +219,10 @@ message HandleWorkflowErrorRequest {
 
 message HandleWorkflowErrorResponse {
   bool handled = 1;
+}
+
+message WorkflowStats {
+  int64 Workflows = 1;
+  int64 InstancesStarted = 2;
+  int64 InstancesComplete = 3;
 }
