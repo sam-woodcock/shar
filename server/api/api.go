@@ -49,7 +49,7 @@ func (s *SharServer) launchWorkflow(ctx context.Context, req *model.LaunchWorkfl
 }
 
 func (s *SharServer) cancelWorkflowInstance(ctx context.Context, req *model.CancelWorkflowInstanceRequest) (*emptypb.Empty, error) {
-	err := s.engine.CancelWorkflowInstance(ctx, req.Id)
+	err := s.engine.CancelWorkflowInstance(ctx, req.Id, req.State, req.Error)
 	if err != nil {
 		return nil, err
 	}
@@ -128,6 +128,7 @@ func (s *SharServer) completeUserTask(ctx context.Context, req *model.CompleteUs
 var shutdownOnce sync.Once
 
 func (s *SharServer) Shutdown() {
+	s.log.Info("stopping shar api listener")
 	shutdownOnce.Do(func() {
 		s.engine.Shutdown()
 		s.log.Info("shar api listener stopped")
@@ -137,53 +138,46 @@ func (s *SharServer) Shutdown() {
 func (s *SharServer) Listen() error {
 	con := s.ns.Conn()
 	log := s.log
-
-	_, err := listen(con, log, messages.ApiStoreWorkflow, &model.Workflow{}, s.storeWorkflow)
-	if err != nil {
+	if _, err := listen(con, log, messages.ApiStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
 		return err
 	}
-	_, err = listen(con, log, messages.ApiCancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance)
-	if err != nil {
+	if _, err := listen(con, log, messages.ApiCancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance); err != nil {
 		return err
 	}
-	_, err = listen(con, log, messages.ApiLaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow)
-	if err != nil {
+	if _, err := listen(con, log, messages.ApiLaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow); err != nil {
 		return err
 	}
-	_, err = listen(con, log, messages.ApiListWorkflows, &emptypb.Empty{}, s.listWorkflows)
-	if err != nil {
+	if _, err := listen(con, log, messages.ApiListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
 		return err
 	}
-	_, err = listen(con, log, messages.ApiGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus)
-	if err != nil {
+	if _, err := listen(con, log, messages.ApiGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus); err != nil {
 		return err
 	}
-	_, err = listen(con, log, messages.ApiListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance)
-	if err != nil {
+	if _, err := listen(con, log, messages.ApiListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
 		return err
 	}
-	_, err = listen(con, log, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage)
-	if err != nil {
+	if _, err := listen(con, log, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage); err != nil {
 		return err
 	}
-	_, err = listen(con, log, messages.ApiCompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask)
-	if err != nil {
+	if _, err := listen(con, log, messages.ApiCompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask); err != nil {
 		return err
 	}
-	_, err = listen(con, log, messages.ApiCompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask)
-	if err != nil {
+	if _, err := listen(con, log, messages.ApiCompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask); err != nil {
 		return err
 	}
-	_, err = listen(con, log, messages.ApiCompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask)
-	if err != nil {
+	if _, err := listen(con, log, messages.ApiCompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask); err != nil {
 		return err
 	}
-	_, err = listen(con, log, messages.ApiListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs)
-	if err != nil {
+	if _, err := listen(con, log, messages.ApiListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs); err != nil {
 		return err
 	}
-	_, err = listen(con, log, messages.ApiGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask)
-	if err != nil {
+	if _, err := listen(con, log, messages.ApiGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask); err != nil {
+		return err
+	}
+	if _, err := listen(con, log, messages.ApiHandleWorkflowError, &model.HandleWorkflowErrorRequest{}, s.handleWorkflowError); err != nil {
+		return err
+	}
+	if _, err := listen(con, log, messages.ApiGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
 		return err
 	}
 	s.log.Info("shar api listener started")
@@ -205,12 +199,106 @@ func (s *SharServer) listUserTaskIDs(ctx context.Context, req *model.ListUserTas
 	return ut, nil
 }
 
-func (s *SharServer) getUserTask(ctx context.Context, req *model.GetUserTaskRequest) (*model.WorkflowState, error) {
+func (s *SharServer) getUserTask(ctx context.Context, req *model.GetUserTaskRequest) (*model.GetUserTaskResponse, error) {
 	job, err := s.ns.GetJob(ctx, req.TrackingId)
 	if err != nil {
 		return nil, err
 	}
-	return job, nil
+	wf, err := s.ns.GetWorkflow(ctx, job.WorkflowId)
+	if err != nil {
+		return nil, err
+	}
+	els := make(map[string]*model.Element)
+	for _, v := range wf.Process {
+		common.IndexProcessElements(v.Elements, els)
+	}
+	return &model.GetUserTaskResponse{
+		TrackingId:  job.Id,
+		Owner:       req.Owner,
+		Name:        els[job.ElementId].Name,
+		Description: els[job.ElementId].Documentation,
+		Vars:        job.Vars,
+	}, nil
+}
+
+func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleWorkflowErrorRequest) (*model.HandleWorkflowErrorResponse, error) {
+	// Sanity check
+	if req.ErrorCode == "" {
+		return nil, errors.New("ErrorCode may not be empty")
+	}
+
+	// First get the job that the error occurred in
+	job, err := s.ns.GetJob(ctx, req.TrackingId)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the workflow, so we can look up the error definitions
+	wf, err := s.ns.GetWorkflow(ctx, job.WorkflowId)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the element corresponding to the job
+	els := common.ElementTable(wf)
+
+	// Get the current element
+	el := els[job.ElementId]
+
+	// Get the errors supported by this workflow
+	var found bool
+	wfErrs := make(map[string]*model.Error)
+	for _, v := range wf.Errors {
+		if v.Code == req.ErrorCode {
+			found = true
+		}
+		wfErrs[v.Id] = v
+	}
+	if !found {
+		_, err := s.cancelWorkflowInstance(ctx, &model.CancelWorkflowInstanceRequest{Id: job.WorkflowInstanceId, State: model.CancellationState_Errored})
+		if err != nil {
+			return nil, fmt.Errorf("workflow-fatal: can't handle error code %s as the workflow doesn't support it, and failed to cancel the workflow: %w", req.ErrorCode, err)
+		}
+		return nil, fmt.Errorf("workflow-fatal: can't handle error code %s as the workflow doesn't support it", req.ErrorCode)
+	}
+
+	// Get the errors associated with this element
+	var errDef *model.Error
+	var caughtError *model.CatchError
+	for _, v := range el.Errors {
+		wfErr := wfErrs[v.ErrorId]
+		if req.ErrorCode == wfErr.Code {
+			errDef = wfErr
+			caughtError = v
+			break
+		}
+	}
+
+	if errDef == nil {
+		return &model.HandleWorkflowErrorResponse{Handled: false}, nil
+	}
+
+	// Get the target workflow activity
+	target := els[caughtError.Target]
+
+	if err := s.ns.PublishWorkflowState(ctx, messages.WorkflowTraversalExecute, &model.WorkflowState{
+		ElementType:        target.Type,
+		ElementId:          target.Id,
+		WorkflowId:         job.WorkflowId,
+		WorkflowInstanceId: job.WorkflowInstanceId,
+		Id:                 job.Id,
+		ParentId:           job.ParentId,
+		Vars:               job.Vars,
+	}, 0); err != nil {
+		s.log.Error("failed to publish workflow state", zap.Error(err))
+		return nil, err
+	}
+	return &model.HandleWorkflowErrorResponse{Handled: true}, nil
+}
+
+func (s *SharServer) getServerInstanceStats(ctx context.Context, req *emptypb.Empty) (*model.WorkflowStats, error) {
+	ret := *s.ns.WorkflowStats()
+	return &ret, nil
 }
 
 func listen[T proto.Message, U proto.Message](con common.NatsConn, log *zap.Logger, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {

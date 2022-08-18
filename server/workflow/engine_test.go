@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/vars"
 	"testing"
@@ -18,7 +19,7 @@ func TestLaunchWorkflow(t *testing.T) {
 
 	process := wf.Process["WorkflowDemo"]
 	els := make(map[string]*model.Element)
-	indexProcessElements(process.Elements, els)
+	common.IndexProcessElements(process.Elements, els)
 
 	svc.On("GetLatestVersion", mock.AnythingOfType("*context.emptyCtx"), mock.AnythingOfType("string")).
 		Once().
@@ -69,7 +70,7 @@ func TestTraversal(t *testing.T) {
 
 	process := wf.Process["WorkflowDemo"]
 	els := make(map[string]*model.Element)
-	indexProcessElements(process.Elements, els)
+	common.IndexProcessElements(process.Elements, els)
 
 	wfi := &model.WorkflowInstance{
 		WorkflowInstanceId:       "test-workflow-instance-id",
@@ -102,7 +103,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 
 	process := wf.Process["WorkflowDemo"]
 	els := make(map[string]*model.Element)
-	indexProcessElements(process.Elements, els)
+	common.IndexProcessElements(process.Elements, els)
 
 	svc.On("GetWorkflowInstance", mock.AnythingOfType("*context.emptyCtx"), "test-workflow-instance-id").
 		Once().
@@ -188,7 +189,7 @@ func TestCompleteJobProcessor(t *testing.T) {
 
 	process := wf.Process["WorkflowDemo"]
 	els := make(map[string]*model.Element)
-	indexProcessElements(process.Elements, els)
+	common.IndexProcessElements(process.Elements, els)
 
 	trackingID := ksuid.New().String()
 	svc.On("GetJob", mock.AnythingOfType("*context.emptyCtx"), "test-job-id").
@@ -200,7 +201,7 @@ func TestCompleteJobProcessor(t *testing.T) {
 			ElementType:        "serviceTask",
 			Id:                 trackingID,
 			Execute:            nil,
-			State:              "",
+			State:              model.CancellationState_Executing,
 			Condition:          nil,
 			UnixTimeNano:       0,
 			Vars:               []byte{},

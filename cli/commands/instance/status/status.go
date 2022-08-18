@@ -19,12 +19,12 @@ var Cmd = &cobra.Command{
 
 func run(_ *cobra.Command, args []string) error {
 	ctx := context.Background()
-	wfName := args[0]
+	instanceID := args[0]
 	shar := client.New(output.Logger)
 	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	status, err := shar.GetWorkflowInstanceStatus(ctx, wfName)
+	status, err := shar.GetWorkflowInstanceStatus(ctx, instanceID)
 	if err != nil {
 		return err
 	}

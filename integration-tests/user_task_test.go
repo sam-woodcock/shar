@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
 	"go.uber.org/zap"
@@ -13,6 +14,9 @@ import (
 )
 
 func TestUserTasks(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test case in short mode")
+	}
 	setup()
 	defer teardown()
 	// Create a starting context
@@ -20,12 +24,6 @@ func TestUserTasks(t *testing.T) {
 
 	// Create logger
 	log, _ := zap.NewDevelopment()
-
-	defer func() {
-		if err := log.Sync(); err != nil {
-			fmt.Println("failed to sync log")
-		}
-	}()
 
 	// Dial shar
 	cl := client.New(log)
@@ -38,7 +36,7 @@ func TestUserTasks(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "UserTaskWorkflowDemo", b); err != nil {
+	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "TestUserTasks", b); err != nil {
 		panic(err)
 	}
 
@@ -51,7 +49,7 @@ func TestUserTasks(t *testing.T) {
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	wfiID, err := cl.LaunchWorkflow(ctx, "UserTaskWorkflowDemo", model.Vars{"OrderId": 68})
+	wfiID, err := cl.LaunchWorkflow(ctx, "TestUserTasks", model.Vars{"OrderId": 68})
 	if err != nil {
 		panic(err)
 	}
@@ -67,7 +65,12 @@ func TestUserTasks(t *testing.T) {
 	go func() {
 		for {
 			tsk, err := cl.ListUserTaskIDs(ctx, "andrei")
+			require.NoError(t, err)
 			if err == nil && tsk.Id != nil {
+				td, _, gerr := cl.GetUserTask(ctx, "andrei", tsk.Id[0])
+				assert.NoError(t, gerr)
+				fmt.Println("Name:", td.Name)
+				fmt.Println("Description:", td.Description)
 				cerr := cl.CompleteUserTask(ctx, "andrei", tsk.Id[0], model.Vars{"Forename": "Brangelina", "Surname": "Miggins"})
 				assert.NoError(t, cerr)
 				return
