@@ -20,7 +20,7 @@ func (c *Console) OutputWorkflowInstanceStatus(status []*model.WorkflowState) er
 		pterm.LeveledListItem{Level: 1, Text: "Element"},
 		pterm.LeveledListItem{Level: 2, Text: "ID: " + st.ElementId},
 		pterm.LeveledListItem{Level: 2, Text: "Type: " + st.ElementType},
-		pterm.LeveledListItem{Level: 1, Text: "State: " + st.State},
+		pterm.LeveledListItem{Level: 1, Text: "State: " + st.State.String()},
 		pterm.LeveledListItem{Level: 1, Text: "Executing: " + readStringPtr(st.Execute)},
 		pterm.LeveledListItem{Level: 1, Text: "Since: " + time.Unix(0, st.UnixTimeNano).Format("“2006-01-02T15:04:05.999999999Z07:00”")},
 	}

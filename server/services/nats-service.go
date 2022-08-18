@@ -20,6 +20,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -45,6 +46,14 @@ type NatsService struct {
 	ownerName                 nats.KeyValue
 	ownerId                   nats.KeyValue
 	conn                      common.NatsConn
+	workflowStats             *model.WorkflowStats
+	statsMx                   sync.Mutex
+}
+
+func (s *NatsService) WorkflowStats() *model.WorkflowStats {
+	s.statsMx.Lock()
+	defer s.statsMx.Unlock()
+	return s.workflowStats
 }
 
 func (s *NatsService) AwaitMsg(ctx context.Context, state *model.WorkflowState) error {
@@ -102,12 +111,13 @@ func NewNatsService(log *zap.Logger, conn common.NatsConn, storageType nats.Stor
 		return nil, fmt.Errorf("failed to open jetstream: %w", err)
 	}
 	ms := &NatsService{
-		conn:        conn,
-		js:          js,
-		log:         log,
-		concurrency: concurrency,
-		storageType: storageType,
-		closing:     make(chan struct{}),
+		conn:          conn,
+		js:            js,
+		log:           log,
+		concurrency:   concurrency,
+		storageType:   storageType,
+		closing:       make(chan struct{}),
+		workflowStats: &model.WorkflowStats{},
 	}
 	kvs := make(map[string]*nats.KeyValue)
 
@@ -184,6 +194,7 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 	}); err != nil {
 		return "", fmt.Errorf("could not update workflow version for: %s", wf.Name)
 	}
+	go s.incrementWorkflowCount()
 	return wfID, nil
 }
 
@@ -207,6 +218,7 @@ func (s *NatsService) CreateWorkflowInstance(ctx context.Context, wfInstance *mo
 	if err := common.SaveObj(ctx, s.wfMsgSubs, wfiID, subs); err != nil {
 		return nil, fmt.Errorf("failed to save workflow instance object to KV: %w", err)
 	}
+	s.incrementWorkflowStarted()
 	return wfInstance, nil
 }
 
@@ -220,7 +232,7 @@ func (s *NatsService) GetWorkflowInstance(_ context.Context, workflowInstanceId 
 	return wfi, nil
 }
 
-func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string) error {
+func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string, state model.CancellationState, wfError *model.Error) error {
 	// Get the workflow instance
 	wfi := &model.WorkflowInstance{}
 	if err := common.LoadObj(s.wfInstance, workflowInstanceId, wfi); err != nil {
@@ -278,17 +290,22 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		return err
 	}
 
-	state := &model.WorkflowState{
+	tState := &model.WorkflowState{
 		WorkflowId:         wf.Name,
 		WorkflowInstanceId: wfi.WorkflowInstanceId,
-		State:              "Terminated",
+		State:              state,
+		Error:              wfError,
 		UnixTimeNano:       time.Now().UnixNano(),
 	}
 
-	if err := s.PublishWorkflowState(ctx, messages.WorkflowInstanceTerminated, state, 0); err != nil {
-		return err
+	if tState.Error != nil {
+		tState.State = model.CancellationState_Errored
 	}
 
+	if err := s.PublishWorkflowState(ctx, messages.WorkflowInstanceTerminated, tState, 0); err != nil {
+		return err
+	}
+	s.incrementWorkflowCompleted()
 	return nil
 }
 
@@ -375,51 +392,9 @@ func (s *NatsService) GetWorkflowInstanceStatus(_ context.Context, id string) (*
 }
 
 func (s *NatsService) StartProcessing(ctx context.Context) error {
-	scfg := &nats.StreamConfig{
-		Name:      "WORKFLOW",
-		Subjects:  messages.AllMessages,
-		Storage:   s.storageType,
-		Retention: nats.InterestPolicy,
-	}
 
-	ccfg := &nats.ConsumerConfig{
-		Durable:         "Traversal",
-		Description:     "Traversal processing queue",
-		AckPolicy:       nats.AckExplicitPolicy,
-		FilterSubject:   messages.WorkflowTraversalExecute,
-		MaxRequestBatch: 1,
-		MaxAckPending:   65536,
-	}
-
-	tcfg := &nats.ConsumerConfig{
-		Durable:         "Tracking",
-		Description:     "Tracking queue for sequential processing",
-		AckPolicy:       nats.AckExplicitPolicy,
-		FilterSubject:   "WORKFLOW.>",
-		MaxAckPending:   1,
-		MaxRequestBatch: 1,
-	}
-
-	acfg := &nats.ConsumerConfig{
-		Durable:         "API",
-		Description:     "Api queue",
-		AckPolicy:       nats.AckExplicitPolicy,
-		FilterSubject:   messages.ApiAll,
-		MaxRequestBatch: 1,
-		MaxAckPending:   -1,
-	}
-
-	if err := common.EnsureStream(s.js, scfg); err != nil {
+	if err := common.SetUpNats(s.js, s.storageType); err != nil {
 		return err
-	}
-	if err := common.EnsureConsumer(s.js, "WORKFLOW", ccfg); err != nil {
-		panic(err)
-	}
-	if err := common.EnsureConsumer(s.js, "WORKFLOW", tcfg); err != nil {
-		panic(err)
-	}
-	if err := common.EnsureConsumer(s.js, "WORKFLOW", acfg); err != nil {
-		panic(err)
 	}
 
 	go func() {
@@ -586,7 +561,7 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 		return true, nil
 	}
 	workflowInstanceId := subj[2]
-
+	fmt.Println("processing message")
 	subs := &model.WorkflowInstanceSubscribers{}
 	if err := common.LoadObj(s.wfMsgSubs, workflowInstanceId, subs); err != nil {
 		return true, nil
@@ -655,7 +630,7 @@ func (s *NatsService) processWorkflowEvents(ctx context.Context) {
 			return false, err
 		}
 		if msg.Subject == "WORKFLOW.State.Workflow.Complete" {
-			if err := s.DestroyWorkflowInstance(ctx, job.WorkflowInstanceId); err != nil {
+			if err := s.DestroyWorkflowInstance(ctx, job.WorkflowInstanceId, job.State, job.Error); err != nil {
 				return false, err
 			}
 		}
@@ -724,4 +699,22 @@ func (s *NatsService) OwnerName(id string) (string, error) {
 		return "", err
 	}
 	return string(nm.Value()), nil
+}
+
+func (s *NatsService) incrementWorkflowCount() {
+	s.statsMx.Lock()
+	s.workflowStats.Workflows++
+	s.statsMx.Unlock()
+}
+
+func (s *NatsService) incrementWorkflowCompleted() {
+	s.statsMx.Lock()
+	s.workflowStats.InstancesComplete++
+	s.statsMx.Unlock()
+}
+
+func (s *NatsService) incrementWorkflowStarted() {
+	s.statsMx.Lock()
+	s.workflowStats.InstancesStarted++
+	s.statsMx.Unlock()
 }

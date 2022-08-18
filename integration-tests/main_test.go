@@ -6,9 +6,7 @@ import (
 	"github.com/nats-io/nats.go"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
 	"go.uber.org/zap"
-	"os"
 	"sync"
-	"testing"
 	"time"
 )
 
@@ -18,13 +16,14 @@ var testSharServer *sharsvr.Server
 var lock sync.Mutex
 var finalVars map[string]interface{}
 
-func TestMain(m *testing.M) {
-	//	setup()
-	code := m.Run()
-	//	teardown()
-	os.Exit(code)
-}
-
+/*
+	func TestMain(m *testing.M) {
+		//	setup()
+		code := m.Run()
+		//	teardown()
+		os.Exit(code)
+	}
+*/
 const natsURL = "nats://127.0.0.1:4459"
 
 //goland:noinspection GoNilness
@@ -43,7 +42,7 @@ func setup() {
 		ClientAdvertise:       "",
 		Trace:                 false,
 		Debug:                 false,
-		TraceVerbose:          true,
+		TraceVerbose:          false,
 		NoLog:                 false,
 		NoSigs:                false,
 		NoSublistCache:        false,
@@ -140,11 +139,12 @@ func setup() {
 		panic("could not start NATS")
 	}
 	fmt.Println("NATS started")
-	l := zap.NewNop()
+
+	l, err := zap.NewDevelopment()
 	if err != nil {
 		panic(err)
 	}
-	testSharServer = sharsvr.New(l, sharsvr.EphemeralStorage{})
+	testSharServer = sharsvr.New(l, sharsvr.EphemeralStorage())
 	go testSharServer.Listen(natsURL, 55000)
 	for {
 		if testSharServer.Ready() {
@@ -157,6 +157,7 @@ func setup() {
 }
 
 func teardown() {
+	fmt.Println("TEARDOWN")
 	testSharServer.Shutdown()
 	testNatsServer.Shutdown()
 	fmt.Println("NATS shut down")

@@ -14,6 +14,9 @@ import (
 )
 
 func TestEmbargo(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test case in short mode")
+	}
 	setup()
 	defer teardown()
 	// Create a starting context
@@ -21,12 +24,6 @@ func TestEmbargo(t *testing.T) {
 
 	// Create logger
 	log, _ := zap.NewDevelopment()
-
-	defer func() {
-		if err := log.Sync(); err != nil {
-			fmt.Println("log sync failed")
-		}
-	}()
 
 	// Dial shar
 	cl := client.New(log, client.EphemeralStorage{})
@@ -37,7 +34,7 @@ func TestEmbargo(t *testing.T) {
 	b, err := os.ReadFile("../testdata/test-timer-parse-duration.bpmn")
 	require.NoError(t, err)
 
-	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "EmbargoTest", b)
+	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestEmbargo", b)
 	require.NoError(t, err)
 
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
@@ -47,7 +44,7 @@ func TestEmbargo(t *testing.T) {
 
 	sw := time.Now().UnixNano()
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "EmbargoTest", model.Vars{}); err != nil {
+	if _, err := cl.LaunchWorkflow(ctx, "TestEmbargo", model.Vars{}); err != nil {
 		panic(err)
 	}
 

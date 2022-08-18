@@ -10,27 +10,27 @@ import (
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"go.uber.org/zap"
 	"os"
+	"sync"
 	"testing"
 	"time"
 )
 
 //goland:noinspection GoNilness
 func TestMessaging(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test case in short mode")
+	}
 	setup()
-	defer teardown()
-	handlers := &testMessagingHandlerDef{}
-
+	defer func() {
+		fmt.Println("RUNNING TEARDOWN")
+		teardown()
+	}()
 	// Create a starting context
 	ctx := context.Background()
 
 	// Create logger
 	log, _ := zap.NewDevelopment()
-
-	defer func() {
-		if err := log.Sync(); err != nil {
-			fmt.Println("log sync failed")
-		}
-	}()
+	handlers := &testMessagingHandlerDef{log: log, wg: sync.WaitGroup{}}
 
 	// Dial shar
 	cl := client.New(log, client.EphemeralStorage{})
@@ -41,7 +41,7 @@ func TestMessaging(t *testing.T) {
 	b, err := os.ReadFile("../testdata/message-workflow.bpmn")
 	require.NoError(t, err)
 
-	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "MessagingTest", b)
+	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestMessaging", b)
 	require.NoError(t, err)
 
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
@@ -53,8 +53,10 @@ func TestMessaging(t *testing.T) {
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "MessagingTest", model.Vars{"orderId": 57}); err != nil {
+	if wfid, err := cl.LaunchWorkflow(ctx, "TestMessaging", model.Vars{"orderId": 57}); err != nil {
 		panic(err)
+	} else {
+		fmt.Println("Started", wfid)
 	}
 
 	// Listen for service tasks
@@ -94,23 +96,24 @@ func TestMessaging(t *testing.T) {
 	assert.Equal(t, err.Error(), "nats: no keys found")
 	_, err = getKeys(messages.KvInstance)
 	assert.Equal(t, err.Error(), "nats: no keys found")
-
 }
 
 type testMessagingHandlerDef struct {
+	log *zap.Logger
+	wg  sync.WaitGroup
 }
 
 func (x *testMessagingHandlerDef) step1(_ context.Context, _ model.Vars) (model.Vars, error) {
-	fmt.Println("Step 1")
+	x.log.Info("Step 1")
 	return model.Vars{}, nil
 }
 
 func (x *testMessagingHandlerDef) step2(_ context.Context, _ model.Vars) (model.Vars, error) {
-	fmt.Println("Step 2")
+	x.log.Info("Step 2")
 	return model.Vars{}, nil
 }
 
 func (x *testMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, _ model.Vars) error {
-	fmt.Println("Sending Message...")
+	x.log.Info("Sending Message...")
 	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{})
 }

@@ -16,7 +16,7 @@ type NatsService interface {
 	GetWorkflow(ctx context.Context, workflowId string) (*model.Workflow, error)
 	CreateWorkflowInstance(ctx context.Context, wfInstance *model.WorkflowInstance) (*model.WorkflowInstance, error)
 	GetWorkflowInstance(ctx context.Context, workflowInstanceId string) (*model.WorkflowInstance, error)
-	DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string) error
+	DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string, state model.CancellationState, wfError *model.Error) error
 	GetLatestVersion(ctx context.Context, workflowName string) (string, error)
 	CreateJob(ctx context.Context, job *model.WorkflowState) (string, error)
 	GetJob(ctx context.Context, id string) (*model.WorkflowState, error)
