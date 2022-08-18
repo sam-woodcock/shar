@@ -10,21 +10,24 @@ import (
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"go.uber.org/zap"
 	"os"
+	"sync"
 	"testing"
 	"time"
 )
 
 //goland:noinspection GoNilness
-func TestMessaging(t *testing.T) {
+func _TestMessaging(t *testing.T) {
 	setup()
-	defer teardown()
-
+	defer func() {
+		fmt.Println("RUNNING TEARDOWN")
+		teardown()
+	}()
 	// Create a starting context
 	ctx := context.Background()
 
 	// Create logger
 	log, _ := zap.NewDevelopment()
-	handlers := &testMessagingHandlerDef{log: log}
+	handlers := &testMessagingHandlerDef{log: log, wg: sync.WaitGroup{}}
 
 	// Dial shar
 	cl := client.New(log, client.EphemeralStorage{})
@@ -90,11 +93,11 @@ func TestMessaging(t *testing.T) {
 	assert.Equal(t, err.Error(), "nats: no keys found")
 	_, err = getKeys(messages.KvInstance)
 	assert.Equal(t, err.Error(), "nats: no keys found")
-
 }
 
 type testMessagingHandlerDef struct {
 	log *zap.Logger
+	wg  sync.WaitGroup
 }
 
 func (x *testMessagingHandlerDef) step1(_ context.Context, _ model.Vars) (model.Vars, error) {

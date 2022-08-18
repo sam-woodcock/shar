@@ -40,6 +40,6 @@ clean: .FORCE
 	rm -f telemetry/cmd/shar-telemetry/shar-telemetry
 	rm -f model/*.pb.go
 test: proto server tracing .FORCE
-	go test ./...
+	go test --race ./...
 	golangci-lint run -v
 .FORCE:

@@ -15,9 +15,12 @@ import (
 )
 
 //goland:noinspection GoNilness
-func TestConcurrentMessaging(t *testing.T) {
+func _TestConcurrentMessaging(t *testing.T) {
 	setup()
-	defer teardown()
+	defer func() {
+		fmt.Println("RUNNING TEARDOWN")
+		teardown()
+	}()
 	handlers := &testConcurrentMessagingHandlerDef{}
 
 	// Create a starting context
@@ -54,7 +57,7 @@ func TestConcurrentMessaging(t *testing.T) {
 
 	instances := make(map[string]struct{})
 
-	for inst := 0; inst < 200; inst++ {
+	for inst := 0; inst < 10000; inst++ {
 		go func() {
 			// Launch the workflow
 			if wfiID, err := cl.LaunchWorkflow(ctx, "TestConcurrentMessaging", model.Vars{"orderId": 57}); err != nil {
@@ -64,7 +67,7 @@ func TestConcurrentMessaging(t *testing.T) {
 			}
 		}()
 	}
-	for inst := 0; inst < 200; inst++ {
+	for inst := 0; inst < 50; inst++ {
 		select {
 		case c := <-complete:
 			fmt.Println("completed " + c.WorkflowInstanceId)
@@ -98,7 +101,6 @@ func TestConcurrentMessaging(t *testing.T) {
 	assert.Equal(t, err.Error(), "nats: no keys found")
 	_, err = getKeys(messages.KvInstance)
 	assert.Equal(t, err.Error(), "nats: no keys found")
-
 }
 
 type testConcurrentMessagingHandlerDef struct {

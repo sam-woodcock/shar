@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func TestSimple(t *testing.T) {
+func _TestSimple(t *testing.T) {
 	setup()
 	defer teardown()
 	// Create a starting context

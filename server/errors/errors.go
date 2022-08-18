@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	ErrClosing                  = errors.New("grpc server is shutting down")
+	ErrClosing                  = errors.New("SHAR server is shutting down")
 	ErrWorkflowInstanceNotFound = errors.New("workflow instance not found")
 	ErrWorkflowNotFound         = errors.New("workflow not found")
 )

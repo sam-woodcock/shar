@@ -144,7 +144,7 @@ func setup() {
 	if err != nil {
 		panic(err)
 	}
-	testSharServer = sharsvr.New(l, sharsvr.EphemeralStorage{})
+	testSharServer = sharsvr.New(l, sharsvr.EphemeralStorage())
 	go testSharServer.Listen(natsURL, 55000)
 	for {
 		if testSharServer.Ready() {
@@ -157,6 +157,7 @@ func setup() {
 }
 
 func teardown() {
+	fmt.Println("TEARDOWN")
 	testSharServer.Shutdown()
 	testNatsServer.Shutdown()
 	fmt.Println("NATS shut down")
@@ -182,12 +183,12 @@ type NatsLogger struct {
 
 // Log a notice statement
 func (n *NatsLogger) Noticef(format string, v ...interface{}) {
-	//n.l.Info(fmt.Sprintf(format, v...))
+	n.l.Info(fmt.Sprintf(format, v...))
 }
 
 // Log a warning statement
 func (n *NatsLogger) Warnf(format string, v ...interface{}) {
-	//n.l.Warn(fmt.Sprintf(format, v...))
+	n.l.Warn(fmt.Sprintf(format, v...))
 }
 
 // Log a fatal error

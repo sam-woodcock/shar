@@ -488,6 +488,7 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobID string, vars []
 			zap.String(keys.JobType, job.ElementType),
 			zap.String(keys.JobID, jobID),
 		)
+		return nil
 	}
 
 	wf, err := c.ns.GetWorkflow(ctx, wfi.WorkflowId)
@@ -599,6 +600,7 @@ func (c *Engine) Shutdown() {
 	case <-c.closing:
 		return
 	default:
+		fmt.Println("CLOSE CALLED!!")
 		close(c.closing)
 		c.ns.Shutdown()
 		return

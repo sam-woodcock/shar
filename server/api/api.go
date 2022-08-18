@@ -128,6 +128,7 @@ func (s *SharServer) completeUserTask(ctx context.Context, req *model.CompleteUs
 var shutdownOnce sync.Once
 
 func (s *SharServer) Shutdown() {
+	s.log.Info("stopping shar api listener")
 	shutdownOnce.Do(func() {
 		s.engine.Shutdown()
 		s.log.Info("shar api listener stopped")

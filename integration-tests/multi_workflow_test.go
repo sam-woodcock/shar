@@ -58,7 +58,7 @@ func TestMultiWorkflow(t *testing.T) {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
-	n := 500
+	n := 25
 	mx := sync.Mutex{}
 	instances := make(map[string]struct{})
 	wg := sync.WaitGroup{}
@@ -90,8 +90,8 @@ func TestMultiWorkflow(t *testing.T) {
 			wg.Done()
 			mx.Lock()
 			delete(instances, c.WorkflowInstanceId)
-			mx.Unlock()
 			fmt.Println(i+1, "completed "+c.WorkflowInstanceId, " left:", len(instances))
+			mx.Unlock()
 		}
 	}()
 	wg.Wait()

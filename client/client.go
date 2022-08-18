@@ -404,6 +404,9 @@ func callAPI[T proto.Message, U proto.Message](_ context.Context, con *nats.Conn
 	msg.Data = b
 	res, err := con.Request(subject, b, time.Second*30)
 	if err != nil {
+		if err == nats.ErrNoResponders {
+			err = fmt.Errorf("shar-client: shar server is offline or missing from the current nats server")
+		}
 		return err
 	}
 	if len(res.Data) > 4 && string(res.Data[0:4]) == "ERR_" {
