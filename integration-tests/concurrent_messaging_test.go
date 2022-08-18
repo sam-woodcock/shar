@@ -15,7 +15,10 @@ import (
 )
 
 //goland:noinspection GoNilness
-func _TestConcurrentMessaging(t *testing.T) {
+func TestConcurrentMessaging(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test case in short mode")
+	}
 	setup()
 	defer func() {
 		fmt.Println("RUNNING TEARDOWN")

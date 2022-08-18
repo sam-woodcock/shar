@@ -11,7 +11,10 @@ import (
 	"testing"
 )
 
-func _TestUnhandledError(t *testing.T) {
+func TestUnhandledError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test case in short mode")
+	}
 	setup()
 	defer teardown()
 	// Create a starting context

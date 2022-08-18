@@ -13,7 +13,10 @@ import (
 	"time"
 )
 
-func _TestSimple(t *testing.T) {
+func TestSimple(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test case in short mode")
+	}
 	setup()
 	defer teardown()
 	// Create a starting context
