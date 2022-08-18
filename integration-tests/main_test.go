@@ -6,9 +6,7 @@ import (
 	"github.com/nats-io/nats.go"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
 	"go.uber.org/zap"
-	"os"
 	"sync"
-	"testing"
 	"time"
 )
 
@@ -18,13 +16,14 @@ var testSharServer *sharsvr.Server
 var lock sync.Mutex
 var finalVars map[string]interface{}
 
-func TestMain(m *testing.M) {
-	//	setup()
-	code := m.Run()
-	//	teardown()
-	os.Exit(code)
-}
-
+/*
+	func TestMain(m *testing.M) {
+		//	setup()
+		code := m.Run()
+		//	teardown()
+		os.Exit(code)
+	}
+*/
 const natsURL = "nats://127.0.0.1:4459"
 
 //goland:noinspection GoNilness
@@ -158,7 +157,6 @@ func setup() {
 }
 
 func teardown() {
-	time.Sleep(1 * time.Second)
 	testSharServer.Shutdown()
 	testNatsServer.Shutdown()
 	fmt.Println("NATS shut down")

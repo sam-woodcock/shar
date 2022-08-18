@@ -13,7 +13,10 @@ func Trace(natsUrl string) *nats.Subscription {
 	sub, err := nc.Subscribe("WORKFLOW.>", func(msg *nats.Msg) {
 		if strings.HasPrefix(msg.Subject, "WORKFLOW.State.") {
 			d := &model.WorkflowState{}
-			proto.Unmarshal(msg.Data, d)
+			err := proto.Unmarshal(msg.Data, d)
+			if err != nil {
+				panic(err)
+			}
 			fmt.Println(msg.Subject, d.WorkflowInstanceId, d.Id, d.ParentId, d.ElementType, d.ElementId)
 		} else {
 			fmt.Println(msg.Subject)

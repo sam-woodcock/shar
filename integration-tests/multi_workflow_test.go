@@ -63,6 +63,7 @@ func TestMultiWorkflow(t *testing.T) {
 	instances := make(map[string]struct{})
 	wg := sync.WaitGroup{}
 	for inst := 0; inst < n; inst++ {
+		wg.Add(2)
 		go func() {
 			// Launch the workflow
 			if wfiID, err := cl.LaunchWorkflow(ctx, "TestMultiWorkflow1", model.Vars{"orderId": 57}); err != nil {
@@ -82,7 +83,6 @@ func TestMultiWorkflow(t *testing.T) {
 				fmt.Println("started", wfiID2)
 			}
 		}()
-		wg.Add(2)
 	}
 	go func() {
 		for i := 0; i < n*2; i++ {

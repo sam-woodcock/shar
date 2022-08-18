@@ -296,7 +296,7 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 }
 
 func (s *SharServer) getServerInstanceStats(ctx context.Context, req *emptypb.Empty) (*model.WorkflowStats, error) {
-	ret := s.ns.WorkflowStats()
+	ret := *s.ns.WorkflowStats()
 	return &ret, nil
 }
 

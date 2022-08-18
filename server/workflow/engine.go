@@ -25,7 +25,6 @@ type Engine struct {
 	log     *zap.Logger
 	closing chan struct{}
 	ns      NatsService
-	stats   *model.WorkflowStats
 }
 
 // NewEngine returns an instance of the core workflow engine.

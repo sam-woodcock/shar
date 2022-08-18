@@ -50,10 +50,10 @@ type NatsService struct {
 	statsMx                   sync.Mutex
 }
 
-func (s *NatsService) WorkflowStats() model.WorkflowStats {
+func (s *NatsService) WorkflowStats() *model.WorkflowStats {
 	s.statsMx.Lock()
 	defer s.statsMx.Unlock()
-	return *s.workflowStats
+	return s.workflowStats
 }
 
 func (s *NatsService) AwaitMsg(ctx context.Context, state *model.WorkflowState) error {
