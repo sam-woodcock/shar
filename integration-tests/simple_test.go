@@ -1,4 +1,4 @@
-package integration_tests
+package main
 
 import (
 	"context"
@@ -14,11 +14,14 @@ import (
 )
 
 func TestSimple(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test case in short mode")
-	}
-	setup()
-	defer teardown()
+	//	if os.Getenv("INT_TEST") != "true" {
+	//		t.Skip("Skipping integration test " + t.Name())
+	//	}
+
+	tst := &integration{}
+	tst.setup(t)
+	defer tst.teardown()
+
 	// Create a starting context
 	ctx := context.Background()
 
@@ -27,7 +30,7 @@ func TestSimple(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(log, client.EphemeralStorage{})
-	err := cl.Dial("nats://127.0.0.1:4459")
+	err := cl.Dial(natsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
@@ -39,9 +42,11 @@ func TestSimple(t *testing.T) {
 
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 
+	d := &testSimpleHandlerDef{}
+
 	// Register a service task
 	cl.RegisterWorkflowInstanceComplete(complete)
-	cl.RegisterServiceTask("SimpleProcess", integratoinSimple)
+	cl.RegisterServiceTask("SimpleProcess", d.integrationSimple)
 
 	// Launch the workflow
 	if _, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{}); err != nil {
@@ -62,7 +67,10 @@ func TestSimple(t *testing.T) {
 
 }
 
-func integratoinSimple(ctx context.Context, vars model.Vars) (model.Vars, error) {
+type testSimpleHandlerDef struct {
+}
+
+func (d *testSimpleHandlerDef) integrationSimple(ctx context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Hi")
 	return vars, nil
 }

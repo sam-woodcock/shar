@@ -1,20 +1,30 @@
-package integration_tests
+package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/require"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
 	"go.uber.org/zap"
 	"sync"
+	"testing"
 	"time"
 )
 
-var testNatsServer *server.Server
-var testSharServer *sharsvr.Server
+const natsHost = "127.0.0.1"
+const natsPort = 4459
 
-var lock sync.Mutex
-var finalVars map[string]interface{}
+var natsURL = fmt.Sprintf("nats://%s:%v", natsHost, natsPort)
+
+type integration struct {
+	testNatsServer *server.Server
+	testSharServer *sharsvr.Server
+	lock           sync.Mutex
+	finalVars      map[string]interface{}
+	test           *testing.T
+}
 
 /*
 	func TestMain(m *testing.M) {
@@ -24,21 +34,22 @@ var finalVars map[string]interface{}
 		os.Exit(code)
 	}
 */
-const natsURL = "nats://127.0.0.1:4459"
 
 //goland:noinspection GoNilness
-func setup() {
-	finalVars = make(map[string]interface{})
+func (s *integration) setup(t *testing.T) {
+	s.test = t
+	s.finalVars = make(map[string]interface{})
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		panic(err)
 	}
 	nl := &NatsLogger{l: logger}
-	testNatsServer, err = server.NewServer(&server.Options{
+
+	s.testNatsServer, err = server.NewServer(&server.Options{
 		ConfigFile:            "",
 		ServerName:            "TestNatsServer",
-		Host:                  "127.0.0.1",
-		Port:                  4459,
+		Host:                  natsHost,
+		Port:                  natsPort,
 		ClientAdvertise:       "",
 		Trace:                 false,
 		Debug:                 false,
@@ -130,43 +141,62 @@ func setup() {
 		Tags:                       nil,
 		OCSPConfig:                 nil,
 	})
-	testNatsServer.SetLogger(nl, false, false)
+	s.testNatsServer.SetLogger(nl, false, false)
 	if err != nil {
 		panic(err)
 	}
-	go testNatsServer.Start()
-	if !testNatsServer.ReadyForConnections(5 * time.Second) {
+	go s.testNatsServer.Start()
+	if !s.testNatsServer.ReadyForConnections(5 * time.Second) {
 		panic("could not start NATS")
 	}
-	fmt.Println("NATS started")
+	s.test.Log("NATS started")
 
 	l, err := zap.NewDevelopment()
 	if err != nil {
 		panic(err)
 	}
-	testSharServer = sharsvr.New(l, sharsvr.EphemeralStorage())
-	go testSharServer.Listen(natsURL, 55000)
+	s.testSharServer = sharsvr.New(l, sharsvr.EphemeralStorage())
+	go s.testSharServer.Listen(natsURL, 55000)
 	for {
-		if testSharServer.Ready() {
+		if s.testSharServer.Ready() {
 			break
 		}
 		fmt.Println("waiting for shar")
 		time.Sleep(500 * time.Millisecond)
 	}
-	fmt.Printf("\033[1;36m%s\033[0m", "> Setup completed\n")
+	s.test.Log(fmt.Sprintf("\033[1;36m%s\033[0m", "> Setup completed\n"))
 }
 
-func teardown() {
-	fmt.Println("TEARDOWN")
-	testSharServer.Shutdown()
-	testNatsServer.Shutdown()
-	fmt.Println("NATS shut down")
-	fmt.Printf("\033[1;36m%s\033[0m", "> Teardown completed")
-	fmt.Printf("\n")
+func (s *integration) teardown() {
+	n, err := s.GetJetstream()
+	require.NoError(s.test, err)
+	sub, err := n.PullSubscribe("WORKFLOW.>", "fin")
+	require.NoError(s.test, err)
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		msg, err := sub.Fetch(1, nats.Context(ctx))
+		if err == context.DeadlineExceeded {
+			cancel()
+			break
+		}
+		if err != nil {
+			cancel()
+			s.test.Fatal(err)
+		}
+		fmt.Println("MSG: ", *msg[0])
+		cancel()
+	}
+	s.test.Log("TEARDOWN")
+	s.testSharServer.Shutdown()
+	s.testNatsServer.Shutdown()
+	s.testNatsServer.WaitForShutdown()
+	s.test.Log("NATS shut down")
+	s.test.Log(fmt.Sprintf("\033[1;36m%s\033[0m", "> Teardown completed"))
+	s.test.Log("\n")
 }
 
-func GetJetstream() (nats.JetStreamContext, error) {
-	con, err := nats.Connect(natsURL)
+func (s *integration) GetJetstream() (nats.JetStreamContext, error) {
+	con, err := s.GetNats()
 	if err != nil {
 		return nil, err
 	}
@@ -175,6 +205,14 @@ func GetJetstream() (nats.JetStreamContext, error) {
 		return nil, err
 	}
 	return js, nil
+}
+
+func (s *integration) GetNats() (*nats.Conn, error) {
+	con, err := nats.Connect(natsURL)
+	if err != nil {
+		return nil, err
+	}
+	return con, nil
 }
 
 type NatsLogger struct {

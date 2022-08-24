@@ -22,6 +22,7 @@ type SharServer struct {
 	log    *zap.Logger
 	ns     *services.NatsService
 	engine *workflow.Engine
+	subs   map[*nats.Subscription]struct{}
 }
 
 func New(log *zap.Logger, ns *services.NatsService) (*SharServer, error) {
@@ -36,6 +37,7 @@ func New(log *zap.Logger, ns *services.NatsService) (*SharServer, error) {
 		log:    log,
 		ns:     ns,
 		engine: engine,
+		subs:   make(map[*nats.Subscription]struct{}),
 	}, nil
 }
 
@@ -130,6 +132,12 @@ var shutdownOnce sync.Once
 func (s *SharServer) Shutdown() {
 	s.log.Info("stopping shar api listener")
 	shutdownOnce.Do(func() {
+		for sub, _ := range s.subs {
+			err := sub.Drain()
+			if err != nil {
+				s.log.Error("Could not drain subscription for "+sub.Subject, zap.Error(err))
+			}
+		}
 		s.engine.Shutdown()
 		s.log.Info("shar api listener stopped")
 	})
@@ -138,46 +146,46 @@ func (s *SharServer) Shutdown() {
 func (s *SharServer) Listen() error {
 	con := s.ns.Conn()
 	log := s.log
-	if _, err := listen(con, log, messages.ApiStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
+	if _, err := listen(con, log, s.subs, messages.ApiStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, messages.ApiCancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance); err != nil {
+	if _, err := listen(con, log, s.subs, messages.ApiCancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, messages.ApiLaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow); err != nil {
+	if _, err := listen(con, log, s.subs, messages.ApiLaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, messages.ApiListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
+	if _, err := listen(con, log, s.subs, messages.ApiListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, messages.ApiGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus); err != nil {
+	if _, err := listen(con, log, s.subs, messages.ApiGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, messages.ApiListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
+	if _, err := listen(con, log, s.subs, messages.ApiListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage); err != nil {
+	if _, err := listen(con, log, s.subs, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, messages.ApiCompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask); err != nil {
+	if _, err := listen(con, log, s.subs, messages.ApiCompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, messages.ApiCompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask); err != nil {
+	if _, err := listen(con, log, s.subs, messages.ApiCompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, messages.ApiCompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask); err != nil {
+	if _, err := listen(con, log, s.subs, messages.ApiCompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, messages.ApiListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs); err != nil {
+	if _, err := listen(con, log, s.subs, messages.ApiListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, messages.ApiGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask); err != nil {
+	if _, err := listen(con, log, s.subs, messages.ApiGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, messages.ApiHandleWorkflowError, &model.HandleWorkflowErrorRequest{}, s.handleWorkflowError); err != nil {
+	if _, err := listen(con, log, s.subs, messages.ApiHandleWorkflowError, &model.HandleWorkflowErrorRequest{}, s.handleWorkflowError); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, messages.ApiGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
+	if _, err := listen(con, log, s.subs, messages.ApiGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
 		return err
 	}
 	s.log.Info("shar api listener started")
@@ -218,7 +226,7 @@ func (s *SharServer) getUserTask(ctx context.Context, req *model.GetUserTaskRequ
 		Name:        els[job.ElementId].Name,
 		Description: els[job.ElementId].Documentation,
 		Vars:        job.Vars,
-	}, nil
+		}, nil
 }
 
 func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleWorkflowErrorRequest) (*model.HandleWorkflowErrorResponse, error) {
@@ -301,7 +309,7 @@ func (s *SharServer) getServerInstanceStats(ctx context.Context, req *emptypb.Em
 	return &ret, nil
 }
 
-func listen[T proto.Message, U proto.Message](con common.NatsConn, log *zap.Logger, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
+func listen[T proto.Message, U proto.Message](con common.NatsConn, log *zap.Logger, subList map[*nats.Subscription]struct{}, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
 	sub, err := con.QueueSubscribe(subject, subject, func(msg *nats.Msg) {
 		ctx := context.Background()
 		if err := callApi(ctx, req, msg, fn); err != nil {
@@ -311,6 +319,7 @@ func listen[T proto.Message, U proto.Message](con common.NatsConn, log *zap.Logg
 	if err != nil {
 		return nil, fmt.Errorf("failed to subscribe to %s: %w", subject, err)
 	}
+	subList[sub] = struct{}{}
 	return sub, nil
 }
 

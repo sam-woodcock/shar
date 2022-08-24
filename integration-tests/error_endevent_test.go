@@ -1,4 +1,4 @@
-package integration_tests
+package main
 
 import (
 	"context"
@@ -12,11 +12,14 @@ import (
 )
 
 func TestEndEventError(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test case in short mode")
-	}
-	setup()
-	defer teardown()
+	//	if os.Getenv("INT_TEST") != "true" {
+	//		t.Skip("Skipping integration test " + t.Name())
+	//	}
+
+	tst := &integration{}
+	tst.setup(t)
+	defer tst.teardown()
+
 	// Create a starting context
 	ctx := context.Background()
 
@@ -25,7 +28,7 @@ func TestEndEventError(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(log)
-	if err := cl.Dial("nats://127.0.0.1:4459"); err != nil {
+	if err := cl.Dial(natsURL); err != nil {
 		panic(err)
 	}
 
@@ -38,9 +41,10 @@ func TestEndEventError(t *testing.T) {
 		panic(err)
 	}
 
+	d := &testErrorEndEventHandlerDef{}
 	// Register a service task
-	cl.RegisterServiceTask("couldThrowError", mayFail3)
-	cl.RegisterServiceTask("fixSituation", fixSituation3)
+	cl.RegisterServiceTask("couldThrowError", d.mayFail3)
+	cl.RegisterServiceTask("fixSituation", d.fixSituation)
 
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
@@ -74,13 +78,16 @@ func TestEndEventError(t *testing.T) {
 	assert.Equal(t, model.CancellationState_Errored, final.WorkflowState)
 }
 
+type testErrorEndEventHandlerDef struct {
+}
+
 // A "Hello World" service task
-func mayFail3(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *testErrorEndEventHandlerDef) mayFail3(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("service task completed successfully")
 	return model.Vars{"success": true}, nil
 }
 
 // A "Hello World" service task
-func fixSituation3(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *testErrorEndEventHandlerDef) fixSituation(_ context.Context, vars model.Vars) (model.Vars, error) {
 	panic("this event should not fire")
 }

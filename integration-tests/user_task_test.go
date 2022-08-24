@@ -1,4 +1,4 @@
-package integration_tests
+package main
 
 import (
 	"context"
@@ -9,16 +9,20 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 	"go.uber.org/zap"
 	"os"
+	"sync"
 	"testing"
 	"time"
 )
 
 func TestUserTasks(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test case in short mode")
-	}
-	setup()
-	defer teardown()
+	//	if os.Getenv("INT_TEST") != "true" {
+	//		t.Skip("Skipping integration test " + t.Name())
+	//	}
+
+	tst := &integration{}
+	tst.setup(t)
+	defer tst.teardown()
+
 	// Create a starting context
 	ctx := context.Background()
 
@@ -27,7 +31,7 @@ func TestUserTasks(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(log)
-	if err := cl.Dial("nats://127.0.0.1:4459"); err != nil {
+	if err := cl.Dial(natsURL); err != nil {
 		panic(err)
 	}
 
@@ -40,9 +44,11 @@ func TestUserTasks(t *testing.T) {
 		panic(err)
 	}
 
+	d := &testUserTaskHandlerDef{}
+	d.finalVars = make(model.Vars)
 	// Register a service task
-	cl.RegisterServiceTask("Prepare", prepare)
-	cl.RegisterServiceTask("Complete", complete)
+	cl.RegisterServiceTask("Prepare", d.prepare)
+	cl.RegisterServiceTask("Complete", d.complete)
 
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
@@ -88,28 +94,33 @@ func TestUserTasks(t *testing.T) {
 	et, err := cl.ListUserTaskIDs(ctx, "andrei")
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(et.Id))
-	lock.Lock()
-	defer lock.Unlock()
-	assert.Equal(t, "Brangelina", finalVars["Forename"].(string))
-	assert.Equal(t, "Miggins", finalVars["Surname"].(string))
-	assert.Equal(t, 69, finalVars["OrderId"].(int))
+	d.lock.Lock()
+	defer d.lock.Unlock()
+	assert.Equal(t, "Brangelina", d.finalVars["Forename"].(string))
+	assert.Equal(t, "Miggins", d.finalVars["Surname"].(string))
+	assert.Equal(t, 69, d.finalVars["OrderId"].(int))
+}
+
+type testUserTaskHandlerDef struct {
+	finalVars model.Vars
+	lock      sync.Mutex
 }
 
 // A "Hello World" service task
-func prepare(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *testUserTaskHandlerDef) prepare(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Preparing")
 	oid := vars["OrderId"].(int)
 	return model.Vars{"OrderId": oid + 1}, nil
 }
 
 // A "Hello World" service task
-func complete(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *testUserTaskHandlerDef) complete(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Completed")
 	fmt.Println("OrderId", vars["OrderId"])
 	fmt.Println("Forename", vars["Forename"])
 	fmt.Println("Surname", vars["Surname"])
-	lock.Lock()
-	defer lock.Unlock()
-	finalVars = vars
+	d.lock.Lock()
+	defer d.lock.Unlock()
+	d.finalVars = vars
 	return model.Vars{}, nil
 }
