@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
 	"go.uber.org/zap"
-	"sync"
 	"testing"
 	"time"
 )
@@ -21,7 +20,6 @@ var natsURL = fmt.Sprintf("nats://%s:%v", natsHost, natsPort)
 type integration struct {
 	testNatsServer *server.Server
 	testSharServer *sharsvr.Server
-	lock           sync.Mutex
 	finalVars      map[string]interface{}
 	test           *testing.T
 }
@@ -164,7 +162,7 @@ func (s *integration) setup(t *testing.T) {
 		fmt.Println("waiting for shar")
 		time.Sleep(500 * time.Millisecond)
 	}
-	s.test.Log(fmt.Sprintf("\033[1;36m%s\033[0m", "> Setup completed\n"))
+	s.test.Logf("\033[1;36m%s\033[0m", "> Setup completed\n")
 }
 
 func (s *integration) teardown() {
@@ -191,7 +189,7 @@ func (s *integration) teardown() {
 	s.testNatsServer.Shutdown()
 	s.testNatsServer.WaitForShutdown()
 	s.test.Log("NATS shut down")
-	s.test.Log(fmt.Sprintf("\033[1;36m%s\033[0m", "> Teardown completed"))
+	s.test.Logf("\033[1;36m%s\033[0m", "> Teardown completed")
 	s.test.Log("\n")
 }
 

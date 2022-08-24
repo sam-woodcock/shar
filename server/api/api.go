@@ -132,7 +132,7 @@ var shutdownOnce sync.Once
 func (s *SharServer) Shutdown() {
 	s.log.Info("stopping shar api listener")
 	shutdownOnce.Do(func() {
-		for sub, _ := range s.subs {
+		for sub := range s.subs {
 			err := sub.Drain()
 			if err != nil {
 				s.log.Error("Could not drain subscription for "+sub.Subject, zap.Error(err))
@@ -226,7 +226,7 @@ func (s *SharServer) getUserTask(ctx context.Context, req *model.GetUserTaskRequ
 		Name:        els[job.ElementId].Name,
 		Description: els[job.ElementId].Documentation,
 		Vars:        job.Vars,
-		}, nil
+	}, nil
 }
 
 func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleWorkflowErrorRequest) (*model.HandleWorkflowErrorResponse, error) {
