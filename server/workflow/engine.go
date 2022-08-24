@@ -61,13 +61,6 @@ func (c *Engine) Launch(ctx context.Context, workflowName string, vars []byte) (
 
 // launch contains the underlying logic to start a workflow.  It is also called to spawn new instances of child workflows.
 func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, parentwfiID string, parentElID string) (string, error) {
-	// check to see if we should escape straight away
-	select {
-	case <-c.closing:
-		return "", errors.ErrClosing
-	default:
-	}
-
 	// get the last ID of the workflow
 	wfID, err := c.ns.GetLatestVersion(ctx, workflowName)
 	if err != nil {
@@ -262,11 +255,6 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, pare
 // activityProcessor handles the behaviour of each BPMN element
 func (c *Engine) activityProcessor(ctx context.Context, traversal *model.WorkflowState, traverseOnly bool) error {
 	state := model.CancellationState_Executing
-	select {
-	case <-c.closing:
-		return errors.ErrClosing
-	default:
-	}
 
 	wfi, err := c.ns.GetWorkflowInstance(ctx, traversal.WorkflowInstanceId)
 	if err == errors.ErrWorkflowInstanceNotFound || errors2.Is(err, nats.ErrKeyNotFound) {
@@ -465,11 +453,6 @@ func (c *Engine) returnBack(ctx context.Context, wfiID string, parentwfiID strin
 	}
 */
 func (c *Engine) completeJobProcessor(ctx context.Context, jobID string, vars []byte) error {
-	select {
-	case <-c.closing:
-		return errors.ErrClosing
-	default:
-	}
 
 	job, err := c.ns.GetJob(ctx, jobID)
 	if err != nil {

@@ -1,4 +1,4 @@
-package integration_tests
+package main
 
 import (
 	"context"
@@ -14,11 +14,14 @@ import (
 
 //goland:noinspection GoNilness
 func TestMultiWorkflow(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test case in short mode")
-	}
-	setup()
-	defer teardown()
+	//	if os.Getenv("INT_TEST") != "true" {
+	//		t.Skip("Skipping integration test " + t.Name())
+	//	}
+
+	tst := &integration{}
+	tst.setup(t)
+	defer tst.teardown()
+
 	handlers := &testMultiworkflowMessagingHandlerDef{}
 
 	// Create a starting context
@@ -29,7 +32,7 @@ func TestMultiWorkflow(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(log, client.EphemeralStorage{})
-	err := cl.Dial("nats://127.0.0.1:4459")
+	err := cl.Dial(natsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
