@@ -57,6 +57,10 @@ tag_stage:
   - project_url=$(echo $CI_PROJECT_URL | sed 's/https:\/\///')
   - git remote set-url origin https://oauth2:${TAG_KEY}@${project_url}
   - tag=v${VER}.${CI_VERSION}
+  - authName=$(git log -1 --pretty=format:"%an")
+  - authEmail= $(git log -1 --pretty=format:"%ae")
+  - git config --global user.email "${authEmail}"
+  - git config --global user.name "${authName}"
   - echo Build number is v${VER}.${CI_VERSION}
   - echo $tag > client/version
   - echo "package version" > common/version/version.go
