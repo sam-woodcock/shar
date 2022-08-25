@@ -27,3 +27,4 @@ build/
 /telemetry/cmd/shar-telemetry/shar-telemetry
 /server/shar
 /server/shar-telemetry
+/common/version/version.go
