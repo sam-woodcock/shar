@@ -65,7 +65,7 @@ tag_stage:
   - git add common/version/version.go
   - git commit --append --no-edit
   - git tag $tag
-  - git push -f origin $tag
+  - git push -o ci.skip -f origin $tag
 package_stage:
   stage: package
   rules:
