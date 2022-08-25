@@ -538,7 +538,7 @@ func (s *NatsService) track(ctx context.Context, msg *nats.Msg) (bool, error) {
 	return true, nil
 }
 
-func (s *NatsService) Conn() common.NatsConn {
+func (s *NatsService) Conn() common.NatsConn { //nolint:ireturn
 	return s.conn
 }
 

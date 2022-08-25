@@ -583,7 +583,6 @@ func (c *Engine) Shutdown() {
 	case <-c.closing:
 		return
 	default:
-		fmt.Println("CLOSE CALLED!!")
 		close(c.closing)
 		c.ns.Shutdown()
 		return

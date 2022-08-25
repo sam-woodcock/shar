@@ -41,5 +41,6 @@ clean: .FORCE
 	rm -f model/*.pb.go
 test: proto server tracing .FORCE
 	go test --short --race ./...
-	golangci-lint run -v --timeout 5m0s
+	golangci-lint cache clean
+	golangci-lint run -v -E gosec -E ireturn --timeout 5m0s
 .FORCE:

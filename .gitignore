@@ -25,3 +25,5 @@ server/cmd/shar/shar
 build/
 /deploy/compose/.docker-compose.yml.swp
 /telemetry/cmd/shar-telemetry/shar-telemetry
+/server/shar
+/server/shar-telemetry

@@ -193,7 +193,7 @@ func (s *integration) teardown() {
 	s.test.Log("\n")
 }
 
-func (s *integration) GetJetstream() (nats.JetStreamContext, error) {
+func (s *integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:ireturn
 	con, err := s.GetNats()
 	if err != nil {
 		return nil, err

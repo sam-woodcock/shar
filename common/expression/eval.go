@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func Eval[T any](log *zap.Logger, exp string, vars map[string]interface{}) (retval T, reterr error) {
+func Eval[T any](log *zap.Logger, exp string, vars map[string]interface{}) (retval T, reterr error) { //nolint:ireturn
 	ex, err := expr.Compile(exp)
 	if err != nil {
 		return *new(T), fmt.Errorf(err.Error()+": %w", errors2.ErrWorkflowFatal{Err: err})

@@ -58,6 +58,7 @@ tag_stage:
   - git remote set-url origin https://oauth2:${TAG_KEY}@${project_url}
   - tag=v${VER}.${CI_VERSION}
   - echo Build number is v${VER}.${CI_VERSION}
+  - echo $tag > client/version
   - git tag $tag
   - git push origin $tag
 package_stage:

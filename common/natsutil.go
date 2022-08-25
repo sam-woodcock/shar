@@ -127,11 +127,10 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, clo
 					return
 				default:
 				}
-				ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-				msg, err := sub.Fetch(1, nats.Context(ctx))
+				reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+				msg, err := sub.Fetch(1, nats.Context(reqCtx))
 				if err != nil {
 					if err == context.DeadlineExceeded {
-						log.Error("context deadline exceeded", zap.Error(err))
 						cancel()
 						continue
 					}
@@ -141,11 +140,11 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, clo
 					continue
 				}
 				m := msg[0]
+				cancel()
 				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
 					e, err := strconv.Atoi(embargo)
 					if err != nil {
 						log.Error("bad embargo value", zap.Error(err))
-						cancel()
 						continue
 					}
 					offset := time.Duration(int64(e) - time.Now().UnixNano())
@@ -153,7 +152,6 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, clo
 						if err != m.NakWithDelay(offset) {
 							log.Warn("failed to nak with delay")
 						}
-						cancel()
 						continue
 					}
 				}
@@ -171,7 +169,6 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, clo
 						log.Error("processing failed to nak", zap.Error(err))
 					}
 				}
-				cancel()
 			}
 		}()
 	}
