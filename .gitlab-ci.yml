@@ -29,6 +29,11 @@ build_stage:
     when: never
   - if: "$CI_PIPELINE_IID"
   script:
+  - tag=v${VER}.${CI_VERSION}
+  - echo $tag > client/version
+  - echo "package version" > common/version/version.go
+  - echo "" >> common/version/version.go
+  - echo "const Version = \"$tag\"" >> common/version/version.go
   - make
   artifacts:
     paths:
@@ -63,10 +68,6 @@ tag_stage:
   - git config --global user.email "${authEmail}"
   - git config --global user.name "${authName}"
   - echo Build number is v${VER}.${CI_VERSION}
-  - echo $tag > client/version
-  - echo "package version" > common/version/version.go
-  - echo "" >> common/version/version.go
-  - echo "const Version = \"$tag\"" >> common/version/version.go
   - git add common/version/version.go
   - git commit --amend --no-edit
   - git tag $tag
