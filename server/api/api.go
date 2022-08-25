@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/common/version"
 	"gitlab.com/shar-workflow/shar/model"
+	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/services"
 	"gitlab.com/shar-workflow/shar/server/workflow"
@@ -15,6 +17,9 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	"math"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -23,6 +28,7 @@ type SharServer struct {
 	ns     *services.NatsService
 	engine *workflow.Engine
 	subs   map[*nats.Subscription]struct{}
+	sv     []string
 }
 
 func New(log *zap.Logger, ns *services.NatsService) (*SharServer, error) {
@@ -38,6 +44,7 @@ func New(log *zap.Logger, ns *services.NatsService) (*SharServer, error) {
 		ns:     ns,
 		engine: engine,
 		subs:   make(map[*nats.Subscription]struct{}),
+		sv:     strings.Split(version.Version, "."),
 	}, nil
 }
 
@@ -146,49 +153,49 @@ func (s *SharServer) Shutdown() {
 func (s *SharServer) Listen() error {
 	con := s.ns.Conn()
 	log := s.log
-	if _, err := listen(con, log, s.subs, messages.ApiStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
+	if _, err := listen(s.sv, con, log, s.subs, messages.ApiStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.subs, messages.ApiCancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance); err != nil {
+	if _, err := listen(s.sv, con, log, s.subs, messages.ApiCancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.subs, messages.ApiLaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow); err != nil {
+	if _, err := listen(s.sv, con, log, s.subs, messages.ApiLaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.subs, messages.ApiListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
+	if _, err := listen(s.sv, con, log, s.subs, messages.ApiListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.subs, messages.ApiGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus); err != nil {
+	if _, err := listen(s.sv, con, log, s.subs, messages.ApiGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.subs, messages.ApiListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
+	if _, err := listen(s.sv, con, log, s.subs, messages.ApiListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.subs, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage); err != nil {
+	if _, err := listen(s.sv, con, log, s.subs, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.subs, messages.ApiCompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask); err != nil {
+	if _, err := listen(s.sv, con, log, s.subs, messages.ApiCompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.subs, messages.ApiCompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask); err != nil {
+	if _, err := listen(s.sv, con, log, s.subs, messages.ApiCompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.subs, messages.ApiCompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask); err != nil {
+	if _, err := listen(s.sv, con, log, s.subs, messages.ApiCompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.subs, messages.ApiListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs); err != nil {
+	if _, err := listen(s.sv, con, log, s.subs, messages.ApiListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.subs, messages.ApiGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask); err != nil {
+	if _, err := listen(s.sv, con, log, s.subs, messages.ApiGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.subs, messages.ApiHandleWorkflowError, &model.HandleWorkflowErrorRequest{}, s.handleWorkflowError); err != nil {
+	if _, err := listen(s.sv, con, log, s.subs, messages.ApiHandleWorkflowError, &model.HandleWorkflowErrorRequest{}, s.handleWorkflowError); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.subs, messages.ApiGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
+	if _, err := listen(s.sv, con, log, s.subs, messages.ApiGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
 		return err
 	}
-	s.log.Info("shar api listener started")
+	s.log.Info("shar api listener " + version.Version + " started")
 	return nil
 }
 
@@ -309,8 +316,12 @@ func (s *SharServer) getServerInstanceStats(ctx context.Context, req *emptypb.Em
 	return &ret, nil
 }
 
-func listen[T proto.Message, U proto.Message](con common.NatsConn, log *zap.Logger, subList map[*nats.Subscription]struct{}, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
+func listen[T proto.Message, U proto.Message](v []string, con common.NatsConn, log *zap.Logger, subList map[*nats.Subscription]struct{}, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
 	sub, err := con.QueueSubscribe(subject, subject, func(msg *nats.Msg) {
+		if err := versionCheck(msg.Header.Get("ClientVer"), v); err != nil {
+			errorResponse(msg, codes.PermissionDenied, err.Error())
+			return
+		}
 		ctx := context.Background()
 		if err := callApi(ctx, req, msg, fn); err != nil {
 			log.Error("API call for "+subject+" failed", zap.Error(err))
@@ -321,6 +332,32 @@ func listen[T proto.Message, U proto.Message](con common.NatsConn, log *zap.Logg
 	}
 	subList[sub] = struct{}{}
 	return sub, nil
+}
+
+func versionCheck(ver string, sv []string) error {
+	if ver == "" {
+		return badClientVersion(ver, version.Version)
+	}
+	cv := strings.Split(ver, ".")
+	if cv[0] != sv[0] || cv[1] != sv[1] {
+		return badClientVersion(ver, version.Version)
+	}
+	mc, err := strconv.Atoi(cv[2])
+	if err != nil {
+		return errors.New("bad client version: " + ver)
+	}
+	ms, err := strconv.Atoi(cv[2])
+	if err != nil {
+		return errors.New("bad server version: " + ver)
+	}
+	if math.Abs(float64(mc)-float64(ms)) > 2 {
+		return badClientVersion(ver, version.Version)
+	}
+	return nil
+}
+
+func badClientVersion(cv string, sv string) error {
+	return fmt.Errorf("incompatible client version \"%s\" server version \"%s\" accepts clients of plus or minus 2 minor revisions: %w", cv, sv, errors2.ErrBadClientVersion)
 }
 
 func callApi[T proto.Message, U proto.Message](ctx context.Context, container T, msg *nats.Msg, fn func(ctx context.Context, req T) (U, error)) error {

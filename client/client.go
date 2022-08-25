@@ -11,6 +11,7 @@ import (
 	"gitlab.com/shar-workflow/shar/client/services"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/ctxkey"
+	"gitlab.com/shar-workflow/shar/common/version"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/messages"
@@ -401,8 +402,9 @@ func callAPI[T proto.Message, U proto.Message](_ context.Context, con *nats.Conn
 		return err
 	}
 	msg := nats.NewMsg(subject)
+	msg.Header.Set("ClientVer", version.Version)
 	msg.Data = b
-	res, err := con.Request(subject, b, time.Second*30)
+	res, err := con.RequestMsg(msg, time.Second*30)
 	if err != nil {
 		if err == nats.ErrNoResponders {
 			err = fmt.Errorf("shar-client: shar server is offline or missing from the current nats server")

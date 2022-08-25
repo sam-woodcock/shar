@@ -77,7 +77,7 @@ tag_stage:
   - git push -f -o ci.skip
   - git commit --amend --no-edit
   - git tag $tag
-  - git push -f origin $tag 
+  - git push -f origin $tag
 package_stage:
   stage: package
   rules:
