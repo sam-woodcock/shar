@@ -149,7 +149,7 @@ func (s *integration) setup(t *testing.T) {
 	}
 	s.test.Log("NATS started")
 
-	l, err := zap.NewDevelopment()
+	l, err := zap.NewProduction()
 	if err != nil {
 		panic(err)
 	}
@@ -172,7 +172,7 @@ func (s *integration) teardown() {
 	require.NoError(s.test, err)
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-		msg, err := sub.Fetch(1, nats.Context(ctx))
+		_, err := sub.Fetch(1, nats.Context(ctx))
 		if err == context.DeadlineExceeded {
 			cancel()
 			break
@@ -181,7 +181,7 @@ func (s *integration) teardown() {
 			cancel()
 			s.test.Fatal(err)
 		}
-		fmt.Println("MSG: ", *msg[0])
+		//fmt.Println("MSG: ", *msg[0])
 		cancel()
 	}
 	s.test.Log("TEARDOWN")

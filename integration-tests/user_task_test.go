@@ -47,8 +47,10 @@ func TestUserTasks(t *testing.T) {
 	d := &testUserTaskHandlerDef{}
 	d.finalVars = make(model.Vars)
 	// Register a service task
-	cl.RegisterServiceTask("Prepare", d.prepare)
-	cl.RegisterServiceTask("Complete", d.complete)
+	err = cl.RegisterServiceTask(ctx, "Prepare", d.prepare)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "Complete", d.complete)
+	require.NoError(t, err)
 
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 100)

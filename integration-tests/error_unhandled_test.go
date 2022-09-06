@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	"gitlab.com/shar-workflow/shar/model"
@@ -44,9 +45,10 @@ func TestUnhandledError(t *testing.T) {
 	d := &testErrorUnhandledHandlerDef{}
 
 	// Register a service task
-	cl.RegisterServiceTask("couldThrowError", d.mayFail)
-	cl.RegisterServiceTask("fixSituation", d.fixSituation)
-
+	err = cl.RegisterServiceTask(ctx, "couldThrowError", d.mayFail)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "fixSituation", d.fixSituation)
+	require.NoError(t, err)
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	cl.RegisterWorkflowInstanceComplete(complete)

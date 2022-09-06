@@ -3,8 +3,10 @@ package common
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"github.com/nats-io/nats.go"
+	"gitlab.com/shar-workflow/shar/common/workflow"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 	"math/big"
@@ -113,12 +115,12 @@ func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names
 	return nil
 }
 
-func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, msg *nats.Msg) (bool, error)) {
+func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, traceName string, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, msg *nats.Msg) (bool, error)) {
 	for i := 0; i < concurrency; i++ {
 		go func() {
 			sub, err := js.PullSubscribe(subject, durable)
 			if err != nil {
-				log.Error("process pull subscribe error", zap.Error(err), zap.String("subject", subject))
+				log.Error("process pull subscribe error", zap.Error(err), zap.String("subject", subject), zap.String("durable", durable))
 				return
 			}
 			for {
@@ -140,6 +142,7 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, clo
 					continue
 				}
 				m := msg[0]
+				log.Debug("Process:"+traceName, zap.String("subject", msg[0].Subject))
 				cancel()
 				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
 					e, err := strconv.Atoi(embargo)
@@ -158,7 +161,10 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, clo
 				executeCtx := context.Background()
 				ack, err := fn(executeCtx, msg[0])
 				if err != nil {
-					log.Error("processing error", zap.Error(err))
+					wfe := &workflow.Error{}
+					if !errors.As(err, wfe) {
+						log.Error("processing error", zap.Error(err))
+					}
 				}
 				if ack {
 					if err := msg[0].Ack(); err != nil {

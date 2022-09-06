@@ -45,9 +45,12 @@ func TestConcurrentMessaging(t *testing.T) {
 	complete := make(chan *model.WorkflowInstanceComplete, 101)
 
 	// Register a service task
-	cl.RegisterServiceTask("step1", handlers.step1)
-	cl.RegisterServiceTask("step2", handlers.step2)
-	cl.RegisterMessageSender("continueMessage", handlers.sendMessage)
+	err = cl.RegisterServiceTask(ctx, "step1", handlers.step1)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "step2", handlers.step2)
+	require.NoError(t, err)
+	err = cl.RegisterMessageSender(ctx, "TestConcurrentMessaging", "continueMessage", handlers.sendMessage)
+	require.NoError(t, err)
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Listen for service tasks
@@ -58,7 +61,9 @@ func TestConcurrentMessaging(t *testing.T) {
 
 	instances := make(map[string]struct{})
 
-	for inst := 0; inst < 50; inst++ {
+	n := 50
+	tm := time.Now()
+	for inst := 0; inst < n; inst++ {
 		go func() {
 			// Launch the workflow
 			if wfiID, err := cl.LaunchWorkflow(ctx, "TestConcurrentMessaging", model.Vars{"orderId": 57}); err != nil {
@@ -68,13 +73,14 @@ func TestConcurrentMessaging(t *testing.T) {
 			}
 		}()
 	}
-	for inst := 0; inst < 50; inst++ {
+	for inst := 0; inst < n; inst++ {
 		select {
 		case c := <-complete:
 			fmt.Println("completed " + c.WorkflowInstanceId)
-		case <-time.After(20 * time.Second):
+		case <-time.After(120 * time.Second):
 		}
 	}
+	fmt.Println("Stopwatch:", -time.Until(tm))
 	/*
 		// Check consistency
 		js, err := GetJetstream()

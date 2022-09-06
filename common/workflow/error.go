@@ -11,5 +11,9 @@ type Error struct {
 }
 
 func (e Error) Error() string {
-	return fmt.Sprintf("%s: %s", e.Code, e.WrappedError)
+	var we string
+	if e.WrappedError != nil {
+		we = e.WrappedError.Error()
+	}
+	return fmt.Sprintf("%s: %s", e.Code, we)
 }

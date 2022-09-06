@@ -203,6 +203,11 @@ message GetUserTaskRequest {
   string trackingId = 2;
 }
 
+message GetMessageSenderRoutingIdRequest {
+  string workflowName = 1;
+  string messageName = 2;
+}
+
 message GetUserTaskResponse {
   string trackingId = 1;
   string owner = 2;
