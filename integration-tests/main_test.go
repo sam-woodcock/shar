@@ -153,7 +153,7 @@ func (s *integration) setup(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	s.testSharServer = sharsvr.New(l, sharsvr.EphemeralStorage())
+	s.testSharServer = sharsvr.New(l, sharsvr.EphemeralStorage(), sharsvr.PanicRecovery(false))
 	go s.testSharServer.Listen(natsURL, 55000)
 	for {
 		if s.testSharServer.Ready() {

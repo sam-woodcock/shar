@@ -25,6 +25,7 @@ type Server struct {
 	grpcServer       *gogrpc.Server
 	api              *api.SharServer
 	ephemeralStorage bool
+	panicRecovery    bool
 }
 
 type Option interface {
@@ -43,6 +44,19 @@ func (o ephemeralStorageOption) configure(server *Server) {
 	server.ephemeralStorage = true
 }
 
+func PanicRecovery(on bool) panicOption {
+	return panicOption{value: on}
+}
+
+type panicOption struct {
+	Option
+	value bool
+}
+
+func (o panicOption) configure(server *Server) {
+	server.panicRecovery = o.value
+}
+
 // New creates a new SHAR server.
 // Leave the exporter nil if telemetry is not required
 func New(log *zap.Logger, options ...Option) *Server {
@@ -50,6 +64,7 @@ func New(log *zap.Logger, options ...Option) *Server {
 		sig:           make(chan os.Signal, 10),
 		log:           log,
 		healthService: health.New(),
+		panicRecovery: true,
 	}
 	for _, i := range options {
 		i.configure(s)
@@ -87,7 +102,7 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 	s.log.Info("shar grpc health started")
 
 	ns := s.createServices(natsURL, s.log, s.ephemeralStorage)
-	s.api, err = api.New(s.log, ns)
+	s.api, err = api.New(s.log, ns, s.panicRecovery)
 	if err != nil {
 		panic(err)
 	}
