@@ -11,7 +11,7 @@ import (
 func Trace(natsUrl string) *nats.Subscription {
 	nc, _ := nats.Connect(natsUrl)
 	sub, err := nc.Subscribe("WORKFLOW.>", func(msg *nats.Msg) {
-		if strings.HasPrefix(msg.Subject, "WORKFLOW.State.") {
+		if strings.HasPrefix(msg.Subject, "WORKFLOW.default.State.") {
 			d := &model.WorkflowState{}
 			err := proto.Unmarshal(msg.Data, d)
 			if err != nil {

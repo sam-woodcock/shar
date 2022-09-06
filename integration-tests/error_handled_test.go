@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	"gitlab.com/shar-workflow/shar/model"
@@ -44,8 +46,10 @@ func TestHandledError(t *testing.T) {
 	d := errorHandledHandlerDef{}
 
 	// Register a service task
-	cl.RegisterServiceTask("couldThrowError", d.mayFail)
-	cl.RegisterServiceTask("fixSituation", d.fixSituation)
+	err = cl.RegisterServiceTask(ctx, "couldThrowError", d.mayFail)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "fixSituation", d.fixSituation)
+	require.NoError(t, err)
 
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
@@ -74,16 +78,18 @@ func TestHandledError(t *testing.T) {
 }
 
 type errorHandledHandlerDef struct {
+	fixed bool
 }
 
 // A "Hello World" service task
 func (d *errorHandledHandlerDef) mayFail(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Throw handled error")
-	return model.Vars{"success": false}, workflow.Error{Code: "101"}
+	return model.Vars{"success": false}, workflow.Error{Code: "101", WrappedError: errors.New("things went badly")}
 }
 
 // A "Hello World" service task
 func (d *errorHandledHandlerDef) fixSituation(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Fixing")
+	d.fixed = true
 	return model.Vars{}, nil
 }

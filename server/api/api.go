@@ -45,6 +45,17 @@ func (s *SharServer) storeWorkflow(ctx context.Context, wf *model.Workflow) (*wr
 	res, err := s.engine.LoadWorkflow(ctx, wf)
 	return &wrapperspb.StringValue{Value: res}, err
 }
+
+func (s *SharServer) getServiceTaskRoutingID(ctx context.Context, taskName *wrapperspb.StringValue) (*wrapperspb.StringValue, error) {
+	res, err := s.ns.GetServiceTaskRoutingKey(taskName.Value)
+	return &wrapperspb.StringValue{Value: res}, err
+}
+
+func (s *SharServer) getMessageSenderRoutingID(ctx context.Context, req *model.GetMessageSenderRoutingIdRequest) (*wrapperspb.StringValue, error) {
+	res, err := s.ns.GetMessageSenderRoutingKey(req.WorkflowName, req.MessageName)
+	return &wrapperspb.StringValue{Value: res}, err
+}
+
 func (s *SharServer) launchWorkflow(ctx context.Context, req *model.LaunchWorkflowRequest) (*wrapperspb.StringValue, error) {
 	res, err := s.engine.Launch(ctx, req.Name, req.Vars)
 	return &wrapperspb.StringValue{Value: res}, err
@@ -188,6 +199,15 @@ func (s *SharServer) Listen() error {
 	if _, err := listen(con, log, s.subs, messages.ApiGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
 		return err
 	}
+
+	if _, err := listen(con, log, s.subs, messages.ApiGetServiceTaskRoutingID, &wrapperspb.StringValue{}, s.getServiceTaskRoutingID); err != nil {
+		return err
+	}
+
+	if _, err := listen(con, log, s.subs, messages.ApiGetMessageSenderRoutingID, &model.GetMessageSenderRoutingIdRequest{}, s.getMessageSenderRoutingID); err != nil {
+		return err
+	}
+
 	s.log.Info("shar api listener started")
 	return nil
 }

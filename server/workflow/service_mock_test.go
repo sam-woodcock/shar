@@ -165,6 +165,48 @@ func (_m *MockNatsService) GetLatestVersion(ctx context.Context, workflowName st
 	return r0, r1
 }
 
+// GetMessageSenderRoutingKey provides a mock function with given fields: workflowName, messageName
+func (_m *MockNatsService) GetMessageSenderRoutingKey(workflowName string, messageName string) (string, error) {
+	ret := _m.Called(workflowName, messageName)
+
+	var r0 string
+	if rf, ok := ret.Get(0).(func(string, string) string); ok {
+		r0 = rf(workflowName, messageName)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string, string) error); ok {
+		r1 = rf(workflowName, messageName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetServiceTaskRoutingKey provides a mock function with given fields: taskName
+func (_m *MockNatsService) GetServiceTaskRoutingKey(taskName string) (string, error) {
+	ret := _m.Called(taskName)
+
+	var r0 string
+	if rf, ok := ret.Get(0).(func(string) string); ok {
+		r0 = rf(taskName)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(taskName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetWorkflow provides a mock function with given fields: ctx, workflowId
 func (_m *MockNatsService) GetWorkflow(ctx context.Context, workflowId string) (*model.Workflow, error) {
 	ret := _m.Called(ctx, workflowId)

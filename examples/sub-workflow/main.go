@@ -31,9 +31,18 @@ func main() {
 	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "SubWorkflowDemo", w2); err != nil {
 		panic(err)
 	}
-	cl.RegisterServiceTask("BeforeCallingSubProcess", beforeCallingSubProcess)
-	cl.RegisterServiceTask("DuringSubProcess", duringSubProcess)
-	cl.RegisterServiceTask("AfterCallingSubProcess", afterCallingSubProcess)
+	err := cl.RegisterServiceTask(ctx, "BeforeCallingSubProcess", beforeCallingSubProcess)
+	if err != nil {
+		panic(err)
+	}
+	err = cl.RegisterServiceTask(ctx, "DuringSubProcess", duringSubProcess)
+	if err != nil {
+		panic(err)
+	}
+	err = cl.RegisterServiceTask(ctx, "AfterCallingSubProcess", afterCallingSubProcess)
+	if err != nil {
+		panic(err)
+	}
 
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 100)

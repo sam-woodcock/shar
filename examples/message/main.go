@@ -38,10 +38,18 @@ func main() {
 	}
 
 	// Register a service task
-	cl.RegisterServiceTask("step1", step1)
-	cl.RegisterServiceTask("step2", step2)
-	cl.RegisterMessageSender("continueMessage", sendMessage)
-
+	err = cl.RegisterServiceTask(ctx, "step1", step1)
+	if err != nil {
+		panic(err)
+	}
+	err = cl.RegisterServiceTask(ctx, "step2", step2)
+	if err != nil {
+		panic(err)
+	}
+	err = cl.RegisterMessageSender(ctx, "MessageDemo", "continueMessage", sendMessage)
+	if err != nil {
+		panic(err)
+	}
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	cl.RegisterWorkflowInstanceComplete(complete)
