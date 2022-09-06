@@ -38,8 +38,10 @@ func main() {
 	}
 
 	// Register a service task
-	cl.RegisterServiceTask("SimpleProcess", simpleProcess)
-
+	err = cl.RegisterServiceTask(ctx, "SimpleProcess", simpleProcess)
+	if err != nil {
+		panic(err)
+	}
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	cl.RegisterWorkflowInstanceComplete(complete)

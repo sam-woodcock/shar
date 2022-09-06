@@ -2,6 +2,7 @@ package common
 
 import (
 	"github.com/nats-io/nats.go"
+	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"time"
 )
@@ -20,7 +21,7 @@ func SetUpNats(js nats.JetStreamContext, storageType nats.StorageType) error {
 		AckPolicy:       nats.AckExplicitPolicy,
 		AckWait:         30 * time.Second,
 		MaxAckPending:   65535,
-		FilterSubject:   messages.WorkflowTraversalExecute,
+		FilterSubject:   subj.SubjNS(messages.WorkflowTraversalExecute, "default"),
 		MaxRequestBatch: 1,
 	}
 
@@ -44,13 +45,6 @@ func SetUpNats(js nats.JetStreamContext, storageType nats.StorageType) error {
 		MaxAckPending:   -1,
 	}
 
-	jxCfg := &nats.ConsumerConfig{
-		Durable:       "JobExecuteConsumer",
-		Description:   "",
-		FilterSubject: messages.WorkflowJobExecuteAll,
-		AckPolicy:     nats.AckExplicitPolicy,
-	}
-
 	if err := EnsureStream(js, scfg); err != nil {
 		return err
 	}
@@ -61,9 +55,6 @@ func SetUpNats(js nats.JetStreamContext, storageType nats.StorageType) error {
 		return err
 	}
 	if err := EnsureConsumer(js, "WORKFLOW", acfg); err != nil {
-		return err
-	}
-	if err := EnsureConsumer(js, "WORKFLOW", jxCfg); err != nil {
 		return err
 	}
 	return nil

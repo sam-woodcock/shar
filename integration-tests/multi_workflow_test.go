@@ -52,11 +52,16 @@ func TestMultiWorkflow(t *testing.T) {
 	complete := make(chan *model.WorkflowInstanceComplete, 400)
 
 	// Register a service task
-	cl.RegisterServiceTask("step1", handlers.step1)
-	cl.RegisterServiceTask("step2", handlers.step2)
-	cl.RegisterServiceTask("SimpleProcess", handlers.simpleProcess)
+	err = cl.RegisterServiceTask(ctx, "step1", handlers.step1)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "step2", handlers.step2)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "SimpleProcess", handlers.simpleProcess)
+	require.NoError(t, err)
 
-	cl.RegisterMessageSender("continueMessage", handlers.sendMessage)
+	err = cl.RegisterMessageSender(ctx, "TestMultiWorkflow1", "continueMessage", handlers.sendMessage)
+	require.NoError(t, err)
+
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Listen for service tasks

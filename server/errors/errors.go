@@ -2,7 +2,6 @@ package errors
 
 import (
 	"errors"
-	"fmt"
 )
 
 var (
@@ -17,5 +16,5 @@ type ErrWorkflowFatal struct {
 }
 
 func (e ErrWorkflowFatal) Error() string {
-	return fmt.Sprintf("%s", e.Err)
+	return e.Err.Error()
 }

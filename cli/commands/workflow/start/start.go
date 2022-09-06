@@ -3,6 +3,7 @@ package start
 import (
 	"context"
 	"fmt"
+	"gitlab.com/shar-workflow/shar/common/subj"
 
 	"github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
@@ -77,7 +78,7 @@ func run(_ *cobra.Command, args []string) error {
 		closer := make(chan struct{})
 		workflowMessages := make(chan *nats.Msg)
 
-		common.Process(ctx, js, log, closer, messages.WorkflowStateAll, "Tracing", 1, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+		common.Process(ctx, js, log, "trace", closer, subj.SubjNS(messages.WorkflowStateAll, "*"), "Tracing", 1, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 			workflowMessages <- msg
 			return true, nil
 		})

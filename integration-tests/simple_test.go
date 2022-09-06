@@ -46,7 +46,8 @@ func TestSimple(t *testing.T) {
 
 	// Register a service task
 	cl.RegisterWorkflowInstanceComplete(complete)
-	cl.RegisterServiceTask("SimpleProcess", d.integrationSimple)
+	err = cl.RegisterServiceTask(ctx, "SimpleProcess", d.integrationSimple)
+	require.NoError(t, err)
 
 	// Launch the workflow
 	if _, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{}); err != nil {

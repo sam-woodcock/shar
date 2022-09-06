@@ -45,9 +45,12 @@ func TestMessaging(t *testing.T) {
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 
 	// Register a service task
-	cl.RegisterServiceTask("step1", handlers.step1)
-	cl.RegisterServiceTask("step2", handlers.step2)
-	cl.RegisterMessageSender("continueMessage", handlers.sendMessage)
+	err = cl.RegisterServiceTask(ctx, "step1", handlers.step1)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "step2", handlers.step2)
+	require.NoError(t, err)
+	err = cl.RegisterMessageSender(ctx, "TestMessaging", "continueMessage", handlers.sendMessage)
+	require.NoError(t, err)
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow

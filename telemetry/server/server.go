@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors/keys"
 	"gitlab.com/shar-workflow/shar/server/messages"
@@ -20,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
+	"strings"
 	"time"
 )
 
@@ -55,7 +57,7 @@ func (s *Server) Listen() error {
 		return err
 	}
 	s.wfi = kv
-	common.Process(ctx, s.js, s.log, closer, messages.WorkflowStateAll, "Tracing", 1, s.workflowTrace)
+	common.Process(ctx, s.js, s.log, "telemetry", closer, subj.SubjNS(messages.WorkflowStateAll, "default"), "Tracing", 1, s.workflowTrace)
 	return nil
 }
 
@@ -76,22 +78,24 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 		return true, nil
 	}
 
-	switch msg.Subject {
-	case messages.WorkflowInstanceExecute:
+	switch {
+	case strings.HasSuffix(msg.Subject, ".State.Workflow.Execute"):
 		if err := s.saveSpan(ctx, "Workflow Execute", &state, &state); err != nil {
 			return false, nil
 		}
-	case messages.WorkflowTraversalExecute:
-	case messages.WorkflowActivityExecute:
+	case strings.HasSuffix(msg.Subject, ".State.Traversal.Execute"):
+	case strings.HasSuffix(msg.Subject, ".State.Activity.Execute"):
 		if err := s.spanStart(ctx, &state); err != nil {
 			return false, nil
 		}
-	case messages.WorkflowJobServiceTaskExecute, messages.WorkflowJobUserTaskExecute, messages.WorkflowJobManualTaskExecute:
+	case strings.Contains(msg.Subject, ".State.Job.Execute.ServiceTask"),
+		strings.Contains(msg.Subject, ".State.Job.Execute.UserTask"),
+		strings.Contains(msg.Subject, ".State.Job.Execute.ManualTask"):
 		if err := s.spanStart(ctx, &state); err != nil {
 			return false, nil
 		}
-	case messages.WorkflowTraversalComplete:
-	case messages.WorkflowActivityComplete:
+	case strings.HasSuffix(msg.Subject, ".State.Traversal.Complete"):
+	case strings.HasSuffix(msg.Subject, ".State.Activity.Complete"):
 		if err := s.spanEnd(ctx, "Activity: "+state.ElementId, &state); err != nil {
 			var escape *AbandonOpError
 			if errors.As(err, &escape) {
@@ -104,7 +108,9 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 			}
 			return false, nil
 		}
-	case messages.WorkflowJobServiceTaskComplete, messages.WorkflowJobUserTaskComplete, messages.WorkflowJobManualTaskComplete:
+	case strings.Contains(msg.Subject, ".State.Job.Complete.ServiceTask"),
+		strings.Contains(msg.Subject, ".State.Job.Complete.UserTask"),
+		strings.Contains(msg.Subject, ".State.Job.Complete.ManualTask"):
 		if err := s.spanEnd(ctx, "Job: "+state.ElementType, &state); err != nil {
 			var escape *AbandonOpError
 			if errors.As(err, &escape) {
@@ -117,8 +123,10 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 			}
 			return false, nil
 		}
-	case messages.WorkflowInstanceComplete:
-	case messages.WorkflowInstanceTerminated:
+	//case strings.HasSuffix(msg.Subject, ".State.Workflow.Complete"):
+	//case strings.HasSuffix(msg.Subject, ".State.Workflow.Terminated"):
+	default:
+
 	}
 	return true, nil
 }
