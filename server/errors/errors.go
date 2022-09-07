@@ -18,3 +18,8 @@ type ErrWorkflowFatal struct {
 func (e ErrWorkflowFatal) Error() string {
 	return e.Err.Error()
 }
+
+func IsWorkflowFatal(err error) bool {
+	var wff *ErrWorkflowFatal
+	return errors.As(err, &wff)
+}

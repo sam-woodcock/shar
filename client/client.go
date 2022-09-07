@@ -151,7 +151,7 @@ func (c *Client) listen(ctx context.Context) error {
 				fmt.Println(err)
 				return false, err
 			}
-			xctx = context.WithValue(xctx, ctxkey.WorkflowInstanceId, ut.WorkflowInstanceId)
+			xctx = context.WithValue(xctx, ctxkey.WorkflowInstanceID, ut.WorkflowInstanceId)
 			switch ut.ElementType {
 			case "serviceTask":
 				job, err := c.storage.GetJob(xctx, ut.Id)
@@ -401,7 +401,7 @@ func (c *Client) GetUserTask(ctx context.Context, owner string, trackingID strin
 
 func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, name string, key any, mvars model.Vars) error {
 	if workflowInstanceID == "" {
-		workflowInstanceID = ctx.Value(ctxkey.WorkflowInstanceId).(string)
+		workflowInstanceID = ctx.Value(ctxkey.WorkflowInstanceID).(string)
 	}
 	var skey string
 	switch key.(type) {

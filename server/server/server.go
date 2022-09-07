@@ -28,35 +28,6 @@ type Server struct {
 	panicRecovery    bool
 }
 
-type Option interface {
-	configure(server *Server)
-}
-
-func EphemeralStorage() ephemeralStorageOption {
-	return ephemeralStorageOption{}
-}
-
-type ephemeralStorageOption struct {
-	Option
-}
-
-func (o ephemeralStorageOption) configure(server *Server) {
-	server.ephemeralStorage = true
-}
-
-func PanicRecovery(on bool) panicOption {
-	return panicOption{value: on}
-}
-
-type panicOption struct {
-	Option
-	value bool
-}
-
-func (o panicOption) configure(server *Server) {
-	server.panicRecovery = o.value
-}
-
 // New creates a new SHAR server.
 // Leave the exporter nil if telemetry is not required
 func New(log *zap.Logger, options ...Option) *Server {

@@ -83,7 +83,7 @@ var (
 	KvTrace        = "WORKFLOW_TRACKING"
 	KvUserTask     = "WORKFLOW_USERTASK"
 	KvOwnerName    = "WORKFLOW_OWNERNAME"
-	KvOwnerId      = "WORKFLOW_OWNERID"
-	KvClientTaskId = "WORKFLOW_CLIENTTASK"
+	KvOwnerID      = "WORKFLOW_OWNERID"
+	KvClientTaskID = "WORKFLOW_CLIENTTASK"
 	KvWfName       = "WORKFLOW_NAME"
 )

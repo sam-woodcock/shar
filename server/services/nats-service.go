@@ -140,9 +140,9 @@ func NewNatsService(log *zap.Logger, conn common.NatsConn, storageType nats.Stor
 	kvs[messages.KvMessageName] = &ms.wfMessageName
 	kvs[messages.KvMessageID] = &ms.wfMessageID
 	kvs[messages.KvUserTask] = &ms.wfUserTasks
-	kvs[messages.KvOwnerId] = &ms.ownerId
+	kvs[messages.KvOwnerID] = &ms.ownerId
 	kvs[messages.KvOwnerName] = &ms.ownerName
-	kvs[messages.KvClientTaskId] = &ms.wfClientTask
+	kvs[messages.KvClientTaskID] = &ms.wfClientTask
 	ks := make([]string, 0, len(kvs))
 	for k := range kvs {
 		ks = append(ks, k)
@@ -287,8 +287,8 @@ func (s *NatsService) CreateWorkflowInstance(ctx context.Context, wfInstance *mo
 
 func (s *NatsService) GetWorkflowInstance(_ context.Context, workflowInstanceId string) (*model.WorkflowInstance, error) {
 	wfi := &model.WorkflowInstance{}
-	if err := common.LoadObj(s.wfInstance, workflowInstanceId, wfi); err == nats.ErrKeyNotFound {
-		return nil, errors.ErrWorkflowNotFound
+	if err := common.LoadObj(s.wfInstance, workflowInstanceId, wfi); errors2.Is(err, nats.ErrKeyNotFound) {
+		return nil, errors.ErrWorkflowInstanceNotFound
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to load workflow instance from KV: %w", err)
 	}
@@ -561,7 +561,10 @@ func (s *NatsService) processTraversals(ctx context.Context) {
 			return false, fmt.Errorf("could not unmarshal traversal proto: %w", err)
 		}
 		if s.eventProcessor != nil {
-			if err := s.eventProcessor(ctx, &traversal, false); err != nil {
+			if err := s.eventProcessor(ctx, &traversal, false); errors.IsWorkflowFatal(err) {
+				s.log.Error("workflow fatally terminated whilst processing activity", zap.String(keys.WorkflowInstanceID, traversal.WorkflowInstanceId), zap.String(keys.WorkflowID, traversal.WorkflowId), zap.Error(err), zap.String(keys.ElementID, traversal.ElementId))
+				return true, nil
+			} else if err != nil {
 				return false, fmt.Errorf("could not process event: %w", err)
 			}
 		}
@@ -665,7 +668,7 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 		}
 		success, err := expression.Eval[bool](s.log, *sub.Execute+"=="+instance.CorrelationKey, dv)
 		if err != nil {
-			return false, err
+			return false, &errors.ErrWorkflowFatal{Err: err}
 		}
 		if !success {
 			continue

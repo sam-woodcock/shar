@@ -142,7 +142,7 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, tra
 					continue
 				}
 				m := msg[0]
-				log.Debug("Process:"+traceName, zap.String("subject", msg[0].Subject))
+				//				log.Debug("Process:"+traceName, zap.String("subject", msg[0].Subject))
 				cancel()
 				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
 					e, err := strconv.Atoi(embargo)

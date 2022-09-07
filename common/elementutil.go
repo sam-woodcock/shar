@@ -2,7 +2,7 @@ package common
 
 import "gitlab.com/shar-workflow/shar/model"
 
-// ElementTable indexes an entire process for quick Id lookups
+// ElementTable indexes an entire process for quick ID lookups
 func ElementTable(process *model.Workflow) map[string]*model.Element {
 	el := make(map[string]*model.Element)
 	for _, i := range process.Process {

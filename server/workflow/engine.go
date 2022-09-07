@@ -72,8 +72,8 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 	wfID, err := c.ns.GetLatestVersion(ctx, workflowName)
 	if err != nil {
 		return "", c.engineErr(ctx, "failed to get latest version of workflow", err,
-			zap.String(keys.ParentInstanceElementId, parentElID),
-			zap.String(keys.ParentWorkflowInstanceId, parentwfiID),
+			zap.String(keys.ParentInstanceElementID, parentElID),
+			zap.String(keys.ParentWorkflowInstanceID, parentwfiID),
 			zap.String(keys.WorkflowName, workflowName),
 		)
 	}
@@ -82,8 +82,8 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 	wf, err := c.ns.GetWorkflow(ctx, wfID)
 	if err != nil {
 		return "", c.engineErr(ctx, "failed to get workflow", err,
-			zap.String(keys.ParentInstanceElementId, parentElID),
-			zap.String(keys.ParentWorkflowInstanceId, parentwfiID),
+			zap.String(keys.ParentInstanceElementID, parentElID),
+			zap.String(keys.ParentWorkflowInstanceID, parentwfiID),
 			zap.String(keys.WorkflowName, workflowName),
 			zap.String(keys.WorkflowID, wfID),
 		)
@@ -98,8 +98,8 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 		})
 	if err != nil {
 		return "", c.engineErr(ctx, "failed to create workflow instance", err,
-			zap.String(keys.ParentInstanceElementId, parentElID),
-			zap.String(keys.ParentWorkflowInstanceId, parentwfiID),
+			zap.String(keys.ParentInstanceElementID, parentElID),
+			zap.String(keys.ParentWorkflowInstanceID, parentwfiID),
 			zap.String(keys.WorkflowName, workflowName),
 			zap.String(keys.WorkflowID, wfID),
 		)
@@ -125,8 +125,8 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 			Vars:               nil,
 		}, 0); err != nil {
 			errs <- c.engineErr(ctx, "failed to publish workflow state", err,
-				zap.String(keys.ParentInstanceElementId, parentElID),
-				zap.String(keys.ParentWorkflowInstanceId, parentwfiID),
+				zap.String(keys.ParentInstanceElementID, parentElID),
+				zap.String(keys.ParentWorkflowInstanceID, parentwfiID),
 				zap.String(keys.WorkflowName, workflowName),
 				zap.String(keys.WorkflowID, wfID),
 			)
@@ -136,7 +136,10 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 		go func(el *model.Element) {
 			defer wg.Done()
 
-			if err := c.traverse(ctx, wfi, trackingID, el.Outbound, els, vars); err != nil {
+			if err := c.traverse(ctx, wfi, trackingID, el.Outbound, els, vars); errors.IsWorkflowFatal(err) {
+				c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
+				return
+			} else if err != nil {
 				errs <- fmt.Errorf("failed traversal to %v: %w", el.Outbound, err)
 			}
 
@@ -151,8 +154,8 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 	close(errs)
 	if err := <-errs; err != nil {
 		return "", c.engineErr(ctx, "failed initial traversal", err,
-			zap.String(keys.ParentInstanceElementId, parentElID),
-			zap.String(keys.ParentWorkflowInstanceId, parentwfiID),
+			zap.String(keys.ParentInstanceElementID, parentElID),
+			zap.String(keys.ParentWorkflowInstanceID, parentwfiID),
 			zap.String(keys.WorkflowName, workflowName),
 			zap.String(keys.WorkflowID, wfID),
 		)
@@ -196,7 +199,7 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, pare
 			// evaluate the condition
 			res, err := expression.Eval[bool](c.log, ex, exVars)
 			if err != nil {
-				return err
+				return &errors.ErrWorkflowFatal{Err: err}
 			}
 			if !res {
 				ok = false
@@ -379,7 +382,7 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 	case "endEvent":
 		if *wfi.ParentWorkflowInstanceId != "" {
 			if err := c.returnBack(ctx, wfi.WorkflowInstanceId, *wfi.ParentWorkflowInstanceId, *wfi.ParentElementId, traversal.Vars); err != nil {
-				return c.engineErr(ctx, "failed to return to originator workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name, zap.String(keys.ParentWorkflowInstanceId, *wfi.ParentWorkflowInstanceId))...)
+				return c.engineErr(ctx, "failed to return to originator workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name, zap.String(keys.ParentWorkflowInstanceID, *wfi.ParentWorkflowInstanceId))...)
 			}
 
 		} else {
@@ -392,7 +395,10 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 		}
 	default:
 		// if we don't support the event, just traverse to the next element
-		if err := c.traverse(ctx, wfi, trackingId, el.Outbound, els, traversal.Vars); err != nil {
+		if err := c.traverse(ctx, wfi, trackingId, el.Outbound, els, traversal.Vars); errors.IsWorkflowFatal(err) {
+			c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
+			return nil
+		} else if err != nil {
 			return c.engineErr(ctx, "failed to return to traverse", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	}
@@ -449,7 +455,7 @@ func apErrFields(workflowInstanceID, workflowID, elementID, elementName, element
 func (c *Engine) returnBack(ctx context.Context, wfiID string, parentwfiID string, parentElID string, vars []byte) error {
 	pwfi, err := c.ns.GetWorkflowInstance(ctx, parentwfiID)
 	if err == errors.ErrWorkflowInstanceNotFound {
-		c.log.Warn("parent workflow instance not found, cancelling return to caller", zap.Error(err), zap.String(keys.ParentWorkflowInstanceId, parentwfiID))
+		c.log.Warn("parent workflow instance not found, cancelling return to caller", zap.Error(err), zap.String(keys.ParentWorkflowInstanceID, parentwfiID))
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("failed to fetch workflow instance for return back: %w", err)
@@ -457,21 +463,23 @@ func (c *Engine) returnBack(ctx context.Context, wfiID string, parentwfiID strin
 	pwf, err := c.ns.GetWorkflow(ctx, pwfi.WorkflowId)
 	if err != nil {
 		return c.engineErr(ctx, "failed to fetch return workflow", err,
-			zap.String(keys.ParentWorkflowInstanceId, parentwfiID),
+			zap.String(keys.ParentWorkflowInstanceID, parentwfiID),
 			zap.String(keys.WorkflowInstanceID, wfiID),
 			zap.String(keys.ElementID, parentElID),
 		)
 	}
 	index := common.ElementTable(pwf)
 	el := index[parentElID]
-	err = c.traverse(ctx, pwfi, "", el.Outbound, index, vars)
-	if err != nil {
+	if err = c.traverse(ctx, pwfi, "", el.Outbound, index, vars); errors.IsWorkflowFatal(err) {
+		c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfiID), zap.String(keys.ParentWorkflowInstanceID, parentwfiID), zap.Error(err), zap.String(keys.ElementName, el.Name))
+		return nil
+	} else if err != nil {
 		return c.engineErr(ctx, "failed to traverse", err,
 			zap.String(keys.ElementName, el.Name),
 			zap.String(keys.ElementID, el.Id),
 			zap.String(keys.ElementType, el.Type),
 			zap.String(keys.WorkflowInstanceID, wfiID),
-			zap.String(keys.ParentWorkflowInstanceId, parentwfiID),
+			zap.String(keys.ParentWorkflowInstanceID, parentwfiID),
 		)
 	}
 	return nil
@@ -518,7 +526,10 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobID string, vars []
 	el := els[job.ElementId]
 
 	// traverse to next element
-	if err := c.traverse(ctx, wfi, jobID, el.Outbound, els, vars); err != nil {
+	if err := c.traverse(ctx, wfi, jobID, el.Outbound, els, vars); errors.IsWorkflowFatal(err) {
+		c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
+		return nil
+	} else if err != nil {
 		return c.engineErr(ctx, "failed to launch traversal", err,
 			zap.String(keys.ElementName, el.Name),
 			zap.String(keys.ElementID, el.Id),
@@ -591,7 +602,7 @@ func (c *Engine) evaluateOwners(owners string, vars model.Vars) ([]string, error
 	jobGroups := make([]string, 0)
 	groups, err := expression.Eval[interface{}](c.log, owners, vars)
 	if err != nil {
-		return nil, err
+		return nil, &errors.ErrWorkflowFatal{Err: err}
 	}
 	switch groups := groups.(type) {
 	case string:
@@ -678,7 +689,12 @@ func (c *Engine) messageCompleteProcessor(ctx context.Context, state *model.Work
 		return err
 	}
 	els := common.ElementTable(wf)
-	return c.traverse(ctx, wfi, state.ParentId, els[state.ElementId].Outbound, els, state.Vars)
+	if err = c.traverse(ctx, wfi, state.ParentId, els[state.ElementId].Outbound, els, state.Vars); errors.IsWorkflowFatal(err) {
+		c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementID, state.ElementId))
+		return nil
+	} else {
+		return err
+	}
 }
 
 func (c *Engine) CompleteManualTask(ctx context.Context, trackingID string, newvars []byte) error {
