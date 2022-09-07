@@ -140,10 +140,10 @@ func parseBoundaryEvent(i *xmlquery.Node, pr *model.Process) {
 	if errorRef := i.SelectElement("//bpmn:errorEventDefinition/@errorRef"); errorRef != nil {
 		fmt.Println(attach, errorRef.InnerText())
 		allFlow := i.SelectElements("..//bpmn:sequenceFlow")
-		flowId := i.SelectElement("//bpmn:outgoing").InnerText()
+		flowID := i.SelectElement("//bpmn:outgoing").InnerText()
 		var target string
 		for _, v := range allFlow {
-			if v.SelectAttr("id") == flowId {
+			if v.SelectAttr("id") == flowID {
 				target = v.SelectAttr("targetRef")
 			}
 		}
