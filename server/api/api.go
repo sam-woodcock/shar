@@ -334,7 +334,7 @@ func (s *SharServer) getServerInstanceStats(ctx context.Context, req *emptypb.Em
 func listen[T proto.Message, U proto.Message](con common.NatsConn, log *zap.Logger, panicRecovery bool, subList map[*nats.Subscription]struct{}, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
 	sub, err := con.QueueSubscribe(subject, subject, func(msg *nats.Msg) {
 		ctx := context.Background()
-		if err := callApi(ctx, panicRecovery, req, msg, fn); err != nil {
+		if err := callAPI(ctx, panicRecovery, req, msg, fn); err != nil {
 			log.Error("API call for "+subject+" failed", zap.Error(err))
 		}
 	})
@@ -345,7 +345,7 @@ func listen[T proto.Message, U proto.Message](con common.NatsConn, log *zap.Logg
 	return sub, nil
 }
 
-func callApi[T proto.Message, U proto.Message](ctx context.Context, panicRecovery bool, container T, msg *nats.Msg, fn func(ctx context.Context, req T) (U, error)) error {
+func callAPI[T proto.Message, U proto.Message](ctx context.Context, panicRecovery bool, container T, msg *nats.Msg, fn func(ctx context.Context, req T) (U, error)) error {
 	if panicRecovery {
 		defer recoverAPIpanic(msg)
 	}

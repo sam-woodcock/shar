@@ -137,7 +137,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 			defer wg.Done()
 
 			if err := c.traverse(ctx, wfi, trackingID, el.Outbound, els, vars); errors.IsWorkflowFatal(err) {
-				c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
+				c.log.Fatal("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
 				return
 			} else if err != nil {
 				errs <- fmt.Errorf("failed traversal to %v: %w", el.Outbound, err)
@@ -396,7 +396,7 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 	default:
 		// if we don't support the event, just traverse to the next element
 		if err := c.traverse(ctx, wfi, trackingId, el.Outbound, els, traversal.Vars); errors.IsWorkflowFatal(err) {
-			c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
+			c.log.Fatal("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
 			return nil
 		} else if err != nil {
 			return c.engineErr(ctx, "failed to return to traverse", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
@@ -471,7 +471,7 @@ func (c *Engine) returnBack(ctx context.Context, wfiID string, parentwfiID strin
 	index := common.ElementTable(pwf)
 	el := index[parentElID]
 	if err = c.traverse(ctx, pwfi, "", el.Outbound, index, vars); errors.IsWorkflowFatal(err) {
-		c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfiID), zap.String(keys.ParentWorkflowInstanceID, parentwfiID), zap.Error(err), zap.String(keys.ElementName, el.Name))
+		c.log.Fatal("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfiID), zap.String(keys.ParentWorkflowInstanceID, parentwfiID), zap.Error(err), zap.String(keys.ElementName, el.Name))
 		return nil
 	} else if err != nil {
 		return c.engineErr(ctx, "failed to traverse", err,
@@ -527,7 +527,7 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobID string, vars []
 
 	// traverse to next element
 	if err := c.traverse(ctx, wfi, jobID, el.Outbound, els, vars); errors.IsWorkflowFatal(err) {
-		c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
+		c.log.Fatal("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
 		return nil
 	} else if err != nil {
 		return c.engineErr(ctx, "failed to launch traversal", err,
@@ -690,7 +690,7 @@ func (c *Engine) messageCompleteProcessor(ctx context.Context, state *model.Work
 	}
 	els := common.ElementTable(wf)
 	if err = c.traverse(ctx, wfi, state.ParentId, els[state.ElementId].Outbound, els, state.Vars); errors.IsWorkflowFatal(err) {
-		c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementID, state.ElementId))
+		c.log.Fatal("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementID, state.ElementId))
 		return nil
 	} else {
 		return err
