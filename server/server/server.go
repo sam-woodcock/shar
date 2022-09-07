@@ -107,6 +107,10 @@ func (s *Server) createServices(natsURL string, log *zap.Logger, ephemeral bool)
 	if err != nil {
 		log.Fatal("could not connect to NATS", zap.Error(err), zap.String("url", natsURL))
 	}
+	txConn, err := nats.Connect(natsURL)
+	if err != nil {
+		log.Fatal("could not connect to NATS", zap.Error(err), zap.String("url", natsURL))
+	}
 
 	if js, err := conn.JetStream(); err != nil {
 		panic(errors.New("cannot form JetSteram connection"))
@@ -120,7 +124,7 @@ func (s *Server) createServices(natsURL string, log *zap.Logger, ephemeral bool)
 	if ephemeral {
 		store = nats.MemoryStorage
 	}
-	ns, err := services.NewNatsService(log, conn, store, 6)
+	ns, err := services.NewNatsService(log, conn, txConn, store, 6)
 	if err != nil {
 		log.Fatal("failed to create NATS KV store", zap.Error(err))
 	}

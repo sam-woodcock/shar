@@ -56,6 +56,7 @@ func TestMessaging(t *testing.T) {
 	// Launch the workflow
 	if wfid, err := cl.LaunchWorkflow(ctx, "TestMessaging", model.Vars{"orderId": 57}); err != nil {
 		t.Fatal(err)
+		return
 	} else {
 		fmt.Println("Started", wfid)
 	}

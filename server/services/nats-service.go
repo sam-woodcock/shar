@@ -27,6 +27,7 @@ import (
 
 type NatsService struct {
 	js                        nats.JetStreamContext
+	txJS                      nats.JetStreamContext
 	messageCompleteProcessor  MessageCompleteProcessorFunc
 	eventProcessor            EventProcessorFunc
 	eventJobCompleteProcessor CompleteJobProcessorFunc
@@ -48,9 +49,11 @@ type NatsService struct {
 	ownerId                   nats.KeyValue
 	wfClientTask              nats.KeyValue
 	conn                      common.NatsConn
+	txConn                    common.NatsConn
 	workflowStats             *model.WorkflowStats
 	statsMx                   sync.Mutex
 	wfName                    nats.KeyValue
+	publishTimeout            time.Duration
 }
 
 func (s *NatsService) WorkflowStats() *model.WorkflowStats {
@@ -104,7 +107,7 @@ func (s *NatsService) ListWorkflows(_ context.Context) (chan *model.ListWorkflow
 	return res, errs
 }
 
-func NewNatsService(log *zap.Logger, conn common.NatsConn, storageType nats.StorageType, concurrency int) (*NatsService, error) {
+func NewNatsService(log *zap.Logger, conn common.NatsConn, txConn common.NatsConn, storageType nats.StorageType, concurrency int) (*NatsService, error) {
 	if concurrency < 1 || concurrency > 200 {
 		return nil, errors2.New("invalid concurrency set")
 	}
@@ -113,14 +116,21 @@ func NewNatsService(log *zap.Logger, conn common.NatsConn, storageType nats.Stor
 	if err != nil {
 		return nil, fmt.Errorf("failed to open jetstream: %w", err)
 	}
+	txJS, err := txConn.JetStream()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open jetstream: %w", err)
+	}
 	ms := &NatsService{
-		conn:          conn,
-		js:            js,
-		log:           log,
-		concurrency:   concurrency,
-		storageType:   storageType,
-		closing:       make(chan struct{}),
-		workflowStats: &model.WorkflowStats{},
+		conn:           conn,
+		txConn:         txConn,
+		js:             js,
+		txJS:           txJS,
+		log:            log,
+		concurrency:    concurrency,
+		storageType:    storageType,
+		closing:        make(chan struct{}),
+		workflowStats:  &model.WorkflowStats{},
+		publishTimeout: time.Second * 30,
 	}
 
 	if err := common.SetUpNats(js, storageType); err != nil {
@@ -516,9 +526,11 @@ func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string
 	} else {
 		msg.Data = b
 	}
-	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	pubCtx, cancel := context.WithTimeout(ctx, s.publishTimeout)
 	defer cancel()
-	if _, err := s.js.PublishMsg(msg, nats.Context(ctx), nats.MsgId(ksuid.New().String())); err != nil {
+	id := ksuid.New().String()
+	if _, err := s.txJS.PublishMsg(msg, nats.Context(pubCtx), nats.MsgId(id)); err != nil {
+		s.log.Error("failed to publish message", zap.Error(err), zap.String("nats.msg.id", id), zap.Any("state", state), zap.String("subject", msg.Subject))
 		return err
 	}
 	if stateName == subj.SubjNS(messages.WorkflowJobUserTaskExecute, "default") {
@@ -531,7 +543,7 @@ func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string
 	return nil
 }
 
-func (s *NatsService) PublishMessage(_ context.Context, workflowInstanceID string, name string, key string, vars []byte) error {
+func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string, vars []byte) error {
 	messageIDb, err := common.Load(s.wfMessageID, name)
 	messageID := string(messageIDb)
 	if err != nil {
@@ -548,7 +560,11 @@ func (s *NatsService) PublishMessage(_ context.Context, workflowInstanceID strin
 	} else {
 		msg.Data = b
 	}
-	if _, err := s.js.PublishMsg(msg, nats.MsgId(ksuid.New().String())); err != nil {
+	pubCtx, cancel := context.WithTimeout(ctx, s.publishTimeout)
+	defer cancel()
+	id := ksuid.New().String()
+	if _, err := s.txJS.PublishMsg(msg, nats.Context(pubCtx), nats.MsgId(id)); err != nil {
+		s.log.Error("failed to publish message", zap.Error(err), zap.String("nats.msg.id", id), zap.Any("msg", sharMsg), zap.String("subject", msg.Subject))
 		return err
 	}
 	return nil
@@ -562,7 +578,7 @@ func (s *NatsService) processTraversals(ctx context.Context) {
 		}
 		if s.eventProcessor != nil {
 			if err := s.eventProcessor(ctx, &traversal, false); errors.IsWorkflowFatal(err) {
-				s.log.Error("workflow fatally terminated whilst processing activity", zap.String(keys.WorkflowInstanceID, traversal.WorkflowInstanceId), zap.String(keys.WorkflowID, traversal.WorkflowId), zap.Error(err), zap.String(keys.ElementID, traversal.ElementId))
+				s.log.Fatal("workflow fatally terminated whilst processing activity", zap.String(keys.WorkflowInstanceID, traversal.WorkflowInstanceId), zap.String(keys.WorkflowID, traversal.WorkflowId), zap.Error(err), zap.String(keys.ElementID, traversal.ElementId))
 				return true, nil
 			} else if err != nil {
 				return false, fmt.Errorf("could not process event: %w", err)
@@ -646,7 +662,6 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 		return true, nil
 	}
 	workflowInstanceId := subj[3]
-	fmt.Println("processing message")
 	subs := &model.WorkflowInstanceSubscribers{}
 	if err := common.LoadObj(s.wfMsgSubs, workflowInstanceId, subs); err != nil {
 		return true, nil

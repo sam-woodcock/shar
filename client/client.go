@@ -49,6 +49,8 @@ type Client struct {
 	ns             string
 	listenTasks    map[string]struct{}
 	msgListenTasks map[string]struct{}
+	txJS           nats.JetStreamContext
+	txCon          *nats.Conn
 }
 
 type Option interface {
@@ -84,12 +86,25 @@ func (c *Client) Dial(natsURL string, opts ...nats.Option) error {
 	if err != nil {
 		return c.clientErr(context.Background(), "failed to connect to nats", err)
 	}
+	txnc, err := nats.Connect(natsURL, opts...)
+	if err != nil {
+		return c.clientErr(context.Background(), "failed to connect to nats", err)
+	}
 	js, err := n.JetStream()
+	if err != nil {
+		return c.clientErr(context.Background(), "failed to connect to jetstream", err)
+	}
+	txJS, err := txnc.JetStream()
+	if err != nil {
+		return c.clientErr(context.Background(), "failed to connect to jetstream", err)
+	}
 	if err != nil {
 		return c.clientErr(context.Background(), "failed to connect to jetstream: %w", err)
 	}
 	c.js = js
+	c.txJS = txJS
 	c.con = n
+	c.txCon = txnc
 	c.storage, err = services.NewNatsClientProvider(c.log, js, c.storageType)
 	if err != nil {
 		return err
@@ -184,7 +199,7 @@ func (c *Client) listen(ctx context.Context) error {
 						if errors.As(err, wfe) {
 							res := &model.HandleWorkflowErrorResponse{}
 							req := &model.HandleWorkflowErrorRequest{TrackingId: ut.Id, ErrorCode: wfe.Code}
-							if err2 := callAPI(ctx, c.con, messages.ApiHandleWorkflowError, req, res); err2 != nil {
+							if err2 := callAPI(ctx, c.txCon, messages.ApiHandleWorkflowError, req, res); err2 != nil {
 								c.log.Error("failed to handle workflow error", zap.Any("workflowError", wfe), zap.Error(err2))
 								return true, err
 							}
@@ -246,9 +261,6 @@ func (c *Client) listenWorkflowComplete(_ context.Context) error {
 				WorkflowState:      st.State,
 				Error:              st.Error,
 			}
-			if err := msg.Ack(); err != nil {
-				c.log.Error("send message ack failed", zap.Error(err), zap.String("subject", msg.Subject))
-			}
 		}
 	})
 	if err != nil {
@@ -260,7 +272,7 @@ func (c *Client) listenWorkflowComplete(_ context.Context) error {
 func (c *Client) ListUserTaskIDs(ctx context.Context, owner string) (*model.UserTasks, error) {
 	res := &model.UserTasks{}
 	req := &model.ListUserTasksRequest{Owner: owner}
-	if err := callAPI(ctx, c.con, messages.ApiListUserTaskIDs, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiListUserTaskIDs, req, res); err != nil {
 		return nil, c.clientErr(ctx, "failed to retrieve user task list: %w", err)
 	}
 	return res, nil
@@ -273,7 +285,7 @@ func (c *Client) CompleteUserTask(ctx context.Context, owner string, trackingID 
 	}
 	res := &emptypb.Empty{}
 	req := &model.CompleteUserTaskRequest{Owner: owner, TrackingId: trackingID, Vars: ev}
-	if err := callAPI(ctx, c.con, messages.ApiCompleteUserTask, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiCompleteUserTask, req, res); err != nil {
 		return c.clientErr(ctx, "failed to complete user task: %w", err)
 	}
 	return nil
@@ -286,7 +298,7 @@ func (c *Client) CompleteServiceTask(ctx context.Context, trackingID string, new
 	}
 	res := &emptypb.Empty{}
 	req := &model.CompleteServiceTaskRequest{TrackingId: trackingID, Vars: ev}
-	if err := callAPI(ctx, c.con, messages.ApiCompleteServiceTask, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiCompleteServiceTask, req, res); err != nil {
 		return c.clientErr(ctx, "failed to complete service task: %w", err)
 	}
 	return nil
@@ -299,7 +311,7 @@ func (c *Client) CompleteManualTask(ctx context.Context, trackingID string, newV
 	}
 	res := &emptypb.Empty{}
 	req := &model.CompleteManualTaskRequest{TrackingId: trackingID, Vars: ev}
-	if err := callAPI(ctx, c.con, messages.ApiCompleteManualTask, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiCompleteManualTask, req, res); err != nil {
 		return c.clientErr(ctx, "failed to complete manual task: %w", err)
 	}
 	return nil
@@ -309,7 +321,7 @@ func (c *Client) LoadBPMNWorkflowFromBytes(ctx context.Context, name string, b [
 	rdr := bytes.NewReader(b)
 	if wf, err := parser.Parse(name, rdr); err == nil {
 		res := &wrapperspb.StringValue{}
-		if err := callAPI(ctx, c.con, messages.ApiStoreWorkflow, wf, res); err != nil {
+		if err := callAPI(ctx, c.txCon, messages.ApiStoreWorkflow, wf, res); err != nil {
 			return "", c.clientErr(ctx, "failed to store workflow: %w", err)
 		}
 		return res.Value, nil
@@ -322,7 +334,7 @@ func (c *Client) LoadBPMNWorkflowFromBytes(ctx context.Context, name string, b [
 func (c *Client) CancelWorkflowInstance(ctx context.Context, instanceID string) error {
 	res := &emptypb.Empty{}
 	req := &model.CancelWorkflowInstanceRequest{Id: instanceID, State: model.CancellationState_Terminated}
-	if err := callAPI(ctx, c.con, messages.ApiCancelWorkflowInstance, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiCancelWorkflowInstance, req, res); err != nil {
 		return c.clientErr(ctx, "failed to cancel workflow instance: %w", err)
 	}
 	return nil
@@ -335,7 +347,7 @@ func (c *Client) LaunchWorkflow(ctx context.Context, workflowName string, mvars 
 	}
 	req := &model.LaunchWorkflowRequest{Name: workflowName, Vars: ev}
 	res := &wrappers.StringValue{}
-	if err := callAPI(ctx, c.con, messages.ApiLaunchWorkflow, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiLaunchWorkflow, req, res); err != nil {
 		return "", c.clientErr(ctx, "failed to launch workflow: %w", err)
 	}
 	return res.Value, nil
@@ -344,7 +356,7 @@ func (c *Client) LaunchWorkflow(ctx context.Context, workflowName string, mvars 
 func (c *Client) ListWorkflowInstance(ctx context.Context, name string) ([]*model.ListWorkflowInstanceResult, error) {
 	req := &model.ListWorkflowInstanceRequest{WorkflowName: name}
 	res := &model.ListWorkflowInstanceResponse{}
-	if err := callAPI(ctx, c.con, messages.ApiListWorkflowInstance, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiListWorkflowInstance, req, res); err != nil {
 		return nil, c.clientErr(ctx, "failed to launch workflow: %w", err)
 	}
 	return res.Result, nil
@@ -353,7 +365,7 @@ func (c *Client) ListWorkflowInstance(ctx context.Context, name string) ([]*mode
 func (c *Client) ListWorkflows(ctx context.Context) ([]*model.ListWorkflowResult, error) {
 	req := &emptypb.Empty{}
 	res := &model.ListWorkflowsResponse{}
-	if err := callAPI(ctx, c.con, messages.ApiListWorkflows, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiListWorkflows, req, res); err != nil {
 		return nil, c.clientErr(ctx, "failed to launch workflow: %w", err)
 	}
 	return res.Result, nil
@@ -362,7 +374,7 @@ func (c *Client) ListWorkflows(ctx context.Context) ([]*model.ListWorkflowResult
 func (c *Client) GetWorkflowInstanceStatus(ctx context.Context, id string) ([]*model.WorkflowState, error) {
 	req := &model.GetWorkflowInstanceStatusRequest{Id: id}
 	res := &model.WorkflowInstanceStatus{}
-	if err := callAPI(ctx, c.con, messages.ApiGetWorkflowStatus, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiGetWorkflowStatus, req, res); err != nil {
 		return nil, c.clientErr(ctx, "failed to launch workflow: %w", err)
 	}
 	return res.State, nil
@@ -371,7 +383,7 @@ func (c *Client) GetWorkflowInstanceStatus(ctx context.Context, id string) ([]*m
 func (c *Client) getServiceTaskRoutingID(ctx context.Context, id string) (string, error) {
 	req := &wrappers.StringValue{Value: id}
 	res := &wrappers.StringValue{}
-	if err := callAPI(ctx, c.con, messages.ApiGetServiceTaskRoutingID, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiGetServiceTaskRoutingID, req, res); err != nil {
 		return "", c.clientErr(ctx, "failed to get service task routing id: %w", err)
 	}
 	return res.Value, nil
@@ -380,7 +392,7 @@ func (c *Client) getServiceTaskRoutingID(ctx context.Context, id string) (string
 func (c *Client) getMessageSenderRoutingID(ctx context.Context, workflowName string, messageName string) (string, error) {
 	req := &model.GetMessageSenderRoutingIdRequest{WorkflowName: workflowName, MessageName: messageName}
 	res := &wrappers.StringValue{}
-	if err := callAPI(ctx, c.con, messages.ApiGetMessageSenderRoutingID, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiGetMessageSenderRoutingID, req, res); err != nil {
 		return "", c.clientErr(ctx, "failed to get message sender routing id: %w", err)
 	}
 	return res.Value, nil
@@ -389,7 +401,7 @@ func (c *Client) getMessageSenderRoutingID(ctx context.Context, workflowName str
 func (c *Client) GetUserTask(ctx context.Context, owner string, trackingID string) (*model.GetUserTaskResponse, model.Vars, error) {
 	req := &model.GetUserTaskRequest{Owner: owner, TrackingId: trackingID}
 	res := &model.GetUserTaskResponse{}
-	if err := callAPI(ctx, c.con, messages.ApiGetUserTask, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiGetUserTask, req, res); err != nil {
 		return nil, nil, c.clientErr(ctx, "failed to get user task: %w", err)
 	}
 	v, err := vars.Decode(c.log, res.Vars)
@@ -416,7 +428,7 @@ func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, nam
 	}
 	req := &model.SendMessageRequest{Name: name, Key: skey, WorkflowInstanceId: workflowInstanceID, Vars: b}
 	res := &emptypb.Empty{}
-	if err := callAPI(ctx, c.con, messages.ApiSendMessage, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiSendMessage, req, res); err != nil {
 		return c.clientErr(ctx, "failed to send message: %w", err)
 	}
 	return nil
@@ -435,7 +447,7 @@ func (c *Client) RegisterWorkflowInstanceComplete(fn chan *model.WorkflowInstanc
 func (c *Client) GetServerInstanceStats(ctx context.Context) (*model.WorkflowStats, error) {
 	req := &emptypb.Empty{}
 	res := &model.WorkflowStats{}
-	if err := callAPI(ctx, c.con, messages.ApiGetServerInstanceStats, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiGetServerInstanceStats, req, res); err != nil {
 		return nil, c.clientErr(ctx, "failed to get server instance stats: %w", err)
 	}
 	return res, nil
