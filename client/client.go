@@ -152,7 +152,7 @@ func (c *Client) listen(ctx context.Context) error {
 	closer := make(chan struct{}, 1)
 	tasks := make(map[string]string)
 	for i := range c.listenTasks {
-		tasks[i] = subj.SubjNS("WORKFLOW.%s.State.Job.Execute.ServiceTask."+i, c.ns)
+		tasks[i] = subj.SubjNS(messages.WorkflowJobServiceTaskExecute+"."+i, c.ns)
 	}
 	for i := range c.msgListenTasks {
 		tasks[i] = subj.SubjNS(messages.WorkflowJobSendMessageExecute+"."+i, c.ns)

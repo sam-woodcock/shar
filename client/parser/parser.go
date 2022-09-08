@@ -37,6 +37,11 @@ func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 		}
 		wf.Process[pr.Name] = pr
 	}
+
+	if err := validModel(wf); err != nil {
+		return nil, err
+	}
+
 	return wf, nil
 }
 
