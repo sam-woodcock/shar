@@ -68,7 +68,7 @@ func run(_ *cobra.Command, args []string) error {
 			Durable:       "Tracing",
 			Description:   "Sequential Trace Consumer",
 			DeliverPolicy: nats.DeliverAllPolicy,
-			FilterSubject: messages.WorkflowStateAll,
+			FilterSubject: subj.SubjNS(messages.WorkflowStateAll, "*"),
 			AckPolicy:     nats.AckExplicitPolicy,
 		}); err != nil {
 			panic(err)

@@ -57,14 +57,6 @@ type Option interface {
 	configure(client *Client)
 }
 
-type EphemeralStorage struct {
-	Option
-}
-
-func (o EphemeralStorage) configure(client *Client) {
-	client.storageType = nats.MemoryStorage
-}
-
 func New(log *zap.Logger, option ...Option) *Client {
 	client := &Client{
 		storageType:    nats.FileStorage,
@@ -248,7 +240,7 @@ func (c *Client) listen(ctx context.Context) error {
 }
 
 func (c *Client) listenWorkflowComplete(_ context.Context) error {
-	_, err := c.con.Subscribe(subj.SubjNS(messages.WorkflowInstanceTerminated, "default"), func(msg *nats.Msg) {
+	_, err := c.con.Subscribe(subj.SubjNS(messages.WorkflowInstanceTerminated, c.ns), func(msg *nats.Msg) {
 		st := &model.WorkflowState{}
 		if err := proto.Unmarshal(msg.Data, st); err != nil {
 			c.log.Error("proto unmarshal error", zap.Error(err))

@@ -31,7 +31,7 @@ func TestMessaging(t *testing.T) {
 	handlers := &testMessagingHandlerDef{log: log, wg: sync.WaitGroup{}}
 
 	// Dial shar
-	cl := client.New(log, client.EphemeralStorage{})
+	cl := client.New(log, client.WithEphemeralStorage())
 	err := cl.Dial(natsURL)
 	require.NoError(t, err)
 

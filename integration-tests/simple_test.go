@@ -29,7 +29,7 @@ func TestSimple(t *testing.T) {
 	log, _ := zap.NewDevelopment()
 
 	// Dial shar
-	cl := client.New(log, client.EphemeralStorage{})
+	cl := client.New(log, client.WithEphemeralStorage())
 	err := cl.Dial(natsURL)
 	require.NoError(t, err)
 

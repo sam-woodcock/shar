@@ -16,7 +16,7 @@ func main() {
 	log, _ := zap.NewDevelopment()
 
 	// Dial shar
-	cl := client.New(log, client.EphemeralStorage{})
+	cl := client.New(log, client.WithEphemeralStorage())
 	err := cl.Dial("nats://127.0.0.1:4222")
 	if err != nil {
 		panic(err)
