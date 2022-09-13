@@ -8,6 +8,7 @@ var (
 	ErrClosing                  = errors.New("SHAR server is shutting down")
 	ErrWorkflowInstanceNotFound = errors.New("workflow instance not found")
 	ErrWorkflowNotFound         = errors.New("workflow not found")
+	ErrElementNotFound          = errors.New("element not found")
 )
 
 // ErrWorkflowFatal signifys that the workflow must terniate

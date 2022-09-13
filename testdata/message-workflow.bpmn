@@ -21,6 +21,11 @@
       <bpmn:messageEventDefinition id="MessageEventDefinition_1darjdw" />
     </bpmn:intermediateThrowEvent>
     <bpmn:startEvent id="StartEvent_1">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="= orderId" target="orderId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_06ow1k2</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="Flow_06ow1k2" sourceRef="StartEvent_1" targetRef="Step1" />
@@ -28,6 +33,7 @@
   </bpmn:process>
   <bpmn:process id="Process_03llwnm" isExecutable="false">
     <bpmn:intermediateCatchEvent id="ReceiveMessage" name="Receive Continue Message">
+      <bpmn:extensionElements />
       <bpmn:incoming>Flow_0b7z5v8</bpmn:incoming>
       <bpmn:outgoing>Flow_0nfs5sn</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MessageEventDefinition_1ndb9hy" messageRef="Message_3lkfglf" />
@@ -36,6 +42,11 @@
       <bpmn:incoming>Flow_0fqsoiu</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:startEvent id="StartEvent_2">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="= orderId" target="orderId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_0b7z5v8</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:serviceTask id="Step2" name="Step 2">
@@ -83,6 +94,10 @@
       <bpmndi:BPMNShape id="Participant_0pzg05b_di" bpmnElement="Participant_0pzg05b" isHorizontal="true">
         <dc:Bounds x="129" y="240" width="551" height="160" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0b7z5v8_di" bpmnElement="Flow_0b7z5v8">
+        <di:waypoint x="218" y="320" />
+        <di:waypoint x="382" y="320" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_0fqsoiu_di" bpmnElement="Flow_0fqsoiu">
         <di:waypoint x="560" y="320" />
         <di:waypoint x="602" y="320" />
@@ -90,10 +105,6 @@
       <bpmndi:BPMNEdge id="Flow_0nfs5sn_di" bpmnElement="Flow_0nfs5sn">
         <di:waypoint x="418" y="320" />
         <di:waypoint x="460" y="320" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0b7z5v8_di" bpmnElement="Flow_0b7z5v8">
-        <di:waypoint x="218" y="320" />
-        <di:waypoint x="382" y="320" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="Event_03c4rvb_di" bpmnElement="ReceiveMessage">
         <dc:Bounds x="382" y="302" width="36" height="36" />

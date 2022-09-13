@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common/workflow"
+	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 	"math/big"
@@ -160,10 +161,14 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, tra
 				}
 				executeCtx := context.Background()
 				ack, err := fn(executeCtx, msg[0])
+				if errors2.IsWorkflowFatal(err) {
+					log.Fatal("workflow fatal error occured processing function", zap.Error(err))
+					ack = true
+				}
 				if err != nil {
 					wfe := &workflow.Error{}
 					if !errors.As(err, wfe) {
-						log.Error("processing error", zap.Error(err))
+						log.Error("processing error", zap.Error(err), zap.String("name", traceName))
 					}
 				}
 				if ack {

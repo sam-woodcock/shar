@@ -3,17 +3,9 @@ package parser
 import (
 	"errors"
 	"fmt"
-	"github.com/antonmedv/expr"
+	"gitlab.com/shar-workflow/shar/common/expression"
 	"gitlab.com/shar-workflow/shar/model"
 )
-
-func validExpr(expression string) error {
-	_, err := expr.Compile(expression)
-	if err != nil {
-		return err
-	}
-	return nil
-}
 
 var (
 	ErrMissingId                    = errors.New("missing id")
@@ -38,6 +30,66 @@ func validModel(workflow *model.Workflow) error {
 					return err
 				}
 			}
+		}
+		if err := checkVariables(workflow, i); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func checkVariables(workflow *model.Workflow, process *model.Process) error {
+	inputVars := make(map[string]struct{})
+	outputVars := make(map[string]struct{})
+	condVars := make(map[string]struct{})
+	for _, e := range process.Elements {
+		if e.InputTransform != nil {
+			for _, exp := range e.InputTransform {
+				v2, err := expression.GetVariables(exp)
+				if err != nil {
+					return err
+				}
+				for k := range v2 {
+					inputVars[k] = struct{}{}
+				}
+			}
+		}
+		if e.OutputTransform != nil {
+			for exp := range e.OutputTransform {
+				v2, err := expression.GetVariables("=" + exp)
+				if err != nil {
+					return err
+				}
+				for k := range v2 {
+					outputVars[k] = struct{}{}
+				}
+			}
+		}
+		if e.Outbound != nil {
+			for _, t := range e.Outbound.Target {
+				for _, c := range t.Conditions {
+					v2, err := expression.GetVariables(c)
+					if err != nil {
+						return err
+					}
+					for k := range v2 {
+						condVars[k] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+
+	//Test that inputs are all defined
+	for i := range inputVars {
+		if _, ok := outputVars[i]; !ok {
+			return fmt.Errorf("the undefined variable \"%s\" is referred to as input\n", i)
+		}
+	}
+	for i := range condVars {
+		if _, ok := outputVars[i]; !ok {
+			return fmt.Errorf("the undefined variable \"%s\" is referred to in a condition\n", i)
 		}
 	}
 	return nil

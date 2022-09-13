@@ -170,18 +170,18 @@ func (c *Client) listen(ctx context.Context) error {
 					c.log.Error("failed to find service function", zap.Error(err), zap.String("fn", *job.Execute))
 					return false, err
 				} else {
-					dv, err := vars.Decode(c.log, job.Vars)
+					dv, err := vars.Decode(c.log, job.LocalVars)
 					if err != nil {
 						c.log.Error("failed to decode vars", zap.Error(err), zap.String("fn", *job.Execute))
 						return false, err
 					}
 					newVars, err := func() (v model.Vars, e error) {
-						defer func() {
+						/*defer func() {
 							if r := recover(); r != nil {
 								v = model.Vars{}
 								e = fmt.Errorf("call to service task \"%s\" terminated in panic: %w", *ut.Execute, r.(error))
 							}
-						}()
+						}()*/
 						v, e = svcFn(xctx, dv)
 						return
 					}()
