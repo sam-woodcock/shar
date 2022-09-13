@@ -570,6 +570,18 @@ func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID str
 	return nil
 }
 
+func (s *NatsService) GetElement(ctx context.Context, state *model.WorkflowState) (*model.Element, error) {
+	wf := &model.Workflow{}
+	if err := common.LoadObj(s.wf, state.WorkflowId, wf); err == nats.ErrKeyNotFound {
+		return nil, err
+	}
+	els := common.ElementTable(wf)
+	if el, ok := els[state.ElementId]; ok {
+		return el, nil
+	}
+	return nil, errors.ErrElementNotFound
+}
+
 func (s *NatsService) processTraversals(ctx context.Context) {
 	common.Process(ctx, s.js, s.log, "traversal", s.closing, subj.SubjNS(messages.WorkflowTraversalExecute, "default"), "Traversal", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var traversal model.WorkflowState
@@ -677,6 +689,7 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 		if *sub.Condition != string(messageName) {
 			continue
 		}
+
 		dv, err := vars.Decode(s.log, sub.Vars)
 		if err != nil {
 			return false, err
@@ -688,11 +701,16 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 		if !success {
 			continue
 		}
-		newv, err := vars.Merge(s.log, sub.Vars, instance.Vars)
+
+		el, err := s.GetElement(ctx, sub)
+		if err != nil {
+			return true, errors.ErrWorkflowFatal{Err: err}
+		}
+
+		err = vars.OutputVars(s.log, sub, el)
 		if err != nil {
 			return false, err
 		}
-		sub.Vars = newv
 
 		if s.messageCompleteProcessor != nil {
 			if err := s.messageCompleteProcessor(ctx, sub); err != nil {

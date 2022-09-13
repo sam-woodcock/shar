@@ -22,6 +22,7 @@ type NatsService interface {
 	GetLatestVersion(ctx context.Context, workflowName string) (string, error)
 	CreateJob(ctx context.Context, job *model.WorkflowState) (string, error)
 	GetJob(ctx context.Context, id string) (*model.WorkflowState, error)
+	GetElement(ctx context.Context, state *model.WorkflowState) (*model.Element, error)
 	ListWorkflowInstance(ctx context.Context, workflowName string) (chan *model.ListWorkflowInstanceResult, chan error)
 	GetWorkflowInstanceStatus(ctx context.Context, id string) (*model.WorkflowInstanceStatus, error)
 	StartProcessing(ctx context.Context) error

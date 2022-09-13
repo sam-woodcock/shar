@@ -1,13 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_0zfw1vh" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.2.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.0.0">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_0zfw1vh" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.0.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.0.0">
   <bpmn:process id="TestUserTasks" name="Test User Tasks" isExecutable="true">
     <bpmn:startEvent id="StartEvent_1">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="= OrderId" target="oid" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_1onvh1a</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="Flow_1onvh1a" sourceRef="StartEvent_1" targetRef="Prepare" />
     <bpmn:serviceTask id="Prepare" name="Prepare">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="Prepare" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= oid" target="OrderId" />
+          <zeebe:output source="= OrderId" target="oid" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1onvh1a</bpmn:incoming>
       <bpmn:outgoing>Flow_03yc9q6</bpmn:outgoing>
@@ -16,6 +25,10 @@
       <bpmn:documentation>Ask user for some data</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:assignmentDefinition assignee="&#34;andrei&#34;" candidateGroups="&#34;admins&#34;" />
+        <zeebe:ioMapping>
+          <zeebe:output source="= Forename" target="Forename" />
+          <zeebe:output source="= Surname" target="Surname" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_03yc9q6</bpmn:incoming>
       <bpmn:outgoing>Flow_0re7l16</bpmn:outgoing>
@@ -29,6 +42,11 @@
     <bpmn:serviceTask id="Complete" name="Complete">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="Complete" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= Forename" target="Forename" />
+          <zeebe:input source="= Surname" target="Surname" />
+          <zeebe:input source="= oid" target="OrderId" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0re7l16</bpmn:incoming>
       <bpmn:outgoing>Flow_101lyz8</bpmn:outgoing>

@@ -67,7 +67,7 @@ func (c *Engine) Launch(ctx context.Context, workflowName string, vars []byte) (
 }
 
 // launch contains the underlying logic to start a workflow.  It is also called to spawn new instances of child workflows.
-func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, parentwfiID string, parentElID string) (string, error) {
+func (c *Engine) launch(ctx context.Context, workflowName string, vrs []byte, parentwfiID string, parentElID string) (string, error) {
 	// get the last ID of the workflow
 	wfID, err := c.ns.GetLatestVersion(ctx, workflowName)
 	if err != nil {
@@ -87,6 +87,35 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 			zap.String(keys.WorkflowName, workflowName),
 			zap.String(keys.WorkflowID, wfID),
 		)
+	}
+	initVars := make(model.Vars)
+	// decode the variables
+	if len(vrs) != 0 {
+		initVars, err = vars.Decode(c.log, vrs)
+		if err != nil {
+			return "", err
+		}
+	}
+	// Test to see if all variables are present.
+	vErr := forEachStartElement(wf, func(el *model.Element) error {
+		if el.OutputTransform != nil {
+			for _, v := range el.OutputTransform {
+				evs, err := expression.GetVariables(v)
+				if err != nil {
+					return err
+				}
+				for ev := range evs {
+					if _, ok := initVars[ev]; !ok {
+						return errors2.New("Workflow expects variable: " + ev)
+					}
+				}
+			}
+		}
+		return nil
+	})
+
+	if vErr != nil {
+		return "", vErr
 	}
 
 	// create a workflow instance
@@ -114,16 +143,23 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 	startErr := forEachStartElement(wf, func(el *model.Element) error {
 		wg.Add(1)
 
-		// fire off the new workflow state
 		trackingID := ksuid.New().String()
-		if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowInstanceExecute, &model.WorkflowState{
+		state := &model.WorkflowState{
 			Id:                 trackingID,
 			WorkflowInstanceId: wfi.WorkflowInstanceId,
 			WorkflowId:         wfID,
 			ElementId:          el.Id,
 			ElementType:        el.Type,
 			Vars:               nil,
-		}, 0); err != nil {
+			LocalVars:          vrs,
+		}
+		err := vars.OutputVars(c.log, state, el)
+		if err != nil {
+			return err
+		}
+
+		// fire off the new workflow state
+		if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowInstanceExecute, state, 0); err != nil {
 			errs <- c.engineErr(ctx, "failed to publish workflow state", err,
 				zap.String(keys.ParentInstanceElementID, parentElID),
 				zap.String(keys.ParentWorkflowInstanceID, parentwfiID),
@@ -136,7 +172,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vars []byte, p
 		go func(el *model.Element) {
 			defer wg.Done()
 
-			if err := c.traverse(ctx, wfi, trackingID, el.Outbound, els, vars); errors.IsWorkflowFatal(err) {
+			if err := c.traverse(ctx, wfi, trackingID, el.Outbound, els, state.Vars); errors.IsWorkflowFatal(err) {
 				c.log.Fatal("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
 				return
 			} else if err != nil {
@@ -558,7 +594,10 @@ func (c *Engine) startJob(ctx context.Context, subject, wfID, wfiID, parentTrack
 		Execute:            &el.Execute,
 		Condition:          &condition,
 	}
-
+	err := vars.InputVars(c.log, job, el)
+	if err != nil {
+		return err
+	}
 	vx, err := vars.Decode(c.log, v)
 	if err != nil {
 		return err
@@ -703,8 +742,14 @@ func (c *Engine) CompleteManualTask(ctx context.Context, trackingID string, newv
 	if err != nil {
 		return err
 	}
-	if job.Vars, err = vars.Merge(c.log, job.Vars, newvars); err != nil {
-		return err
+	el, err := c.ns.GetElement(ctx, job)
+	if err != nil {
+		return errors.ErrWorkflowFatal{Err: err}
+	}
+	job.LocalVars = newvars
+	err = vars.OutputVars(c.log, job, el)
+	if err != nil {
+		return errors.ErrWorkflowFatal{Err: err}
 	}
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowJobManualTaskComplete, job, 0); err != nil {
 		return err
@@ -717,8 +762,14 @@ func (c *Engine) CompleteServiceTask(ctx context.Context, trackingID string, new
 	if err != nil {
 		return err
 	}
-	if job.Vars, err = vars.Merge(c.log, job.Vars, newvars); err != nil {
-		return err
+	el, err := c.ns.GetElement(ctx, job)
+	if err != nil {
+		return errors.ErrWorkflowFatal{Err: err}
+	}
+	job.LocalVars = newvars
+	err = vars.OutputVars(c.log, job, el)
+	if err != nil {
+		return errors.ErrWorkflowFatal{Err: err}
 	}
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowJobServiceTaskComplete, job, 0); err != nil {
 		return err
@@ -732,8 +783,14 @@ func (c *Engine) CompleteUserTask(ctx context.Context, trackingID string, newvar
 	if err != nil {
 		return err
 	}
-	if job.Vars, err = vars.Merge(c.log, job.Vars, newvars); err != nil {
-		return err
+	el, err := c.ns.GetElement(ctx, job)
+	if err != nil {
+		return errors.ErrWorkflowFatal{Err: err}
+	}
+	job.LocalVars = newvars
+	err = vars.OutputVars(c.log, job, el)
+	if err != nil {
+		return errors.ErrWorkflowFatal{Err: err}
 	}
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowJobUserTaskComplete, job, 0); err != nil {
 		return err

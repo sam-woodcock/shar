@@ -121,6 +121,29 @@ func (_m *MockNatsService) DestroyWorkflowInstance(ctx context.Context, workflow
 	return r0
 }
 
+// GetElement provides a mock function with given fields: ctx, state
+func (_m *MockNatsService) GetElement(ctx context.Context, state *model.WorkflowState) (*model.Element, error) {
+	ret := _m.Called(ctx, state)
+
+	var r0 *model.Element
+	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState) *model.Element); ok {
+		r0 = rf(ctx, state)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*model.Element)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *model.WorkflowState) error); ok {
+		r1 = rf(ctx, state)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetJob provides a mock function with given fields: ctx, id
 func (_m *MockNatsService) GetJob(ctx context.Context, id string) (*model.WorkflowState, error) {
 	ret := _m.Called(ctx, id)

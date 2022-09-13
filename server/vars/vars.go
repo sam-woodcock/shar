@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"gitlab.com/shar-workflow/shar/common/expression"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors"
 	"go.uber.org/zap"
@@ -37,17 +38,52 @@ func Decode(log *zap.Logger, vars []byte) (model.Vars, error) {
 	return ret, nil
 }
 
-func Merge(log *zap.Logger, vars []byte, newVars []byte) ([]byte, error) {
-	v1, err := Decode(log, vars)
-	if err != nil {
-		return nil, err
+func InputVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) error {
+	localVars := make(map[string]interface{})
+	if el.InputTransform != nil {
+		processVars, err := Decode(log, state.Vars)
+		if err != nil {
+			return err
+		}
+		for k, v := range el.InputTransform {
+			res, err := expression.EvalAny(log, v, processVars)
+			if err != nil {
+				return err
+			}
+			localVars[k] = res
+		}
+		b, err := Encode(log, localVars)
+		if err != nil {
+			return err
+		}
+		state.LocalVars = b
 	}
-	v2, err := Decode(log, newVars)
-	if err != nil {
-		return nil, err
+	return nil
+}
+
+func OutputVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) error {
+	if el.OutputTransform != nil {
+		localVars, err := Decode(log, state.LocalVars)
+		if err != nil {
+			return err
+		}
+		processVars, err := Decode(log, state.Vars)
+		if err != nil {
+			return err
+		}
+		for k, v := range el.OutputTransform {
+			res, err := expression.EvalAny(log, v, localVars)
+			if err != nil {
+				return err
+			}
+			processVars[k] = res
+		}
+		b, err := Encode(log, processVars)
+		if err != nil {
+			return err
+		}
+		state.Vars = b
+		state.LocalVars = nil
 	}
-	for k, v := range v2 {
-		v1[k] = v
-	}
-	return Encode(log, v1)
+	return nil
 }

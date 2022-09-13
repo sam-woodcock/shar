@@ -72,7 +72,7 @@ func parseMessages(doc *xmlquery.Node, wf *model.Workflow, msgNodes []*xmlquery.
 			Name: x.SelectElement("@name").InnerText(),
 		}
 		msgs[m[i].Id] = m[i].Name
-		parseExtensions(doc, m[i], x)
+		parseZeebeExtensions(doc, m[i], x)
 	}
 	wf.Messages = m
 }
@@ -108,7 +108,7 @@ func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i 
 		parseFlowInOut(doc, i, el)
 		parseDocumentation(i, el)
 		parseElementErrors(doc, i, el)
-		parseExtensions(doc, el, i)
+		parseZeebeExtensions(doc, el, i)
 		if err := parseSubprocess(doc, wf, el, i, msgs, errs); err != nil {
 			return err
 		}
@@ -231,46 +231,6 @@ func parseSubprocess(doc *xmlquery.Node, wf *model.Workflow, el *model.Element, 
 		el.Process = pr
 	}
 	return nil
-}
-
-func parseExtensions(doc *xmlquery.Node, el *model.Element, i *xmlquery.Node) {
-	if x := i.SelectElement("bpmn:extensionElements"); x != nil {
-		//Task Definitions
-		if e := x.SelectElement("zeebe:taskDefinition/@type"); e != nil {
-			el.Execute = e.InnerText()
-		}
-		if e := x.SelectElement("zeebe:taskDefinition/@retries"); e != nil {
-			el.Retries = e.InnerText()
-		}
-		if e := x.SelectElement("zeebe:calledElement/@processId"); e != nil {
-			el.Execute = e.InnerText()
-		}
-		if e := x.SelectElement("zeebe:calledElement/@processId"); e != nil {
-			el.Execute = e.InnerText()
-		}
-		//Form Definitions
-		if fk := x.SelectElement("zeebe:formDefinition/@formKey"); fk != nil {
-			fullName := strings.Split(fk.InnerText(), ":")
-			name := fullName[len(fullName)-1]
-			f := doc.SelectElement("//zeebe:userTaskForm[@id=\"" + name + "\"]").InnerText()
-			el.Execute = f
-		}
-
-		//Assignment Definition
-		if e := x.SelectElement("zeebe:assignmentDefinition/@assignee"); e != nil {
-			el.Candidates = e.InnerText()
-		}
-
-		//Assignment Definition
-		if e := x.SelectElement("zeebe:assignmentDefinition/@candidateGroups"); e != nil {
-			el.CandidateGroups = e.InnerText()
-		}
-
-		//Messages
-		if e := x.SelectElement("zeebe:subscription/@correlationKey"); e != nil {
-			el.Execute = e.InnerText()
-		}
-	}
 }
 
 func parseDocumentation(i *xmlquery.Node, el *model.Element) {
