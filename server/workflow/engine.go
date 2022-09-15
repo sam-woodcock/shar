@@ -744,12 +744,16 @@ func (c *Engine) CompleteManualTask(ctx context.Context, trackingID string, newv
 	}
 	el, err := c.ns.GetElement(ctx, job)
 	if err != nil {
-		return errors.ErrWorkflowFatal{Err: err}
+		return &errors.ErrWorkflowFatal{Err: err}
 	}
 	job.LocalVars = newvars
+	err = vars.CheckVars(c.log, job, el)
+	if err != nil {
+		return &errors.ErrWorkflowFatal{Err: err}
+	}
 	err = vars.OutputVars(c.log, job, el)
 	if err != nil {
-		return errors.ErrWorkflowFatal{Err: err}
+		return &errors.ErrWorkflowFatal{Err: err}
 	}
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowJobManualTaskComplete, job, 0); err != nil {
 		return err
@@ -764,12 +768,16 @@ func (c *Engine) CompleteServiceTask(ctx context.Context, trackingID string, new
 	}
 	el, err := c.ns.GetElement(ctx, job)
 	if err != nil {
-		return errors.ErrWorkflowFatal{Err: err}
+		return &errors.ErrWorkflowFatal{Err: err}
 	}
 	job.LocalVars = newvars
+	err = vars.CheckVars(c.log, job, el)
+	if err != nil {
+		return &errors.ErrWorkflowFatal{Err: err}
+	}
 	err = vars.OutputVars(c.log, job, el)
 	if err != nil {
-		return errors.ErrWorkflowFatal{Err: err}
+		return &errors.ErrWorkflowFatal{Err: err}
 	}
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowJobServiceTaskComplete, job, 0); err != nil {
 		return err
@@ -785,12 +793,16 @@ func (c *Engine) CompleteUserTask(ctx context.Context, trackingID string, newvar
 	}
 	el, err := c.ns.GetElement(ctx, job)
 	if err != nil {
-		return errors.ErrWorkflowFatal{Err: err}
+		return &errors.ErrWorkflowFatal{Err: err}
 	}
 	job.LocalVars = newvars
+	err = vars.CheckVars(c.log, job, el)
+	if err != nil {
+		return &errors.ErrWorkflowFatal{Err: err}
+	}
 	err = vars.OutputVars(c.log, job, el)
 	if err != nil {
-		return errors.ErrWorkflowFatal{Err: err}
+		return &errors.ErrWorkflowFatal{Err: err}
 	}
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowJobUserTaskComplete, job, 0); err != nil {
 		return err

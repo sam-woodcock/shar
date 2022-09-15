@@ -26,6 +26,7 @@
       <bpmn:extensionElements>
         <zeebe:assignmentDefinition assignee="&#34;andrei&#34;" candidateGroups="&#34;admins&#34;" />
         <zeebe:ioMapping>
+          <zeebe:input source="= oid" target="OrderId" />
           <zeebe:output source="= Forename" target="Forename" />
           <zeebe:output source="= Surname" target="Surname" />
         </zeebe:ioMapping>

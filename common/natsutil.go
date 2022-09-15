@@ -162,10 +162,9 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, tra
 				executeCtx := context.Background()
 				ack, err := fn(executeCtx, msg[0])
 				if errors2.IsWorkflowFatal(err) {
-					log.Fatal("workflow fatal error occured processing function", zap.Error(err))
+					log.Error("workflow fatal error occured processing function", zap.Error(err))
 					ack = true
-				}
-				if err != nil {
+				} else if err != nil {
 					wfe := &workflow.Error{}
 					if !errors.As(err, wfe) {
 						log.Error("processing error", zap.Error(err), zap.String("name", traceName))

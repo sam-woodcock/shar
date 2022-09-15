@@ -17,7 +17,7 @@ func Encode(log *zap.Logger, vars model.Vars) ([]byte, error) {
 	if err := enc.Encode(vars); err != nil {
 		msg := "failed to encode vars"
 		log.Error(msg, zap.Any("vars", vars))
-		return nil, fmt.Errorf(msg+": %w", errors.ErrWorkflowFatal{Err: err})
+		return nil, fmt.Errorf(msg+": %w", &errors.ErrWorkflowFatal{Err: err})
 	}
 	return buf.Bytes(), nil
 }
@@ -33,7 +33,7 @@ func Decode(log *zap.Logger, vars []byte) (model.Vars, error) {
 	if err := d.Decode(&ret); err != nil {
 		msg := "failed to decode vars"
 		log.Error(msg, zap.Any("vars", vars), zap.Error(err))
-		return nil, fmt.Errorf(msg+": %w", errors.ErrWorkflowFatal{Err: err})
+		return nil, fmt.Errorf(msg+": %w", &errors.ErrWorkflowFatal{Err: err})
 	}
 	return ret, nil
 }
@@ -84,6 +84,27 @@ func OutputVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) 
 		}
 		state.Vars = b
 		state.LocalVars = nil
+	}
+	return nil
+}
+
+func CheckVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) error {
+	if el.OutputTransform != nil {
+		localVars, err := Decode(log, state.LocalVars)
+		if err != nil {
+			return err
+		}
+		for _, v := range el.OutputTransform {
+			list, err := expression.GetVariables(v)
+			if err != nil {
+				return err
+			}
+			for i := range list {
+				if _, ok := localVars[i]; !ok {
+					return fmt.Errorf("expected output variable [%s] missing", i)
+				}
+			}
+		}
 	}
 	return nil
 }

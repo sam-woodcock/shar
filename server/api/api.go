@@ -7,6 +7,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/model"
+	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/services"
 	"gitlab.com/shar-workflow/shar/server/workflow"
@@ -350,21 +351,25 @@ func callAPI[T proto.Message, U proto.Message](ctx context.Context, panicRecover
 		defer recoverAPIpanic(msg)
 	}
 	if err := proto.Unmarshal(msg.Data, container); err != nil {
-		errorResponse(msg, codes.Internal, err.Error())
+		errorResponse(msg, codes.InvalidArgument, err.Error())
 		return err
 	}
 	resMsg, err := fn(ctx, container)
 	if err != nil {
-		errorResponse(msg, codes.Internal, err.Error())
+		c := codes.Unknown
+		if errors2.IsWorkflowFatal(err) {
+			c = codes.Internal
+		}
+		errorResponse(msg, c, err.Error())
 		return err
 	}
 	res, err := proto.Marshal(resMsg)
 	if err != nil {
-		errorResponse(msg, codes.Internal, err.Error())
+		errorResponse(msg, codes.InvalidArgument, err.Error())
 		return err
 	}
 	if err := msg.Respond(res); err != nil {
-		errorResponse(msg, codes.Internal, err.Error())
+		errorResponse(msg, codes.FailedPrecondition, err.Error())
 		return err
 	}
 	return nil

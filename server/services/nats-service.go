@@ -704,7 +704,7 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 
 		el, err := s.GetElement(ctx, sub)
 		if err != nil {
-			return true, errors.ErrWorkflowFatal{Err: err}
+			return true, &errors.ErrWorkflowFatal{Err: err}
 		}
 
 		err = vars.OutputVars(s.log, sub, el)

@@ -14,9 +14,11 @@ import (
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	"gitlab.com/shar-workflow/shar/model"
+	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/vars"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -176,12 +178,12 @@ func (c *Client) listen(ctx context.Context) error {
 						return false, err
 					}
 					newVars, err := func() (v model.Vars, e error) {
-						/*defer func() {
+						defer func() {
 							if r := recover(); r != nil {
 								v = model.Vars{}
 								e = fmt.Errorf("call to service task \"%s\" terminated in panic: %w", *ut.Execute, r.(error))
 							}
-						}()*/
+						}()
 						v, e = svcFn(xctx, dv)
 						return
 					}()
@@ -202,7 +204,25 @@ func (c *Client) listen(ctx context.Context) error {
 						}
 						return wfe.Code != "", err
 					}
-					if err := c.CompleteServiceTask(xctx, ut.Id, newVars); err != nil {
+					err = c.CompleteServiceTask(xctx, ut.Id, newVars)
+					ae := &ApiError{}
+					if errors.As(err, &ae) {
+						if codes.Code(ae.Code) == codes.Internal {
+							c.log.Error("failed to complete service task", zap.Error(err))
+							e := &model.Error{
+								Id:   "",
+								Name: ae.Message,
+								Code: "client-" + strconv.Itoa(ae.Code),
+							}
+							if err := c.cancelWorkflowInstanceWithError(ctx, ut.WorkflowInstanceId, e); err != nil {
+								c.log.Error("failed to cancel workflow instance in response to fatal error")
+							}
+							return true, nil
+						}
+					} else if errors2.IsWorkflowFatal(err) {
+						return true, err
+					}
+					if err != nil {
 						c.log.Warn("failed to complete service task", zap.Error(err))
 						return false, err
 					}
@@ -324,8 +344,16 @@ func (c *Client) LoadBPMNWorkflowFromBytes(ctx context.Context, name string, b [
 }
 
 func (c *Client) CancelWorkflowInstance(ctx context.Context, instanceID string) error {
+	return c.cancelWorkflowInstanceWithError(ctx, instanceID, nil)
+}
+
+func (c *Client) cancelWorkflowInstanceWithError(ctx context.Context, instanceID string, wfe *model.Error) error {
 	res := &emptypb.Empty{}
-	req := &model.CancelWorkflowInstanceRequest{Id: instanceID, State: model.CancellationState_Terminated}
+	req := &model.CancelWorkflowInstanceRequest{
+		Id:    instanceID,
+		State: model.CancellationState_Errored,
+		Error: wfe,
+	}
 	if err := callAPI(ctx, c.txCon, messages.ApiCancelWorkflowInstance, req, res); err != nil {
 		return c.clientErr(ctx, "failed to cancel workflow instance: %w", err)
 	}
@@ -428,7 +456,6 @@ func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, nam
 
 func (c *Client) clientErr(_ context.Context, msg string, err error, z ...zap.Field) error {
 	z = append(z, zap.Error(err))
-	c.log.Error(msg, z...)
 	return err
 }
 
@@ -466,7 +493,11 @@ func callAPI[T proto.Message, U proto.Message](_ context.Context, con *nats.Conn
 		if err != nil {
 			i = 0
 		}
-		return &ApiError{Code: i, Message: e[1]}
+		ae := &ApiError{Code: i, Message: e[1]}
+		if codes.Code(i) == codes.Internal {
+			return &errors2.ErrWorkflowFatal{Err: ae}
+		}
+		return ae
 	}
 	if err := proto.Unmarshal(res.Data, ret); err != nil {
 		return err
