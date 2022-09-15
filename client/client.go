@@ -454,8 +454,7 @@ func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, nam
 	return nil
 }
 
-func (c *Client) clientErr(_ context.Context, msg string, err error, z ...zap.Field) error {
-	z = append(z, zap.Error(err))
+func (c *Client) clientErr(_ context.Context, msg string, err error) error {
 	return err
 }
 
