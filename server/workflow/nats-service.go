@@ -11,6 +11,7 @@ import (
 
 type NatsService interface {
 	AwaitMsg(ctx context.Context, state *model.WorkflowState) error
+	SetTraversalProvider(provider services.TraversalFunc)
 	ListWorkflows(ctx context.Context) (chan *model.ListWorkflowResult, chan error)
 	StoreWorkflow(ctx context.Context, wf *model.Workflow) (string, error)
 	GetWorkflow(ctx context.Context, workflowId string) (*model.Workflow, error)
