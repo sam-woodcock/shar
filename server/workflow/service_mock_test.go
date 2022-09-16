@@ -434,6 +434,11 @@ func (_m *MockNatsService) SetMessageCompleteProcessor(processor services.Messag
 	_m.Called(processor)
 }
 
+// SetTraversalProvider provides a mock function with given fields: provider
+func (_m *MockNatsService) SetTraversalProvider(provider services.TraversalFunc) {
+	_m.Called(provider)
+}
+
 // Shutdown provides a mock function with given fields:
 func (_m *MockNatsService) Shutdown() {
 	_m.Called()

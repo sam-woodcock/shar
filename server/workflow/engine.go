@@ -48,6 +48,10 @@ func (c *Engine) Start(ctx context.Context) error {
 
 	// Start the message processor.  This processes received intra workflow messages.
 	c.ns.SetMessageCompleteProcessor(c.messageCompleteProcessor)
+
+	// Set traversal function
+	c.ns.SetTraversalProvider(c.traverse)
+
 	return c.ns.StartProcessing(ctx)
 }
 
@@ -96,8 +100,10 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vrs []byte, pa
 			return "", err
 		}
 	}
+	var hasStartEvents bool
 	// Test to see if all variables are present.
 	vErr := forEachStartElement(wf, func(el *model.Element) error {
+		hasStartEvents = true
 		if el.OutputTransform != nil {
 			for _, v := range el.OutputTransform {
 				evs, err := expression.GetVariables(v)
@@ -118,49 +124,35 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vrs []byte, pa
 		return "", vErr
 	}
 
-	// create a workflow instance
-	wfi, err := c.ns.CreateWorkflowInstance(ctx,
-		&model.WorkflowInstance{
-			WorkflowId:               wfID,
-			ParentWorkflowInstanceId: &parentwfiID,
-			ParentElementId:          &parentElID,
-		})
-	if err != nil {
-		return "", c.engineErr(ctx, "failed to create workflow instance", err,
-			zap.String(keys.ParentInstanceElementID, parentElID),
-			zap.String(keys.ParentWorkflowInstanceID, parentwfiID),
-			zap.String(keys.WorkflowName, workflowName),
-			zap.String(keys.WorkflowID, wfID),
-		)
-	}
+	ret := ""
 
-	// index the workflow
-	els := common.ElementTable(wf)
-	errs := make(chan error)
-	wg := sync.WaitGroup{}
-
-	// for each start element, launch a workflow thread
-	startErr := forEachStartElement(wf, func(el *model.Element) error {
-		wg.Add(1)
-
-		trackingID := ksuid.New().String()
-		state := &model.WorkflowState{
-			Id:                 trackingID,
-			WorkflowInstanceId: wfi.WorkflowInstanceId,
-			WorkflowId:         wfID,
-			ElementId:          el.Id,
-			ElementType:        el.Type,
-			Vars:               nil,
-			LocalVars:          vrs,
+	// Test to see if all variables are present.
+	vErr = forEachTimedStartElement(wf, func(el *model.Element) error {
+		if el.Type == "timedStartEvent" {
+			timer := &model.WorkflowState{
+				WorkflowId:   wfID,
+				ElementId:    el.Id,
+				UnixTimeNano: time.Now().UnixNano(),
+				Timer: &model.WorkflowTimer{
+					LastFired: 0,
+					Count:     0,
+				},
+			}
+			return c.ns.PublishWorkflowState(ctx, subj.SubjNS(messages.WorkflowTimedExecute, "default"), timer, 0)
 		}
-		err := vars.OutputVars(c.log, state, el)
+		return nil
+	})
+
+	if hasStartEvents {
+		// create a workflow instance
+		wfi, err := c.ns.CreateWorkflowInstance(ctx,
+			&model.WorkflowInstance{
+				WorkflowId:               wfID,
+				ParentWorkflowInstanceId: &parentwfiID,
+				ParentElementId:          &parentElID,
+			})
 		if err != nil {
-			return err
-		}
-
-		// fire off the new workflow state
-		if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowInstanceExecute, state, 0); err != nil {
-			errs <- c.engineErr(ctx, "failed to publish workflow state", err,
+			return "", c.engineErr(ctx, "failed to create workflow instance", err,
 				zap.String(keys.ParentInstanceElementID, parentElID),
 				zap.String(keys.ParentWorkflowInstanceID, parentwfiID),
 				zap.String(keys.WorkflowName, workflowName),
@@ -168,35 +160,75 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vrs []byte, pa
 			)
 		}
 
-		// traverse all the outbound paths
-		go func(el *model.Element) {
-			defer wg.Done()
+		if vErr != nil {
+			return "", vErr
+		}
 
-			if err := c.traverse(ctx, wfi, trackingID, el.Outbound, els, state.Vars); errors.IsWorkflowFatal(err) {
-				c.log.Fatal("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
-				return
-			} else if err != nil {
-				errs <- fmt.Errorf("failed traversal to %v: %w", el.Outbound, err)
+		// index the workflow
+		els := common.ElementTable(wf)
+		errs := make(chan error)
+		wg := sync.WaitGroup{}
+
+		// for each start element, launch a workflow thread
+		startErr := forEachStartElement(wf, func(el *model.Element) error {
+			wg.Add(1)
+
+			trackingID := ksuid.New().String()
+			state := &model.WorkflowState{
+				Id:                 trackingID,
+				WorkflowInstanceId: wfi.WorkflowInstanceId,
+				WorkflowId:         wfID,
+				ElementId:          el.Id,
+				ElementType:        el.Type,
+				Vars:               nil,
+				LocalVars:          vrs,
+			}
+			err := vars.OutputVars(c.log, state, el)
+			if err != nil {
+				return err
 			}
 
-		}(el)
-		return nil
-	})
-	if startErr != nil {
-		return "", startErr
+			// fire off the new workflow state
+			if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowInstanceExecute, state, 0); err != nil {
+				errs <- c.engineErr(ctx, "failed to publish workflow state", err,
+					zap.String(keys.ParentInstanceElementID, parentElID),
+					zap.String(keys.ParentWorkflowInstanceID, parentwfiID),
+					zap.String(keys.WorkflowName, workflowName),
+					zap.String(keys.WorkflowID, wfID),
+				)
+			}
+
+			// traverse all the outbound paths
+			go func(el *model.Element) {
+				defer wg.Done()
+
+				if err := c.traverse(ctx, wfi, trackingID, el.Outbound, els, state.Vars); errors.IsWorkflowFatal(err) {
+					c.log.Fatal("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
+					return
+				} else if err != nil {
+					errs <- fmt.Errorf("failed traversal to %v: %w", el.Outbound, err)
+				}
+
+			}(el)
+			return nil
+		})
+		if startErr != nil {
+			return "", startErr
+		}
+		// wait for all paths to be started
+		wg.Wait()
+		close(errs)
+		if err := <-errs; err != nil {
+			return "", c.engineErr(ctx, "failed initial traversal", err,
+				zap.String(keys.ParentInstanceElementID, parentElID),
+				zap.String(keys.ParentWorkflowInstanceID, parentwfiID),
+				zap.String(keys.WorkflowName, workflowName),
+				zap.String(keys.WorkflowID, wfID),
+			)
+		}
+		ret = wfi.WorkflowInstanceId
 	}
-	// wait for all paths to be started
-	wg.Wait()
-	close(errs)
-	if err := <-errs; err != nil {
-		return "", c.engineErr(ctx, "failed initial traversal", err,
-			zap.String(keys.ParentInstanceElementID, parentElID),
-			zap.String(keys.ParentWorkflowInstanceID, parentwfiID),
-			zap.String(keys.WorkflowName, workflowName),
-			zap.String(keys.WorkflowID, wfID),
-		)
-	}
-	return wfi.WorkflowInstanceId, nil
+	return ret, nil
 }
 
 // forEachStartElement finds all start elements for a given process and executes a function on the element.
@@ -204,6 +236,22 @@ func forEachStartElement(wf *model.Workflow, fn func(element *model.Element) err
 	for _, pr := range wf.Process {
 		for _, i := range pr.Elements {
 			if i.Type == "startEvent" {
+				err := fn(i)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	// TODO: Ensure workflow terminates
+	return nil
+}
+
+// forEachStartElement finds all start elements for a given process and executes a function on the element.
+func forEachTimedStartElement(wf *model.Workflow, fn func(element *model.Element) error) error {
+	for _, pr := range wf.Process {
+		for _, i := range pr.Elements {
+			if i.Type == "timedStartEvent" {
 				err := fn(i)
 				if err != nil {
 					return err
@@ -416,7 +464,7 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 			return c.engineErr(ctx, "failed to await message", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "endEvent":
-		if *wfi.ParentWorkflowInstanceId != "" {
+		if wfi.ParentWorkflowInstanceId != nil && *wfi.ParentWorkflowInstanceId != "" {
 			if err := c.returnBack(ctx, wfi.WorkflowInstanceId, *wfi.ParentWorkflowInstanceId, *wfi.ParentElementId, traversal.Vars); err != nil {
 				return c.engineErr(ctx, "failed to return to originator workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name, zap.String(keys.ParentWorkflowInstanceID, *wfi.ParentWorkflowInstanceId))...)
 			}

@@ -43,6 +43,7 @@ message Element {
   Error error = 13;
   map<string, string> inputTransform = 14;
   map<string, string> outputTransform = 15;
+  WorkflowTimerDefinition timer = 16;
 }
 
 message Target {
@@ -88,6 +89,24 @@ message WorkflowState {
   repeated string groups = 13;
   Error error = 14;
   bytes localVars = 15;
+  WorkflowTimer timer = 16;
+}
+
+message WorkflowTimerDefinition {
+  WorkflowTimerType type = 1;
+  int64 value = 2;
+  int64 repeat = 3;
+  bool dropEvents = 4;
+}
+
+message WorkflowTimer {
+  int64 lastFired = 1;
+  int64 count = 2;
+}
+
+enum WorkflowTimerType {
+  duration = 0;
+  fixed = 1;
 }
 
 message WorkflowInstance {

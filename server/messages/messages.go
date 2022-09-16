@@ -24,6 +24,7 @@ const (
 	WorkflowActivityComplete          = "WORKFLOW.%s.State.Activity.Complete"
 	WorkflowTraversalExecute          = "WORKFLOW.%s.State.Traversal.Execute"
 	WorkflowTraversalComplete         = "WORKFLOW.%s.State.Traversal.Complete"
+	WorkflowTimedExecute              = "WORKFLOW.%s.Timers.WorkflowExecute"
 	WorkflowMessages                  = "WORKFLOW.%s.Message.>"
 )
 
@@ -32,17 +33,14 @@ var AllMessages = []string{
 	subj.SubjNS(WorkFlowJobCompleteAll, "*"),
 	subj.SubjNS(WorkflowJobServiceTaskExecuteWild, "*"),
 	subj.SubjNS(WorkflowJobSendMessageExecuteWild, "*"),
-	subj.SubjNS(WorkflowJobServiceTaskComplete, "*"),
 	subj.SubjNS(WorkflowJobUserTaskExecute, "*"),
-	subj.SubjNS(WorkflowJobUserTaskComplete, "*"),
 	subj.SubjNS(WorkflowJobManualTaskExecute, "*"),
-	subj.SubjNS(WorkflowJobManualTaskComplete, "*"),
-	subj.SubjNS(WorkflowJobSendMessageComplete, "*"),
 	subj.SubjNS(WorkflowActivityExecute, "*"),
 	subj.SubjNS(WorkflowActivityComplete, "*"),
 	subj.SubjNS(WorkflowTraversalExecute, "*"),
 	subj.SubjNS(WorkflowTraversalComplete, "*"),
 	subj.SubjNS(WorkflowMessages, "*"),
+	subj.SubjNS(WorkflowTimedExecute, "*"),
 	ApiAll,
 }
 
