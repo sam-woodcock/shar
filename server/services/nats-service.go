@@ -31,6 +31,7 @@ type NatsService struct {
 	messageCompleteProcessor  MessageCompleteProcessorFunc
 	eventProcessor            EventProcessorFunc
 	eventJobCompleteProcessor CompleteJobProcessorFunc
+	traverslFunc              TraversalFunc
 	log                       *zap.Logger
 	storageType               nats.StorageType
 	concurrency               int
@@ -248,8 +249,8 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 					}
 				}
 			}
-
 		}
+
 	}
 	if err := common.UpdateObj(ctx, s.wfVersion, wf.Name, &model.WorkflowVersions{}, func(v *model.WorkflowVersions) (*model.WorkflowVersions, error) {
 		if v.Version == nil || len(v.Version) == 0 {
@@ -268,6 +269,7 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 	}
 
 	go s.incrementWorkflowCount()
+
 	return wfID, nil
 }
 
@@ -504,6 +506,10 @@ func (s *NatsService) StartProcessing(ctx context.Context) error {
 		s.processMessages(ctx)
 	}()
 
+	go func() {
+		s.listenForTimer(ctx, s.js, s.log, s.closing, 4)
+	}()
+
 	go s.processCompletedJobs(ctx)
 	return nil
 }
@@ -517,6 +523,9 @@ func (s *NatsService) SetCompleteJobProcessor(processor CompleteJobProcessorFunc
 	s.eventJobCompleteProcessor = processor
 }
 
+func (s *NatsService) SetTraversalProvider(provider TraversalFunc) {
+	s.traverslFunc = provider
+}
 func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState, embargo int) error {
 	state.UnixTimeNano = time.Now().UnixNano()
 	msg := nats.NewMsg(subj.SubjNS(stateName, "default"))
@@ -843,4 +852,154 @@ func (s *NatsService) expectPossibleMissingKey(msg string, err error) error {
 		return nil
 	}
 	return err
+}
+
+func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, closer chan struct{}, concurrency int) {
+	subject := subj.SubjNS(messages.WorkflowTimedExecute, "*")
+	durable := "workflowTimers"
+	for i := 0; i < concurrency; i++ {
+		go func() {
+			sub, err := js.PullSubscribe(subject, durable)
+			if err != nil {
+				log.Error("process pull subscribe error", zap.Error(err), zap.String("subject", subject), zap.String("durable", durable))
+				return
+			}
+			for {
+				select {
+				case <-closer:
+					return
+				default:
+				}
+				reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+				msg, err := sub.Fetch(1, nats.Context(reqCtx))
+				if err != nil {
+					if err == context.DeadlineExceeded {
+						cancel()
+						continue
+					}
+					// Log Error
+					log.Error("message fetch error", zap.Error(err))
+					cancel()
+					continue
+				}
+				m := msg[0]
+				//				log.Debug("Process:"+traceName, zap.String("subject", msg[0].Subject))
+				cancel()
+				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
+					e, err := strconv.Atoi(embargo)
+					if err != nil {
+						log.Error("bad embargo value", zap.Error(err))
+						continue
+					}
+					offset := time.Duration(int64(e) - time.Now().UnixNano())
+					if offset > 0 {
+						if err != m.NakWithDelay(offset) {
+							log.Warn("failed to nak with delay")
+						}
+						continue
+					}
+				}
+
+				state := &model.WorkflowState{}
+				err = proto.Unmarshal(msg[0].Data, state)
+				if err != nil {
+					s.log.Error("could not unmarshal timer proto: %s", zap.Error(err))
+					err := msg[0].Ack()
+					if err != nil {
+						s.log.Error("could not dispose of timer message after unmarshal error: %s", zap.Error(err))
+					}
+					return
+				}
+
+				wf, err := s.GetWorkflow(ctx, state.WorkflowId)
+				if err != nil {
+					s.log.Error("could not get timer proto workflow: %s", zap.Error(err))
+					err := msg[0].Ack()
+					if err != nil {
+						s.log.Error("could not dispose of timer message after faliure to obtain workflow: %s", zap.Error(err))
+					}
+					return
+				}
+
+				els := common.ElementTable(wf)
+				el := els[state.ElementId]
+
+				now := time.Now().UnixNano()
+				elapsed := now - state.Timer.LastFired
+				count := state.Timer.Count
+				repeat := el.Timer.Repeat
+				value := el.Timer.Value
+
+				newTimer := &model.WorkflowState{
+					WorkflowId: state.WorkflowId,
+					ElementId:  state.ElementId,
+					Timer: &model.WorkflowTimer{
+						LastFired: now,
+						Count:     count + 1,
+					},
+				}
+
+				switch el.Timer.Type {
+				case model.WorkflowTimerType_fixed:
+					if value <= now {
+						wfi, err := s.CreateWorkflowInstance(ctx, &model.WorkflowInstance{
+							WorkflowId: state.WorkflowId,
+						})
+						if err != nil {
+							s.log.Error("error creating timed workflow instance", zap.Error(err))
+							return
+						}
+						if err := s.traverslFunc(ctx, wfi, ksuid.New().String(), el.Outbound, els, state.Vars); err != nil {
+							s.log.Error("error traversing for timed workflow instance", zap.Error(err))
+							return
+						}
+						if err := s.PublishWorkflowState(ctx, messages.WorkflowTimedExecute, newTimer, 0); err != nil {
+							s.log.Error("error publishing timer", zap.Error(err))
+							return
+						}
+					} else {
+						if err := msg[0].NakWithDelay(time.Duration(value - now)); err != nil {
+							s.log.Error("error backing off timer", zap.Error(err))
+							return
+						}
+						return
+					}
+					if err := msg[0].Ack(); err != nil {
+						s.log.Error("error acknowledging timer", zap.Error(err))
+						return
+					}
+				case model.WorkflowTimerType_duration:
+					if repeat == 0 || count < repeat {
+						if elapsed >= value {
+							wfi, err := s.CreateWorkflowInstance(ctx, &model.WorkflowInstance{
+								WorkflowId: state.WorkflowId,
+							})
+							if err != nil {
+								s.log.Error("error creating timed workflow instance", zap.Error(err))
+								return
+							}
+							if err := s.traverslFunc(ctx, wfi, ksuid.New().String(), el.Outbound, els, state.Vars); err != nil {
+								s.log.Error("error traversing for timed workflow instance", zap.Error(err))
+								return
+							}
+							if err := s.PublishWorkflowState(ctx, messages.WorkflowTimedExecute, newTimer, 0); err != nil {
+								s.log.Error("error publishing timer", zap.Error(err))
+								return
+							}
+						} else {
+							if err := msg[0].NakWithDelay(time.Duration(value - elapsed)); err != nil {
+								s.log.Error("error backing off timer", zap.Error(err))
+								return
+							}
+							return
+						}
+					}
+					if err := msg[0].Ack(); err != nil {
+						s.log.Error("error acknowledging timer", zap.Error(err))
+						return
+					}
+				}
+			}
+		}()
+	}
 }

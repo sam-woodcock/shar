@@ -8,6 +8,8 @@ import (
 	"io"
 	"strconv"
 	"strings"
+
+	"github.com/relvacode/iso8601"
 )
 
 //goland:noinspection HttpUrlsUsage
@@ -104,6 +106,12 @@ func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i 
 			parseIntermediateCatchEvent(i, el)
 		}
 
+		if i.Data == "startEvent" {
+			if err := parseStartEvent(i, el); err != nil {
+				return err
+			}
+		}
+
 		parseCoreValues(i, el)
 		parseFlowInOut(doc, i, el)
 		parseDocumentation(i, el)
@@ -116,6 +124,51 @@ func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i 
 			return err
 		}
 		pr.Elements = append(pr.Elements, el)
+	}
+	return nil
+}
+
+func parseStartEvent(n *xmlquery.Node, el *model.Element) error {
+	if def := n.SelectElement("bpmn:timerEventDefinition"); def != nil {
+		timeCycle := def.SelectElement("bpmn:timeCycle/text()")
+		timeDate := def.SelectElement("bpmn:timeDate/text()")
+		if timeCycle == nil && timeDate == nil {
+			return errors.New("found timerEventDefinition, but it had no time or duration specified")
+		}
+		var t *model.WorkflowTimerDefinition
+		if timeDate != nil {
+			tval, err := iso8601.ParseString(timeDate.Data)
+			if err != nil {
+				return err
+			}
+			t = &model.WorkflowTimerDefinition{
+				Type:  model.WorkflowTimerType_fixed,
+				Value: tval.UnixNano(),
+			}
+		} else {
+			badFormat := errors.New("time cycle was not in the correct format")
+			parts := strings.Split(timeCycle.Data, "/")
+			if len(timeCycle.Data) == 0 || len(parts) > 2 || timeCycle.Data[0] != 'R' || !strings.Contains(timeCycle.Data, "/") {
+				return badFormat
+			}
+
+			repeat, err := strconv.Atoi(parts[0][1:])
+			if err != nil {
+				return badFormat
+			}
+			dur, err := ParseISO8601(parts[1])
+			if err != nil {
+				return badFormat
+			}
+			t = &model.WorkflowTimerDefinition{
+				Type:       model.WorkflowTimerType_duration,
+				Value:      dur.timeDuration().Nanoseconds(),
+				Repeat:     int64(repeat),
+				DropEvents: false,
+			}
+		}
+		el.Timer = t
+		el.Type = "timedStartEvent"
 	}
 	return nil
 }
