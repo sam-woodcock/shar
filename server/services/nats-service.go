@@ -42,6 +42,7 @@ type NatsService struct {
 	wfMessageName             nats.KeyValue
 	wfMessageID               nats.KeyValue
 	wfUserTasks               nats.KeyValue
+	wfVarState                nats.KeyValue
 	wf                        nats.KeyValue
 	wfVersion                 nats.KeyValue
 	wfTracking                nats.KeyValue
@@ -154,6 +155,7 @@ func NewNatsService(log *zap.Logger, conn common.NatsConn, txConn common.NatsCon
 	kvs[messages.KvOwnerID] = &ms.ownerId
 	kvs[messages.KvOwnerName] = &ms.ownerName
 	kvs[messages.KvClientTaskID] = &ms.wfClientTask
+	kvs[messages.KvVarState] = &ms.wfVarState
 	ks := make([]string, 0, len(kvs))
 	for k := range kvs {
 		ks = append(ks, k)
@@ -599,7 +601,7 @@ func (s *NatsService) processTraversals(ctx context.Context) {
 		}
 		if s.eventProcessor != nil {
 			if err := s.eventProcessor(ctx, &traversal, false); errors.IsWorkflowFatal(err) {
-				s.log.Fatal("workflow fatally terminated whilst processing activity", zap.String(keys.WorkflowInstanceID, traversal.WorkflowInstanceId), zap.String(keys.WorkflowID, traversal.WorkflowId), zap.Error(err), zap.String(keys.ElementID, traversal.ElementId))
+				s.log.Error("workflow fatally terminated whilst processing activity", zap.String(keys.WorkflowInstanceID, traversal.WorkflowInstanceId), zap.String(keys.WorkflowID, traversal.WorkflowId), zap.Error(err), zap.String(keys.ElementID, traversal.ElementId))
 				return true, nil
 			} else if err != nil {
 				return false, fmt.Errorf("could not process event: %w", err)
@@ -1002,4 +1004,18 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 			}
 		}()
 	}
+}
+
+func (s *NatsService) SaveVariableState(_ context.Context, key string, vars []byte) error {
+	return common.Save(s.wfVarState, key, vars)
+}
+func (s *NatsService) LoadVariableState(_ context.Context, key string) ([]byte, error) {
+	ret, err := common.Load(s.wfVarState, key)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+func (s *NatsService) DeleteVariableState(_ context.Context, key string) error {
+	return common.Delete(s.wfVarState, key)
 }
