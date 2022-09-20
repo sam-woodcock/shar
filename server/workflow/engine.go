@@ -126,7 +126,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vrs []byte, pa
 
 	ret := ""
 
-	// Test to see if all variables are present.
+	// Start all timed start events.
 	vErr = forEachTimedStartElement(wf, func(el *model.Element) error {
 		if el.Type == "timedStartEvent" {
 			timer := &model.WorkflowState{
@@ -185,7 +185,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vrs []byte, pa
 			}
 			err := vars.OutputVars(c.log, state, el)
 			if err != nil {
-				return err
+				return &errors.ErrWorkflowFatal{Err: err}
 			}
 
 			// fire off the new workflow state
@@ -203,7 +203,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vrs []byte, pa
 				defer wg.Done()
 
 				if err := c.traverse(ctx, wfi, trackingID, el.Outbound, els, state.Vars); errors.IsWorkflowFatal(err) {
-					c.log.Fatal("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
+					c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
 					return
 				} else if err != nil {
 					errs <- fmt.Errorf("failed traversal to %v: %w", el.Outbound, err)
@@ -456,8 +456,20 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 			return c.engineErr(ctx, "failed to start message job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "callActivity":
-		if _, err := c.launch(ctx, el.Execute, traversal.Vars, traversal.WorkflowInstanceId, el.Id); err != nil {
-			return c.engineErr(ctx, "failed to launch child workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
+		id := ksuid.New().String()
+		if err = vars.InputVars(c.log, traversal, el); err != nil {
+			return c.engineErr(ctx, "failed to set up input variables for sub process", &errors.ErrWorkflowFatal{Err: err}, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
+		}
+		v, err := vars.Set(c.log, traversal.LocalVars, "_varState", id)
+		if err != nil {
+			return err
+		}
+		if err := c.ns.SaveVariableState(ctx, id, traversal.Vars); err != nil {
+			return c.engineErr(ctx, "failed to record variable state for sub process", &errors.ErrWorkflowFatal{Err: err}, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
+		}
+		traversal.LocalVars = v
+		if _, err := c.launch(ctx, el.Execute, traversal.LocalVars, traversal.WorkflowInstanceId, el.Id); err != nil {
+			return c.engineErr(ctx, "failed to launch child workflow", &errors.ErrWorkflowFatal{Err: err}, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "messageIntermediateCatchEvent":
 		if err := c.awaitMessage(ctx, wfi.WorkflowId, traversal.WorkflowInstanceId, traversal.ParentId, el, traversal.Vars); err != nil {
@@ -465,6 +477,44 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 		}
 	case "endEvent":
 		if wfi.ParentWorkflowInstanceId != nil && *wfi.ParentWorkflowInstanceId != "" {
+			nv, err := vars.Decode(c.log, traversal.Vars)
+			if err != nil {
+				errMsg := "failed to decode sub process variables"
+				return c.engineErr(ctx, errMsg, &errors.ErrWorkflowFatal{Err: fmt.Errorf(errMsg+": %w", err)})
+			}
+			vs, ok := nv["_varState"]
+			if !ok {
+				errMsg := "saved variable state key not found in subworkflow variables"
+				return c.engineErr(ctx, errMsg, &errors.ErrWorkflowFatal{Err: errors2.New(errMsg)})
+			}
+			traversal.LocalVars = traversal.Vars
+			ov, err := c.ns.LoadVariableState(ctx, vs.(string))
+			if errors2.Is(err, nats.ErrKeyNotFound) {
+				errMsg := "parent variable state not found"
+				return c.engineErr(ctx, errMsg, &errors.ErrWorkflowFatal{Err: fmt.Errorf(errMsg+": %w", err)})
+			} else if err != nil {
+				errMsg := "error loading parent variable state"
+				return c.engineErr(ctx, errMsg, fmt.Errorf(errMsg+": %w", err))
+			}
+			targetWfi, err := c.ns.GetWorkflowInstance(ctx, *wfi.ParentWorkflowInstanceId)
+			if err == errors.ErrWorkflowInstanceNotFound {
+				// if the instance has been deleted quash this activity
+				c.log.Warn("parent workflow instance not found, cancelling processing", zap.Error(err), zap.String(keys.ParentWorkflowInstanceID, *wfi.ParentWorkflowInstanceId))
+				return nil
+			} else if err != nil {
+				c.log.Warn("failed to get parent workflow instance for return", zap.Error(err),
+					zap.String(keys.ElementName, el.Name),
+					zap.String(keys.ParentWorkflowInstanceID, *wfi.ParentWorkflowInstanceId),
+				)
+				return err
+			}
+			targetWf, err := c.ns.GetWorkflow(ctx, targetWfi.WorkflowId)
+			if err != nil {
+				return c.engineErr(ctx, "failed to get parent workflow", err)
+			}
+			els = common.ElementTable(targetWf)
+			traversal.Vars = ov
+			vars.OutputVars(c.log, traversal, els[*wfi.ParentElementId])
 			if err := c.returnBack(ctx, wfi.WorkflowInstanceId, *wfi.ParentWorkflowInstanceId, *wfi.ParentElementId, traversal.Vars); err != nil {
 				return c.engineErr(ctx, "failed to return to originator workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name, zap.String(keys.ParentWorkflowInstanceID, *wfi.ParentWorkflowInstanceId))...)
 			}
@@ -480,7 +530,7 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 	default:
 		// if we don't support the event, just traverse to the next element
 		if err := c.traverse(ctx, wfi, trackingId, el.Outbound, els, traversal.Vars); errors.IsWorkflowFatal(err) {
-			c.log.Fatal("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
+			c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
 			return nil
 		} else if err != nil {
 			return c.engineErr(ctx, "failed to return to traverse", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
@@ -555,7 +605,7 @@ func (c *Engine) returnBack(ctx context.Context, wfiID string, parentwfiID strin
 	index := common.ElementTable(pwf)
 	el := index[parentElID]
 	if err = c.traverse(ctx, pwfi, "", el.Outbound, index, vars); errors.IsWorkflowFatal(err) {
-		c.log.Fatal("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfiID), zap.String(keys.ParentWorkflowInstanceID, parentwfiID), zap.Error(err), zap.String(keys.ElementName, el.Name))
+		c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfiID), zap.String(keys.ParentWorkflowInstanceID, parentwfiID), zap.Error(err), zap.String(keys.ElementName, el.Name))
 		return nil
 	} else if err != nil {
 		return c.engineErr(ctx, "failed to traverse", err,
@@ -611,7 +661,7 @@ func (c *Engine) completeJobProcessor(ctx context.Context, jobID string, vars []
 
 	// traverse to next element
 	if err := c.traverse(ctx, wfi, jobID, el.Outbound, els, vars); errors.IsWorkflowFatal(err) {
-		c.log.Fatal("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
+		c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
 		return nil
 	} else if err != nil {
 		return c.engineErr(ctx, "failed to launch traversal", err,
@@ -777,7 +827,7 @@ func (c *Engine) messageCompleteProcessor(ctx context.Context, state *model.Work
 	}
 	els := common.ElementTable(wf)
 	if err = c.traverse(ctx, wfi, state.ParentId, els[state.ElementId].Outbound, els, state.Vars); errors.IsWorkflowFatal(err) {
-		c.log.Fatal("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementID, state.ElementId))
+		c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementID, state.ElementId))
 		return nil
 	} else {
 		return err

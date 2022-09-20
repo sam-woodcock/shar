@@ -37,4 +37,7 @@ type NatsService interface {
 	CloseUserTask(ctx context.Context, trackingID string) error
 	OwnerId(name string) (string, error)
 	OwnerName(id string) (string, error)
+	SaveVariableState(ctx context.Context, key string, vars []byte) error
+	LoadVariableState(ctx context.Context, key string) ([]byte, error)
+	DeleteVariableState(ctx context.Context, key string) error
 }
