@@ -58,12 +58,13 @@ const (
 	ApiCompleteManualTask        = "WORKFLOW.Api.CompleteManualTask"
 	ApiCompleteServiceTask       = "WORKFLOW.Api.CompleteServiceTask"
 	ApiCompleteUserTask          = "WORKFLOW.Api.CompleteUserTask"
+	ApiCompleteSendMessage       = "WORKFLOW.Api.CompleteSendMessage"
 	ApiListUserTaskIDs           = "WORKFLOW.Api.ListUserTaskIDs"
 	ApiGetUserTask               = "WORKFLOW.Api.GetUserTask"
 	ApiHandleWorkflowError       = "WORKFLOW.Api.HandleWorkflowError"
 	ApiGetServerInstanceStats    = "WORKFLOW.Api.GetServerInstanceStats"
-	ApiGetServiceTaskRoutingID   = "WORKFLOW.Api.getServiceTaskRoutingID"
-	ApiGetMessageSenderRoutingID = "WORKFLOW.Api.getMEssageSenderRoutingID"
+	ApiGetServiceTaskRoutingID   = "WORKFLOW.Api.GetServiceTaskRoutingID"
+	ApiGetMessageSenderRoutingID = "WORKFLOW.Api.GetMessageSenderRoutingID"
 )
 
 var (

@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/telemetry/config"
 	"gitlab.com/shar-workflow/shar/telemetry/server"
@@ -82,7 +83,7 @@ func main() {
 		Durable:       "Tracing",
 		Description:   "Sequential Trace Consumer",
 		DeliverPolicy: nats.DeliverAllPolicy,
-		FilterSubject: "WORKFLOW.State.>",
+		FilterSubject: subj.SubjNS(messages.WorkflowStateAll, "*"),
 		AckPolicy:     nats.AckExplicitPolicy,
 	}); err != nil {
 		panic(err)
