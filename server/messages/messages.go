@@ -83,4 +83,5 @@ var (
 	KvOwnerID      = "WORKFLOW_OWNERID"
 	KvClientTaskID = "WORKFLOW_CLIENTTASK"
 	KvWfName       = "WORKFLOW_NAME"
+	KvVarState     = "WORKFLOW_VARSTATE"
 )

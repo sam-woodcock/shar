@@ -103,6 +103,10 @@ func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string,
 	})
 }
 
+func Delete(kv nats.KeyValue, key string) error {
+	return kv.Delete(key)
+}
+
 func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names []string) error {
 	for _, i := range names {
 		if _, err := js.KeyValue(i); err == nats.ErrBucketNotFound {

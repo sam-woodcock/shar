@@ -107,6 +107,20 @@ func (_m *MockNatsService) CreateWorkflowInstance(ctx context.Context, wfInstanc
 	return r0, r1
 }
 
+// DeleteVariableState provides a mock function with given fields: ctx, key
+func (_m *MockNatsService) DeleteVariableState(ctx context.Context, key string) error {
+	ret := _m.Called(ctx, key)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, key)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // DestroyWorkflowInstance provides a mock function with given fields: ctx, workflowInstanceId, state, wfError
 func (_m *MockNatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string, state model.CancellationState, wfError *model.Error) error {
 	ret := _m.Called(ctx, workflowInstanceId, state, wfError)
@@ -349,6 +363,29 @@ func (_m *MockNatsService) ListWorkflows(ctx context.Context) (chan *model.ListW
 	return r0, r1
 }
 
+// LoadVariableState provides a mock function with given fields: ctx, key
+func (_m *MockNatsService) LoadVariableState(ctx context.Context, key string) ([]byte, error) {
+	ret := _m.Called(ctx, key)
+
+	var r0 []byte
+	if rf, ok := ret.Get(0).(func(context.Context, string) []byte); ok {
+		r0 = rf(ctx, key)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, key)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // OwnerId provides a mock function with given fields: name
 func (_m *MockNatsService) OwnerId(name string) (string, error) {
 	ret := _m.Called(name)
@@ -412,6 +449,20 @@ func (_m *MockNatsService) PublishWorkflowState(ctx context.Context, stateName s
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, *model.WorkflowState, int) error); ok {
 		r0 = rf(ctx, stateName, state, delay)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// SaveVariableState provides a mock function with given fields: ctx, key, vars
+func (_m *MockNatsService) SaveVariableState(ctx context.Context, key string, vars []byte) error {
+	ret := _m.Called(ctx, key, vars)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, []byte) error); ok {
+		r0 = rf(ctx, key, vars)
 	} else {
 		r0 = ret.Error(0)
 	}

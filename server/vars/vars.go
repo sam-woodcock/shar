@@ -52,6 +52,9 @@ func InputVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) e
 			}
 			localVars[k] = res
 		}
+		if st, ok := processVars["_varState"]; ok {
+			localVars["_varState"] = st
+		}
 		b, err := Encode(log, localVars)
 		if err != nil {
 			return err
@@ -77,6 +80,9 @@ func OutputVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) 
 				return err
 			}
 			processVars[k] = res
+		}
+		if st, ok := localVars["_varState"]; ok {
+			processVars["_varState"] = st
 		}
 		b, err := Encode(log, processVars)
 		if err != nil {
@@ -107,4 +113,17 @@ func CheckVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) e
 		}
 	}
 	return nil
+}
+
+func Set(log *zap.Logger, v []byte, key string, value interface{}) ([]byte, error) {
+	vs, err := Decode(log, v)
+	if err != nil {
+		return nil, err
+	}
+	vs[key] = value
+	v, err = Encode(log, vs)
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
 }
