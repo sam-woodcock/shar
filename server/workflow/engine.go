@@ -514,7 +514,9 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 			}
 			els = common.ElementTable(targetWf)
 			traversal.Vars = ov
-			vars.OutputVars(c.log, traversal, els[*wfi.ParentElementId])
+			if err := vars.OutputVars(c.log, traversal, els[*wfi.ParentElementId]); err != nil {
+				return c.engineErr(ctx, "failed to merge output varables for parent workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name, zap.String(keys.ParentWorkflowInstanceID, *wfi.ParentWorkflowInstanceId))...)
+			}
 			if err := c.returnBack(ctx, wfi.WorkflowInstanceId, *wfi.ParentWorkflowInstanceId, *wfi.ParentElementId, traversal.Vars); err != nil {
 				return c.engineErr(ctx, "failed to return to originator workflow", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name, zap.String(keys.ParentWorkflowInstanceID, *wfi.ParentWorkflowInstanceId))...)
 			}
