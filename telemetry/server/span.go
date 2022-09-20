@@ -115,3 +115,9 @@ func (s *sharSpan) DroppedEvents() int {
 func (s *sharSpan) ChildSpanCount() int {
 	return s.ChildCount
 }
+
+// InstrumentationScope returns information about the instrumentation
+// scope that created the span.
+func (s *sharSpan) InstrumentationScope() instrumentation.Scope {
+	return s.InstrumentationLib
+}

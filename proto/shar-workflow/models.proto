@@ -210,6 +210,11 @@ message CompleteServiceTaskRequest {
   bytes vars = 2;
 }
 
+message CompleteSendMessageRequest {
+  string trackingId = 1;
+  bytes vars = 2;
+}
+
 message CompleteUserTaskRequest {
   string trackingId = 1;
   string owner = 2;

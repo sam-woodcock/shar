@@ -833,6 +833,30 @@ func (c *Engine) CompleteServiceTask(ctx context.Context, trackingID string, new
 	return nil
 }
 
+func (c *Engine) CompleteSendMessage(ctx context.Context, trackingID string, newvars []byte) error {
+	job, err := c.ns.GetJob(ctx, trackingID)
+	if err != nil {
+		return err
+	}
+	el, err := c.ns.GetElement(ctx, job)
+	if err != nil {
+		return &errors.ErrWorkflowFatal{Err: err}
+	}
+	job.LocalVars = newvars
+	err = vars.CheckVars(c.log, job, el)
+	if err != nil {
+		return &errors.ErrWorkflowFatal{Err: err}
+	}
+	err = vars.OutputVars(c.log, job, el)
+	if err != nil {
+		return &errors.ErrWorkflowFatal{Err: err}
+	}
+	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowJobSendMessageComplete, job, 0); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Engine) CompleteUserTask(ctx context.Context, trackingID string, newvars []byte) error {
 	fmt.Println("Complete User Task")
 	job, err := c.ns.GetJob(ctx, trackingID)
