@@ -57,7 +57,7 @@ func (s *Server) Listen() error {
 		return err
 	}
 	s.wfi = kv
-	common.Process(ctx, s.js, s.log, "telemetry", closer, subj.SubjNS(messages.WorkflowStateAll, "default"), "Tracing", 1, s.workflowTrace)
+	common.Process(ctx, s.js, s.log, "telemetry", closer, subj.SubjNS(messages.WorkflowStateAll, "*"), "Tracing", 1, s.workflowTrace)
 	return nil
 }
 
@@ -80,22 +80,27 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 
 	switch {
 	case strings.HasSuffix(msg.Subject, ".State.Workflow.Execute"):
+		fmt.Println(msg.Subject, state.Id)
 		if err := s.saveSpan(ctx, "Workflow Execute", &state, &state); err != nil {
 			return false, nil
 		}
 	case strings.HasSuffix(msg.Subject, ".State.Traversal.Execute"):
 	case strings.HasSuffix(msg.Subject, ".State.Activity.Execute"):
+		fmt.Println(msg.Subject, state.Id)
 		if err := s.spanStart(ctx, &state); err != nil {
 			return false, nil
 		}
 	case strings.Contains(msg.Subject, ".State.Job.Execute.ServiceTask"),
-		strings.Contains(msg.Subject, ".State.Job.Execute.UserTask"),
-		strings.Contains(msg.Subject, ".State.Job.Execute.ManualTask"):
+		strings.HasSuffix(msg.Subject, ".State.Job.Execute.UserTask"),
+		strings.HasSuffix(msg.Subject, ".State.Job.Execute.ManualTask"),
+		strings.Contains(msg.Subject, ".State.Job.Execute.SendMessage"):
+		fmt.Println(msg.Subject, state.Id)
 		if err := s.spanStart(ctx, &state); err != nil {
 			return false, nil
 		}
 	case strings.HasSuffix(msg.Subject, ".State.Traversal.Complete"):
 	case strings.HasSuffix(msg.Subject, ".State.Activity.Complete"):
+		fmt.Println(msg.Subject, state.Id)
 		if err := s.spanEnd(ctx, "Activity: "+state.ElementId, &state); err != nil {
 			var escape *AbandonOpError
 			if errors.As(err, &escape) {
@@ -110,7 +115,9 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 		}
 	case strings.Contains(msg.Subject, ".State.Job.Complete.ServiceTask"),
 		strings.Contains(msg.Subject, ".State.Job.Complete.UserTask"),
-		strings.Contains(msg.Subject, ".State.Job.Complete.ManualTask"):
+		strings.Contains(msg.Subject, ".State.Job.Complete.ManualTask"),
+		strings.Contains(msg.Subject, ".State.Job.Complete.SendMessage"):
+		fmt.Println(msg.Subject, state.Id)
 		if err := s.spanEnd(ctx, "Job: "+state.ElementType, &state); err != nil {
 			var escape *AbandonOpError
 			if errors.As(err, &escape) {
@@ -123,6 +130,7 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 			}
 			return false, nil
 		}
+	case strings.Contains(msg.Subject, ".State.Job.Complete.SendMessage"):
 	//case strings.HasSuffix(msg.Subject, ".State.Workflow.Complete"):
 	//case strings.HasSuffix(msg.Subject, ".State.Workflow.Terminated"):
 	default:

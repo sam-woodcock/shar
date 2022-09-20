@@ -181,7 +181,7 @@ func (c *Client) listen(ctx context.Context) error {
 						defer func() {
 							if r := recover(); r != nil {
 								v = model.Vars{}
-								e = fmt.Errorf("call to service task \"%s\" terminated in panic: %w", *ut.Execute, r.(error))
+								e = &errors2.ErrWorkflowFatal{Err: fmt.Errorf("call to service task \"%s\" terminated in panic: %w", *ut.Execute, r.(error))}
 							}
 						}()
 						v, e = svcFn(xctx, dv)
@@ -246,7 +246,7 @@ func (c *Client) listen(ctx context.Context) error {
 						c.log.Warn("nats listener", zap.Error(err))
 						return false, err
 					}
-					if err := c.CompleteServiceTask(xctx, ut.Id, make(map[string]any)); err != nil {
+					if err := c.CompleteSendMessage(xctx, ut.Id, make(map[string]any)); err != nil {
 						c.log.Error("proto unmarshal error", zap.Error(err))
 						return false, err
 					}
@@ -325,6 +325,19 @@ func (c *Client) CompleteManualTask(ctx context.Context, trackingID string, newV
 	req := &model.CompleteManualTaskRequest{TrackingId: trackingID, Vars: ev}
 	if err := callAPI(ctx, c.txCon, messages.ApiCompleteManualTask, req, res); err != nil {
 		return c.clientErr(ctx, "failed to complete manual task: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) CompleteSendMessage(ctx context.Context, trackingID string, newVars model.Vars) error {
+	ev, err := vars.Encode(c.log, newVars)
+	if err != nil {
+		return err
+	}
+	res := &emptypb.Empty{}
+	req := &model.CompleteSendMessageRequest{TrackingId: trackingID, Vars: ev}
+	if err := callAPI(ctx, c.txCon, messages.ApiCompleteSendMessage, req, res); err != nil {
+		return c.clientErr(ctx, "failed to complete send message: %w", err)
 	}
 	return nil
 }
