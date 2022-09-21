@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gitlab.com/shar-workflow/shar/common/expression"
 	"gitlab.com/shar-workflow/shar/model"
+	"regexp"
 )
 
 var (
@@ -35,7 +36,11 @@ func validModel(workflow *model.Workflow) error {
 			return err
 		}
 	}
-
+	for _, i := range workflow.Messages {
+		if err := validName(i.Name); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -111,6 +116,15 @@ func validServiceTask(j *model.Element) error {
 	return nil
 }
 
+var validKeyRe = regexp.MustCompile(`\A[-/_=\.a-zA-Z0-9]+\z`)
+
+// is a NATS compatible name
 func validName(name string) error {
+	if len(name) == 0 || name[0] == '.' || name[len(name)-1] == '.' {
+		return fmt.Errorf("'%s' contains invalid characters when used with SHAR", name)
+	}
+	if !validKeyRe.MatchString(name) {
+		return fmt.Errorf("'%s' contains invalid characters when used with SHAR", name)
+	}
 	return nil
 }
