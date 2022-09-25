@@ -3,6 +3,12 @@ package server
 import (
 	"errors"
 	"fmt"
+	"log"
+	"net"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/server/api"
 	"gitlab.com/shar-workflow/shar/server/health"
@@ -11,11 +17,6 @@ import (
 	"go.uber.org/zap/zapcore"
 	gogrpc "google.golang.org/grpc"
 	grpcHealth "google.golang.org/grpc/health/grpc_health_v1"
-	"log"
-	"net"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 type Server struct {
@@ -44,7 +45,7 @@ func New(log *zap.Logger, options ...Option) *Server {
 	return s
 }
 
-// Listen starts the GRPC server for both serving requests, and thw GRPC health endpoint.
+// Listen starts the GRPC server for both serving requests, and the GRPC health endpoint.
 func (s *Server) Listen(natsURL string, grpcPort int) {
 	// Capture errors and cancel signals
 	errs := make(chan error)
@@ -92,9 +93,8 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 	}
 }
 
-// Shutdown gracefully shuts down the GRPC server, and requests that
+// Shutdown gracefully shuts down the GRPC server, and requests that (... missing phrase?)
 func (s *Server) Shutdown() {
-
 	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
 	s.api.Shutdown()
 	s.grpcServer.GracefulStop()
@@ -116,7 +116,7 @@ func (s *Server) createServices(natsURL string, log *zap.Logger, ephemeral bool)
 		panic(errors.New("cannot form JetSteram connection"))
 	} else {
 		if _, err := js.AccountInfo(); err != nil {
-			panic(errors.New("could not contact JetStream. ensure it is enabled on the specified NATS instance"))
+			panic(errors.New("could not contact JetStream. Ensure it is enabled on the specified NATS instance"))
 		}
 	}
 
