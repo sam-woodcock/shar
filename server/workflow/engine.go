@@ -4,6 +4,10 @@ import (
 	"context"
 	errors2 "errors"
 	"fmt"
+	"strconv"
+	"sync"
+	"time"
+
 	"github.com/antonmedv/expr"
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
@@ -16,9 +20,6 @@ import (
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/vars"
 	"go.uber.org/zap"
-	"strconv"
-	"sync"
-	"time"
 )
 
 // Engine contains the workflow processing functions
@@ -29,13 +30,12 @@ type Engine struct {
 }
 
 // NewEngine returns an instance of the core workflow engine.
-func NewEngine(log *zap.Logger, ns NatsService) (*Engine, error) {
-	e := &Engine{
+func NewEngine(log *zap.Logger, ns NatsService) *Engine {
+	return &Engine{
 		ns:      ns,
 		closing: make(chan struct{}),
 		log:     log,
 	}
-	return e, nil
 }
 
 // Start sets up the activity and job processors and starts the engine processing workflows.

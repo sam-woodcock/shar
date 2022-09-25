@@ -28,10 +28,7 @@ type SharServer struct {
 }
 
 func New(log *zap.Logger, ns *services.NatsService, panicRecovery bool) (*SharServer, error) {
-	engine, err := workflow.NewEngine(log, ns)
-	if err != nil {
-		return nil, err
-	}
+	engine := workflow.NewEngine(log, ns)
 	if err := engine.Start(context.Background()); err != nil {
 		panic(err)
 	}
