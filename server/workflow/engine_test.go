@@ -173,7 +173,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 	trackingID := ksuid.New().String()
 	v, err := vars.Encode(nil, model.Vars{})
 	require.NoError(t, err)
-	err = eng.activityProcessor(ctx, &model.WorkflowState{
+	err = eng.activityStartProcessor(ctx, &model.WorkflowState{
 		WorkflowInstanceId: "test-workflow-instance-id",
 		ElementId:          els["Step1"].Id,
 		Id:                 trackingID,
