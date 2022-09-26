@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/model"
@@ -16,7 +18,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-	"sync"
 )
 
 type SharServer struct {
@@ -33,7 +34,7 @@ func New(log *zap.Logger, ns *services.NatsService, panicRecovery bool) (*SharSe
 		return nil, err
 	}
 	if err := engine.Start(context.Background()); err != nil {
-		panic(err)
+		return nil, err
 	}
 	return &SharServer{
 		log:           log,
@@ -75,8 +76,7 @@ func (s *SharServer) cancelWorkflowInstance(ctx context.Context, req *model.Canc
 func (s *SharServer) listWorkflowInstance(ctx context.Context, req *model.ListWorkflowInstanceRequest) (*model.ListWorkflowInstanceResponse, error) {
 	wch, errs := s.ns.ListWorkflowInstance(ctx, req.WorkflowName)
 	ret := make([]*model.ListWorkflowInstanceResult, 0)
-	var done bool
-	for !done {
+	for {
 		select {
 		case winf := <-wch:
 			if winf == nil {
@@ -90,8 +90,8 @@ func (s *SharServer) listWorkflowInstance(ctx context.Context, req *model.ListWo
 			return nil, err
 		}
 	}
-	return &model.ListWorkflowInstanceResponse{Result: ret}, nil
 }
+
 func (s *SharServer) getWorkflowInstanceStatus(ctx context.Context, req *model.GetWorkflowInstanceStatusRequest) (*model.WorkflowInstanceStatus, error) {
 	res, err := s.ns.GetWorkflowInstanceStatus(ctx, req.Id)
 	if err != nil {
@@ -103,13 +103,11 @@ func (s *SharServer) getWorkflowInstanceStatus(ctx context.Context, req *model.G
 func (s *SharServer) listWorkflows(ctx context.Context, _ *emptypb.Empty) (*model.ListWorkflowsResponse, error) {
 	res, errs := s.ns.ListWorkflows(ctx)
 	ret := make([]*model.ListWorkflowResult, 0)
-	var done bool
-	for !done {
+	for {
 		select {
 		case winf := <-res:
 			if winf == nil {
-				done = true
-				break
+				return &model.ListWorkflowsResponse{Result: ret}, nil
 			}
 			ret = append(ret, &model.ListWorkflowResult{
 				Name:    winf.Name,
@@ -119,7 +117,6 @@ func (s *SharServer) listWorkflows(ctx context.Context, _ *emptypb.Empty) (*mode
 			return nil, err
 		}
 	}
-	return &model.ListWorkflowsResponse{Result: ret}, nil
 }
 
 func (s *SharServer) sendMessage(ctx context.Context, req *model.SendMessageRequest) (*emptypb.Empty, error) {
@@ -151,8 +148,7 @@ func (s *SharServer) Shutdown() {
 	s.log.Info("stopping shar api listener")
 	shutdownOnce.Do(func() {
 		for sub := range s.subs {
-			err := sub.Drain()
-			if err != nil {
+			if err := sub.Drain(); err != nil {
 				s.log.Error("Could not drain subscription for "+sub.Subject, zap.Error(err))
 			}
 		}
@@ -163,59 +159,58 @@ func (s *SharServer) Shutdown() {
 
 func (s *SharServer) Listen() error {
 	con := s.ns.Conn()
-	log := s.log
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiCancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiCancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiLaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiLaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiCompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiCompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiCompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiCompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiCompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiCompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiHandleWorkflowError, &model.HandleWorkflowErrorRequest{}, s.handleWorkflowError); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiHandleWorkflowError, &model.HandleWorkflowErrorRequest{}, s.handleWorkflowError); err != nil {
 		return err
 	}
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
-		return err
-	}
-
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiGetServiceTaskRoutingID, &wrapperspb.StringValue{}, s.getServiceTaskRoutingID); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
 		return err
 	}
 
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiGetMessageSenderRoutingID, &model.GetMessageSenderRoutingIdRequest{}, s.getMessageSenderRoutingID); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiGetServiceTaskRoutingID, &wrapperspb.StringValue{}, s.getServiceTaskRoutingID); err != nil {
 		return err
 	}
 
-	if _, err := listen(con, log, s.panicRecovery, s.subs, messages.ApiCompleteSendMessage, &model.CompleteSendMessageRequest{}, s.completeSendMessage); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiGetMessageSenderRoutingID, &model.GetMessageSenderRoutingIdRequest{}, s.getMessageSenderRoutingID); err != nil {
+		return err
+	}
+
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiCompleteSendMessage, &model.CompleteSendMessageRequest{}, s.completeSendMessage); err != nil {
 		return err
 	}
 
