@@ -5,7 +5,6 @@ import (
 	errors2 "errors"
 	"fmt"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/antonmedv/expr"
@@ -165,59 +164,46 @@ func (c *Engine) launch(ctx context.Context, workflowName string, vrs []byte, pa
 			return "", vErr
 		}
 
-		// index the workflow
-		els := common.ElementTable(wf)
 		errs := make(chan error)
-		wg := sync.WaitGroup{}
+
+		trackingID := ksuid.New().String()
+		state := &model.WorkflowState{
+			Id:                 trackingID,
+			WorkflowInstanceId: wfi.WorkflowInstanceId,
+			WorkflowId:         wfID,
+			Vars:               nil,
+			LocalVars:          vrs,
+		}
+
+		// fire off the new workflow state
+		if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowInstanceExecute, state, 0); err != nil {
+			errs <- c.engineErr("failed to publish workflow state", err,
+				zap.String(keys.WorkflowName, workflowName),
+				zap.String(keys.WorkflowID, wfID),
+			)
+		}
 
 		// for each start element, launch a workflow thread
 		startErr := forEachStartElement(wf, func(el *model.Element) error {
-			wg.Add(1)
-
-			trackingID := ksuid.New().String()
-			state := &model.WorkflowState{
-				Id:                 trackingID,
-				WorkflowInstanceId: wfi.WorkflowInstanceId,
-				WorkflowId:         wfID,
-				ElementId:          el.Id,
+			trackingId := ksuid.New().String()
+			if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowTraversalExecute, &model.WorkflowState{
 				ElementType:        el.Type,
-				Vars:               nil,
-				LocalVars:          vrs,
+				ElementId:          el.Id,
+				WorkflowId:         wfi.WorkflowId,
+				WorkflowInstanceId: wfi.WorkflowInstanceId,
+				Id:                 trackingId,
+				ParentId:           trackingID,
+				Vars:               vrs,
+			}, 0); err != nil {
+				c.log.Error("failed to publish initial traversal", zap.Error(err))
+				return err
 			}
-			err := vars.OutputVars(c.log, state, el)
-			if err != nil {
-				return &errors.ErrWorkflowFatal{Err: err}
-			}
-
-			// fire off the new workflow state
-			if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowInstanceExecute, state, 0); err != nil {
-				errs <- c.engineErr("failed to publish workflow state", err,
-					zap.String(keys.ParentInstanceElementID, parentElID),
-					zap.String(keys.ParentWorkflowInstanceID, parentwfiID),
-					zap.String(keys.WorkflowName, workflowName),
-					zap.String(keys.WorkflowID, wfID),
-				)
-			}
-
-			// traverse all the outbound paths
-			go func(el *model.Element) {
-				defer wg.Done()
-
-				if err := c.traverse(ctx, wfi, trackingID, el.Outbound, els, state.Vars); errors.IsWorkflowFatal(err) {
-					c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementName, el.Name))
-					return
-				} else if err != nil {
-					errs <- fmt.Errorf("failed traversal to %v: %w", el.Outbound, err)
-				}
-
-			}(el)
 			return nil
 		})
 		if startErr != nil {
 			return "", startErr
 		}
 		// wait for all paths to be started
-		wg.Wait()
 		close(errs)
 		if err := <-errs; err != nil {
 			return "", c.engineErr("failed initial traversal", err,
@@ -417,6 +403,16 @@ func (c *Engine) activityProcessor(ctx context.Context, traversal *model.Workflo
 
 	// process any supported ebents
 	switch el.Type {
+	case "startEvent":
+		traversal.LocalVars = traversal.Vars
+		traversal.Vars = make([]byte, 0)
+		err := vars.OutputVars(c.log, traversal, el)
+		if err != nil {
+			return err
+		}
+		if err := c.traverse(ctx, wfi, trackingId, el.Outbound, els, traversal.Vars); err != nil {
+			return err
+		}
 	case "serviceTask":
 		stID, err := c.ns.GetServiceTaskRoutingKey(el.Execute)
 		if err != nil {

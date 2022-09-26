@@ -41,8 +41,8 @@ func TestLaunchWorkflow(t *testing.T) {
 	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.emptyCtx"), "WORKFLOW.%s.State.Workflow.Execute", mock.AnythingOfType("*model.WorkflowState"), 0).
 		Once().
 		Run(func(args mock.Arguments) {
-			assert.Equal(t, args[2].(*model.WorkflowState).ElementId, "StartEvent")
-			assert.Equal(t, args[2].(*model.WorkflowState).ElementType, "startEvent")
+			assert.Equal(t, "test-workflow-id", args[2].(*model.WorkflowState).WorkflowId)
+			assert.Equal(t, "test-workflow-instance-id", args[2].(*model.WorkflowState).WorkflowInstanceId)
 		}).
 		Return(nil)
 
@@ -51,8 +51,8 @@ func TestLaunchWorkflow(t *testing.T) {
 		Run(func(args mock.Arguments) {
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowId, "test-workflow-id")
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowInstanceId, "test-workflow-instance-id")
-			assert.Equal(t, args[2].(*model.WorkflowState).ElementId, "Step1")
-			assert.Equal(t, args[2].(*model.WorkflowState).ElementType, "serviceTask")
+			assert.Equal(t, args[2].(*model.WorkflowState).ElementId, "StartEvent")
+			assert.Equal(t, args[2].(*model.WorkflowState).ElementType, "startEvent")
 		}).
 		Return(nil)
 

@@ -70,9 +70,15 @@ func OutputVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) 
 		if err != nil {
 			return err
 		}
-		processVars, err := Decode(log, state.Vars)
-		if err != nil {
-			return err
+		var processVars map[string]interface{}
+		if len(state.Vars) > 0 {
+			pv, err := Decode(log, state.Vars)
+			if err != nil {
+				return err
+			}
+			processVars = pv
+		} else {
+			processVars = make(map[string]interface{})
 		}
 		for k, v := range el.OutputTransform {
 			res, err := expression.EvalAny(log, v, localVars)
