@@ -492,27 +492,13 @@ func (s *NatsService) StartProcessing(ctx context.Context) error {
 		return err
 	}
 
-	go func() {
-		s.processTraversals(ctx)
-	}()
-
-	go func() {
-		s.processTracking(ctx)
-	}()
-
-	go func() {
-		s.processWorkflowEvents(ctx)
-	}()
-
-	go func() {
-		s.processMessages(ctx)
-	}()
-
-	go func() {
-		s.listenForTimer(ctx, s.js, s.log, s.closing, 4)
-	}()
-
+	go s.processTraversals(ctx)
+	go s.processTracking(ctx)
+	go s.processWorkflowEvents(ctx)
+	go s.processMessages(ctx)
+	go s.listenForTimer(ctx, s.js, s.log, s.closing, 4)
 	go s.processCompletedJobs(ctx)
+	go s.processCompletedActivities(ctx)
 	return nil
 }
 func (s *NatsService) SetEventProcessor(processor EventProcessorFunc) {
@@ -763,6 +749,17 @@ func (s *NatsService) processWorkflowEvents(ctx context.Context) {
 				return false, err
 			}
 		}
+		return true, nil
+	})
+}
+
+func (s *NatsService) processCompletedActivities(ctx context.Context) {
+	common.Process(ctx, s.js, s.log, "completedActivity", s.closing, subj.SubjNS(messages.WorkflowActivityComplete, "default"), "ActivityCompleteConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+		var job model.WorkflowState
+		if err := proto.Unmarshal(msg.Data, &job); err != nil {
+			return false, err
+		}
+		fmt.Println("**"+job.ElementId, job.WorkflowInstanceId, job.Id, job.ParentId)
 		return true, nil
 	})
 }
