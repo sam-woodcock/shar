@@ -80,9 +80,6 @@ spec:
             - name: jaeger-thrift
               containerPort: 14268
               protocol: TCP
-            - name: nats
-              containerPort: 4222
-              protocol: TCP
         {{- end }}
 
       {{- with .Values.nodeSelector }}
