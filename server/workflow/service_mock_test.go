@@ -107,13 +107,13 @@ func (_m *MockNatsService) CreateWorkflowInstance(ctx context.Context, wfInstanc
 	return r0, r1
 }
 
-// DeleteVariableState provides a mock function with given fields: ctx, key
-func (_m *MockNatsService) DeleteVariableState(ctx context.Context, key string) error {
-	ret := _m.Called(ctx, key)
+// DeleteJob provides a mock function with given fields: ctx, trackingID
+func (_m *MockNatsService) DeleteJob(ctx context.Context, trackingID string) error {
+	ret := _m.Called(ctx, trackingID)
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = rf(ctx, key)
+		r0 = rf(ctx, trackingID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -216,6 +216,29 @@ func (_m *MockNatsService) GetMessageSenderRoutingKey(workflowName string, messa
 	var r1 error
 	if rf, ok := ret.Get(1).(func(string, string) error); ok {
 		r1 = rf(workflowName, messageName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetOldState provides a mock function with given fields: id
+func (_m *MockNatsService) GetOldState(id string) (*model.WorkflowState, error) {
+	ret := _m.Called(id)
+
+	var r0 *model.WorkflowState
+	if rf, ok := ret.Get(0).(func(string) *model.WorkflowState); ok {
+		r0 = rf(id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*model.WorkflowState)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(id)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -363,29 +386,6 @@ func (_m *MockNatsService) ListWorkflows(ctx context.Context) (chan *model.ListW
 	return r0, r1
 }
 
-// LoadVariableState provides a mock function with given fields: ctx, key
-func (_m *MockNatsService) LoadVariableState(ctx context.Context, key string) ([]byte, error) {
-	ret := _m.Called(ctx, key)
-
-	var r0 []byte
-	if rf, ok := ret.Get(0).(func(context.Context, string) []byte); ok {
-		r0 = rf(ctx, key)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]byte)
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, key)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // OwnerId provides a mock function with given fields: name
 func (_m *MockNatsService) OwnerId(name string) (string, error) {
 	ret := _m.Called(name)
@@ -442,13 +442,20 @@ func (_m *MockNatsService) PublishMessage(ctx context.Context, workflowInstanceI
 	return r0
 }
 
-// PublishWorkflowState provides a mock function with given fields: ctx, stateName, state, delay
-func (_m *MockNatsService) PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState, delay int) error {
-	ret := _m.Called(ctx, stateName, state, delay)
+// PublishWorkflowState provides a mock function with given fields: ctx, stateName, state, ops
+func (_m *MockNatsService) PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState, ops ...services.PublishOpt) error {
+	_va := make([]interface{}, len(ops))
+	for _i := range ops {
+		_va[_i] = ops[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, stateName, state)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, *model.WorkflowState, int) error); ok {
-		r0 = rf(ctx, stateName, state, delay)
+	if rf, ok := ret.Get(0).(func(context.Context, string, *model.WorkflowState, ...services.PublishOpt) error); ok {
+		r0 = rf(ctx, stateName, state, ops...)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -456,18 +463,9 @@ func (_m *MockNatsService) PublishWorkflowState(ctx context.Context, stateName s
 	return r0
 }
 
-// SaveVariableState provides a mock function with given fields: ctx, key, vars
-func (_m *MockNatsService) SaveVariableState(ctx context.Context, key string, vars []byte) error {
-	ret := _m.Called(ctx, key, vars)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, []byte) error); ok {
-		r0 = rf(ctx, key, vars)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
+// SetCompleteActivityProcessor provides a mock function with given fields: processor
+func (_m *MockNatsService) SetCompleteActivityProcessor(processor services.CompleteActivityProcessorFunc) {
+	_m.Called(processor)
 }
 
 // SetCompleteJobProcessor provides a mock function with given fields: processor
@@ -477,6 +475,11 @@ func (_m *MockNatsService) SetCompleteJobProcessor(processor services.CompleteJo
 
 // SetEventProcessor provides a mock function with given fields: processor
 func (_m *MockNatsService) SetEventProcessor(processor services.EventProcessorFunc) {
+	_m.Called(processor)
+}
+
+// SetLaunchFunc provides a mock function with given fields: processor
+func (_m *MockNatsService) SetLaunchFunc(processor services.LaunchFunc) {
 	_m.Called(processor)
 }
 

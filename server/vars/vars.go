@@ -25,7 +25,7 @@ func Encode(log *zap.Logger, vars model.Vars) ([]byte, error) {
 // Decode decodes a go binary object containing workflow variables.
 func Decode(log *zap.Logger, vars []byte) (model.Vars, error) {
 	ret := make(map[string]any)
-	if vars == nil {
+	if len(vars) == 0 {
 		return ret, nil
 	}
 	r := bytes.NewReader(vars)
@@ -38,10 +38,10 @@ func Decode(log *zap.Logger, vars []byte) (model.Vars, error) {
 	return ret, nil
 }
 
-func InputVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) error {
+func InputVars(log *zap.Logger, oldVarsBin []byte, newVarsBin *[]byte, el *model.Element) error {
 	localVars := make(map[string]interface{})
 	if el.InputTransform != nil {
-		processVars, err := Decode(log, state.Vars)
+		processVars, err := Decode(log, oldVarsBin)
 		if err != nil {
 			return err
 		}
@@ -52,27 +52,24 @@ func InputVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) e
 			}
 			localVars[k] = res
 		}
-		if st, ok := processVars["_varState"]; ok {
-			localVars["_varState"] = st
-		}
 		b, err := Encode(log, localVars)
 		if err != nil {
 			return err
 		}
-		state.LocalVars = b
+		*newVarsBin = b
 	}
 	return nil
 }
 
-func OutputVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) error {
+func OutputVars(log *zap.Logger, newVarsBin []byte, mergeVarsBin *[]byte, el *model.Element) error {
 	if el.OutputTransform != nil {
-		localVars, err := Decode(log, state.LocalVars)
+		localVars, err := Decode(log, newVarsBin)
 		if err != nil {
 			return err
 		}
 		var processVars map[string]interface{}
-		if len(state.Vars) > 0 {
-			pv, err := Decode(log, state.Vars)
+		if mergeVarsBin == nil || len(*mergeVarsBin) > 0 {
+			pv, err := Decode(log, *mergeVarsBin)
 			if err != nil {
 				return err
 			}
@@ -87,22 +84,18 @@ func OutputVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) 
 			}
 			processVars[k] = res
 		}
-		if st, ok := localVars["_varState"]; ok {
-			processVars["_varState"] = st
-		}
 		b, err := Encode(log, processVars)
 		if err != nil {
 			return err
 		}
-		state.Vars = b
-		state.LocalVars = nil
+		*mergeVarsBin = b
 	}
 	return nil
 }
 
 func CheckVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) error {
 	if el.OutputTransform != nil {
-		localVars, err := Decode(log, state.LocalVars)
+		vrs, err := Decode(log, state.Vars)
 		if err != nil {
 			return err
 		}
@@ -112,24 +105,11 @@ func CheckVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) e
 				return err
 			}
 			for i := range list {
-				if _, ok := localVars[i]; !ok {
+				if _, ok := vrs[i]; !ok {
 					return fmt.Errorf("expected output variable [%s] missing", i)
 				}
 			}
 		}
 	}
 	return nil
-}
-
-func Set(log *zap.Logger, v []byte, key string, value interface{}) ([]byte, error) {
-	vs, err := Decode(log, v)
-	if err != nil {
-		return nil, err
-	}
-	vs[key] = value
-	v, err = Encode(log, vs)
-	if err != nil {
-		return nil, err
-	}
-	return v, nil
 }

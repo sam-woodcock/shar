@@ -3,6 +3,7 @@ package tracer
 import (
 	"fmt"
 	"github.com/nats-io/nats.go"
+	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/model"
 	"google.golang.org/protobuf/proto"
 	"strings"
@@ -17,7 +18,7 @@ func Trace(natsUrl string) *nats.Subscription {
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println(msg.Subject, d.WorkflowInstanceId, d.Id, d.ParentId, d.ElementType, d.ElementId)
+			fmt.Println(msg.Subject, Last4(d.WorkflowInstanceId), "T:"+Last4(common.TrackingID(d.Id).ID()), "P:"+Last4(common.TrackingID(d.Id).ParentID()), d.ElementType, d.ElementId)
 		} else {
 			fmt.Println(msg.Subject)
 		}
@@ -26,4 +27,11 @@ func Trace(natsUrl string) *nats.Subscription {
 		panic(err)
 	}
 	return sub
+}
+
+func Last4(s string) string {
+	if len(s) < 4 {
+		return ""
+	}
+	return s[len(s)-4:]
 }

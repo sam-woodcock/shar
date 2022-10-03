@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
+	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/model"
 	"time"
 )
@@ -16,7 +17,7 @@ func (c *Console) OutputWorkflowInstanceStatus(status []*model.WorkflowState) er
 	fmt.Println("Instance: " + st.WorkflowInstanceId)
 
 	leveledList := pterm.LeveledList{
-		pterm.LeveledListItem{Level: 0, Text: "Tracking ID: " + st.Id},
+		pterm.LeveledListItem{Level: 0, Text: "Tracking ID: " + common.TrackingID(st.Id).ID()},
 		pterm.LeveledListItem{Level: 1, Text: "Element"},
 		pterm.LeveledListItem{Level: 2, Text: "ID: " + st.ElementId},
 		pterm.LeveledListItem{Level: 2, Text: "Type: " + st.ElementType},

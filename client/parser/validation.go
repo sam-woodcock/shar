@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	ErrMissingId                    = errors.New("missing id")
-	ErrMissingServiceTaskDefinition = errors.New("missing service task definition")
+	errMissingId                    = errors.New("missing id")
+	errMissingServiceTaskDefinition = errors.New("missing service task definition")
 )
 
 func validModel(workflow *model.Workflow) error {
@@ -23,7 +23,7 @@ func validModel(workflow *model.Workflow) error {
 		// Iterate through the elements
 		for _, j := range i.Elements {
 			if j.Id == "" {
-				return &ParserError{Err: ErrMissingId, Context: j.Name}
+				return &valError{Err: errMissingId, Context: j.Name}
 			}
 			switch j.Type {
 			case "serviceTask":
@@ -32,7 +32,7 @@ func validModel(workflow *model.Workflow) error {
 				}
 			}
 		}
-		if err := checkVariables(workflow, i); err != nil {
+		if err := checkVariables(i); err != nil {
 			return err
 		}
 	}
@@ -44,7 +44,7 @@ func validModel(workflow *model.Workflow) error {
 	return nil
 }
 
-func checkVariables(workflow *model.Workflow, process *model.Process) error {
+func checkVariables(process *model.Process) error {
 	inputVars := make(map[string]struct{})
 	outputVars := make(map[string]struct{})
 	condVars := make(map[string]struct{})
@@ -100,18 +100,18 @@ func checkVariables(workflow *model.Workflow, process *model.Process) error {
 	return nil
 }
 
-type ParserError struct {
+type valError struct {
 	Err     error
 	Context string
 }
 
-func (e ParserError) Error() string {
+func (e valError) Error() string {
 	return fmt.Sprintf("%s: %s\n", e.Err.Error(), e.Context)
 }
 
 func validServiceTask(j *model.Element) error {
 	if j.Execute == "" {
-		return &ParserError{Err: ErrMissingServiceTaskDefinition, Context: j.Id}
+		return &valError{Err: errMissingServiceTaskDefinition, Context: j.Id}
 	}
 	return nil
 }

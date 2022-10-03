@@ -78,8 +78,7 @@ message WorkflowState {
   string workflowInstanceId = 2;
   string elementId = 3;
   string elementType = 4;
-  string Id = 5;
-  string parentId = 6;
+  repeated string id = 5;
   optional string execute = 7;
   CancellationState state = 8;
   optional string condition = 9;
@@ -88,7 +87,6 @@ message WorkflowState {
   repeated string owners = 12;
   repeated string groups = 13;
   Error error = 14;
-  bytes localVars = 15;
   WorkflowTimer timer = 16;
 }
 

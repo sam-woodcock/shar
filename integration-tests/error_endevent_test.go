@@ -1,4 +1,4 @@
-package main
+package intTests
 
 import (
 	"context"
@@ -13,10 +13,6 @@ import (
 )
 
 func TestEndEventError(t *testing.T) {
-	//	if os.Getenv("INT_TEST") != "true" {
-	//		t.Skip("Skipping integration test " + t.Name())
-	//	}
-
 	tst := &integration{}
 	tst.setup(t)
 	defer tst.teardown()
@@ -84,12 +80,12 @@ type testErrorEndEventHandlerDef struct {
 }
 
 // A "Hello World" service task
-func (d *testErrorEndEventHandlerDef) mayFail3(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *testErrorEndEventHandlerDef) mayFail3(_ context.Context, _ model.Vars) (model.Vars, error) {
 	fmt.Println("service task completed successfully")
 	return model.Vars{"success": true}, nil
 }
 
 // A "Hello World" service task
-func (d *testErrorEndEventHandlerDef) fixSituation(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *testErrorEndEventHandlerDef) fixSituation(_ context.Context, _ model.Vars) (model.Vars, error) {
 	panic("this event should not fire")
 }
