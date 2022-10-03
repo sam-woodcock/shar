@@ -7,18 +7,31 @@
   </bpmn:collaboration>
   <bpmn:process id="Process_0hgpt6k" isExecutable="true">
     <bpmn:startEvent id="StartEvent_1">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="= carried" target="carried" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_06ow1k2</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="Flow_06ow1k2" sourceRef="StartEvent_1" targetRef="Step1" />
     <bpmn:serviceTask id="Step1" name="Step 1">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="step1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= carried" target="carried" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_06ow1k2</bpmn:incoming>
     </bpmn:serviceTask>
   </bpmn:process>
   <bpmn:process id="Process_03llwnm" isExecutable="false">
     <bpmn:intermediateCatchEvent id="ReceiveMessage" name="Receive Continue Message">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="= carried" target="carried" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_0regvkm</bpmn:incoming>
       <bpmn:outgoing>Flow_0nfs5sn</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MessageEventDefinition_1ndb9hy" messageRef="Message_3lkfglf" />
@@ -27,11 +40,20 @@
       <bpmn:incoming>Flow_0fqsoiu</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:startEvent id="Event_1vcfiz1">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="= 32767" target="carried2" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_0regvkm</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:serviceTask id="Step2" name="Step 2">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="step2" />
+        <zeebe:ioMapping>
+          <zeebe:output source="= carried2" target="carried2" />
+          <zeebe:output source="= carried" target="carried" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0nfs5sn</bpmn:incoming>
       <bpmn:outgoing>Flow_0fqsoiu</bpmn:outgoing>

@@ -3,9 +3,11 @@ package intTests
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/tools/tracer"
 	"go.uber.org/zap"
 	"os"
 	"sync"
@@ -19,12 +21,15 @@ func TestMessaging(t *testing.T) {
 	tst.setup(t)
 	defer tst.teardown()
 
+	sub := tracer.Trace("nats://127.0.0.1:4459")
+	defer sub.Drain()
+
 	// Create a starting context
 	ctx := context.Background()
 
 	// Create logger
 	log, _ := zap.NewDevelopment()
-	handlers := &testMessagingHandlerDef{log: log, wg: sync.WaitGroup{}}
+	handlers := &testMessagingHandlerDef{log: log, wg: sync.WaitGroup{}, tst: tst}
 
 	// Dial shar
 	cl := client.New(log, client.WithEphemeralStorage())
@@ -67,39 +72,16 @@ func TestMessaging(t *testing.T) {
 		fmt.Println("completed " + c.WorkflowInstanceId)
 	case <-time.After(20 * time.Second):
 	}
-	/*
-		// Check consistency
-		js, err := GetJetstream()
-		require.NoError(t, err)
-
-		getKeys := func(kv string) ([]string, error) {
-			messageSubs, err := js.KeyValue(kv)
-			if err != nil {
-				return nil, err
-			}
-			k, err := messageSubs.Keys()
-			if err != nil {
-				return nil, err
-			}
-			return k, nil
-		}
-
-		// Check cleanup
-		ids, err := getKeys(messages.KvMessageID)
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(ids))
-		_, err = getKeys(messages.KvMessageSubs)
-		assert.Equal(t, err.Error(), "nats: no keys found")
-		_, err = getKeys(messages.KvMessageSub)
-		assert.Equal(t, err.Error(), "nats: no keys found")
-		_, err = getKeys(messages.KvInstance)
-		assert.Equal(t, err.Error(), "nats: no keys found")
-	*/
+	tst.mx.Lock()
+	assert.Equal(t, "carried1value", tst.finalVars["carried"])
+	assert.Equal(t, "carried2value", tst.finalVars["carried2"])
+	tst.mx.Unlock()
 }
 
 type testMessagingHandlerDef struct {
 	log *zap.Logger
 	wg  sync.WaitGroup
+	tst *integration
 }
 
 func (x *testMessagingHandlerDef) step1(_ context.Context, _ model.Vars) (model.Vars, error) {
@@ -107,12 +89,15 @@ func (x *testMessagingHandlerDef) step1(_ context.Context, _ model.Vars) (model.
 	return model.Vars{}, nil
 }
 
-func (x *testMessagingHandlerDef) step2(_ context.Context, _ model.Vars) (model.Vars, error) {
+func (x *testMessagingHandlerDef) step2(_ context.Context, vars model.Vars) (model.Vars, error) {
 	x.log.Info("Step 2")
+	x.tst.mx.Lock()
+	x.tst.finalVars = vars
+	x.tst.mx.Unlock()
 	return model.Vars{}, nil
 }
 
-func (x *testMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, _ model.Vars) error {
+func (x *testMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
 	x.log.Info("Sending Message...")
-	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{})
+	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]})
 }

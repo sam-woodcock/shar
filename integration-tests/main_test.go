@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
 	"go.uber.org/zap"
+	"sync"
 	"testing"
 	"time"
 )
@@ -22,6 +23,7 @@ type integration struct {
 	testSharServer *sharsvr.Server
 	finalVars      map[string]interface{}
 	test           *testing.T
+	mx             sync.Mutex
 }
 
 //goland:noinspection GoNilness

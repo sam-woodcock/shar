@@ -79,7 +79,7 @@ func parseMessages(doc *xmlquery.Node, wf *model.Workflow, msgNodes []*xmlquery.
 	wf.Messages = m
 }
 
-func parseErrors(doc *xmlquery.Node, wf *model.Workflow, errNodes []*xmlquery.Node, errs map[string]string) {
+func parseErrors(_ *xmlquery.Node, wf *model.Workflow, errNodes []*xmlquery.Node, errs map[string]string) {
 	m := make([]*model.Error, len(errNodes))
 	for i, x := range errNodes {
 		m[i] = &model.Error{
@@ -133,7 +133,7 @@ func parseStartEvent(n *xmlquery.Node, el *model.Element) error {
 		timeCycle := def.SelectElement("bpmn:timeCycle/text()")
 		timeDate := def.SelectElement("bpmn:timeDate/text()")
 		if timeCycle == nil && timeDate == nil {
-			return errors.New("found timerEventDefinition, but it had no time or duration specified")
+			return errors.New("found timerEventDefinition, but it had no time or Duration specified")
 		}
 		var t *model.WorkflowTimerDefinition
 		if timeDate != nil {
@@ -219,7 +219,7 @@ func parseIntermediateCatchEvent(i *xmlquery.Node, _ *model.Element) {
 	}
 }
 
-func parseSubscription(wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string, errs map[string]string) error {
+func parseSubscription(wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string, _ map[string]string) error {
 	if i.Data == "intermediateCatchEvent" {
 		if x := i.SelectElement("bpmn:messageEventDefinition/@messageRef"); x != nil {
 			ref := x.InnerText()
@@ -249,7 +249,7 @@ func parseSubscription(wf *model.Workflow, el *model.Element, i *xmlquery.Node, 
 func parseDuration(ref string) (string, error) {
 	ref = strings.TrimSpace(ref)
 	if len(ref) == 0 {
-		return "", fmt.Errorf("empty duration found")
+		return "", fmt.Errorf("empty Duration found")
 	}
 	d, err := ParseISO8601(ref)
 	if err != nil {

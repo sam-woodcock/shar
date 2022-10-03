@@ -97,6 +97,7 @@ func TestUserTasks(t *testing.T) {
 	assert.Equal(t, "Brangelina", d.finalVars["Forename"].(string))
 	assert.Equal(t, "Miggins", d.finalVars["Surname"].(string))
 	assert.Equal(t, 69, d.finalVars["OrderId"].(int))
+	assert.Equal(t, 32767, d.finalVars["carried"].(int))
 }
 
 type testUserTaskHandlerDef struct {
@@ -117,6 +118,7 @@ func (d *testUserTaskHandlerDef) complete(_ context.Context, vars model.Vars) (m
 	fmt.Println("OrderId", vars["OrderId"])
 	fmt.Println("Forename", vars["Forename"])
 	fmt.Println("Surname", vars["Surname"])
+	fmt.Println("carried", vars["carried"])
 	d.lock.Lock()
 	defer d.lock.Unlock()
 	d.finalVars = vars

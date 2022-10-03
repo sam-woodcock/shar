@@ -60,18 +60,4 @@ func TestEmbargo(t *testing.T) {
 
 	d := time.Duration(time.Now().UnixNano() - sw)
 	assert.Equal(t, 2, int(d.Seconds()))
-	// Check consistency
-	//js, err := GetJetstream()
-
-	/*	getKeys := func(kv string) ([]string, error) {
-		messageSubs, err := js.KeyValue(kv)
-		if err != nil {
-			return nil, err
-		}
-		k, err := messageSubs.Keys()
-		if err != nil {
-			return nil, err
-		}
-		return k, nil
-	}*/
 }

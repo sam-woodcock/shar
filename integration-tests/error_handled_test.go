@@ -84,8 +84,9 @@ func (d *errorHandledHandlerDef) mayFail(_ context.Context, _ model.Vars) (model
 }
 
 // A "Hello World" service task
-func (d *errorHandledHandlerDef) fixSituation(_ context.Context, _ model.Vars) (model.Vars, error) {
+func (d *errorHandledHandlerDef) fixSituation(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Fixing")
+	fmt.Println("carried", vars["carried"])
 	d.fixed = true
 	return model.Vars{}, nil
 }

@@ -92,9 +92,6 @@ func (c *Client) Dial(natsURL string, opts ...nats.Option) error {
 	if err != nil {
 		return c.clientErr(context.Background(), err)
 	}
-	if err != nil {
-		return c.clientErr(context.Background(), err)
-	}
 	c.js = js
 	c.txJS = txJS
 	c.con = n

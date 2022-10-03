@@ -82,7 +82,8 @@ func (d *testErrorUnhandledHandlerDef) mayFail(_ context.Context, _ model.Vars) 
 }
 
 // A "Hello World" service task
-func (d *testErrorUnhandledHandlerDef) fixSituation(_ context.Context, _ model.Vars) (model.Vars, error) {
+func (d *testErrorUnhandledHandlerDef) fixSituation(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Fixing")
+	fmt.Println("carried", vars["carried"])
 	return model.Vars{}, nil
 }

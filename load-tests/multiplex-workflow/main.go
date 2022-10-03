@@ -90,9 +90,6 @@ func main() {
 		panic(err)
 	}
 
-	if err != nil {
-		panic(err)
-	}
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 10000)
 	cl1.RegisterWorkflowInstanceComplete(complete)
