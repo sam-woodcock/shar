@@ -1,4 +1,4 @@
-package main
+package intTests
 
 import (
 	"context"
@@ -13,10 +13,6 @@ import (
 )
 
 func TestStartingVariable(t *testing.T) {
-	//	if os.Getenv("INT_TEST") != "true" {
-	//		t.Skip("Skipping integration test " + t.Name())
-	//	}
-
 	tst := &integration{}
 	tst.setup(t)
 	defer tst.teardown()
@@ -58,7 +54,7 @@ func TestStartingVariable(t *testing.T) {
 type testStartingVariableHandlerDef struct {
 }
 
-func (d *testStartingVariableHandlerDef) integrationSimple(ctx context.Context, vars model.Vars) (model.Vars, error) {
+func (d *testStartingVariableHandlerDef) integrationSimple(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Hi")
 	return vars, nil
 }

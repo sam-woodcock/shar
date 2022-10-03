@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-// Duration represents an ISO8601 Duration
+// duration represents an ISO8601 duration
 // https://en.wikipedia.org/wiki/ISO_8601#Durations
-type Duration struct {
+type duration struct {
 	Y int
 	M int
 	W int
@@ -24,9 +24,9 @@ type Duration struct {
 var pattern = regexp.MustCompile(`^P((?P<year>\d+)Y)?((?P<month>\d+)M)?((?P<week>\d+)W)?((?P<day>\d+)D)?(T((?P<hour>\d+)H)?((?P<minute>\d+)M)?((?P<second>\d+)S)?)?$`)
 
 // ParseISO8601 parses an ISO8601 duration string.
-func ParseISO8601(from string) (Duration, error) {
+func ParseISO8601(from string) (duration, error) {
 	var match []string
-	var d Duration
+	var d duration
 
 	if pattern.MatchString(from) {
 		match = pattern.FindStringSubmatch(from)
@@ -68,13 +68,8 @@ func ParseISO8601(from string) (Duration, error) {
 }
 
 // IsZero reports whether d represents the zero duration, P0D.
-func (d Duration) IsZero() bool {
+func (d duration) IsZero() bool {
 	return d.Y == 0 && d.M == 0 && d.W == 0 && d.D == 0 && d.TH == 0 && d.TM == 0 && d.TS == 0
-}
-
-// HasTimePart returns true if the time part of the duration is non-zero.
-func (d Duration) HasTimePart() bool {
-	return d.TH > 0 || d.TM > 0 || d.TS > 0
 }
 
 // Shift returns a time.Time, shifted by the duration from the given start.
@@ -85,7 +80,7 @@ func (d Duration) HasTimePart() bool {
 // roll over, e.g. Aug 31 + P1M = Oct 1.
 //
 // Week and Day values will be combined as W*7 + D.
-func (d Duration) Shift(t time.Time) time.Time {
+func (d duration) Shift(t time.Time) time.Time {
 	if d.Y != 0 || d.M != 0 || d.W != 0 || d.D != 0 {
 		days := d.W*7 + d.D
 		t = t.AddDate(d.Y, d.M, days)
@@ -94,7 +89,7 @@ func (d Duration) Shift(t time.Time) time.Time {
 	return t
 }
 
-func (d Duration) timeDuration() time.Duration {
+func (d duration) timeDuration() time.Duration {
 	var dur time.Duration
 	dur = dur + (time.Duration(d.TH) * time.Hour)
 	dur = dur + (time.Duration(d.TM) * time.Minute)

@@ -33,7 +33,11 @@
   </bpmn:process>
   <bpmn:process id="Process_03llwnm" isExecutable="false">
     <bpmn:intermediateCatchEvent id="ReceiveMessage" name="Receive Continue Message">
-      <bpmn:extensionElements />
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="= msgVar" target="MessageVar" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_0b7z5v8</bpmn:incoming>
       <bpmn:outgoing>Flow_0nfs5sn</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MessageEventDefinition_1ndb9hy" messageRef="Message_3lkfglf" />

@@ -57,7 +57,7 @@ func (s *Server) Listen() error {
 		return err
 	}
 	s.wfi = kv
-	common.Process(ctx, s.js, s.log, "telemetry", closer, subj.SubjNS(messages.WorkflowStateAll, "*"), "Tracing", 1, s.workflowTrace)
+	common.Process(ctx, s.js, s.log, "telemetry", closer, subj.NS(messages.WorkflowStateAll, "*"), "Tracing", 1, s.workflowTrace)
 	return nil
 }
 
@@ -69,10 +69,10 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 	err := proto.Unmarshal(msg.Data, &state)
 	if err != nil {
 		s.log.Error("unable to unmarshal span", zap.Error(err))
-		return true, Abandon(err)
+		return true, abandon(err)
 	}
 
-	tid := common.KSuidTo64bit(state.Id)
+	tid := common.KSuidTo64bit(common.TrackingID(state.Id).ID())
 
 	if bytes.Equal(tid[:], empty8[:]) {
 		return true, nil
@@ -80,13 +80,11 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 
 	switch {
 	case strings.HasSuffix(msg.Subject, ".State.Workflow.Execute"):
-		fmt.Println(msg.Subject, state.Id)
 		if err := s.saveSpan(ctx, "Workflow Execute", &state, &state); err != nil {
 			return false, nil
 		}
 	case strings.HasSuffix(msg.Subject, ".State.Traversal.Execute"):
 	case strings.HasSuffix(msg.Subject, ".State.Activity.Execute"):
-		fmt.Println(msg.Subject, state.Id)
 		if err := s.spanStart(ctx, &state); err != nil {
 			return false, nil
 		}
@@ -94,20 +92,18 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 		strings.HasSuffix(msg.Subject, ".State.Job.Execute.UserTask"),
 		strings.HasSuffix(msg.Subject, ".State.Job.Execute.ManualTask"),
 		strings.Contains(msg.Subject, ".State.Job.Execute.SendMessage"):
-		fmt.Println(msg.Subject, state.Id)
 		if err := s.spanStart(ctx, &state); err != nil {
 			return false, nil
 		}
 	case strings.HasSuffix(msg.Subject, ".State.Traversal.Complete"):
 	case strings.HasSuffix(msg.Subject, ".State.Activity.Complete"):
-		fmt.Println(msg.Subject, state.Id)
 		if err := s.spanEnd(ctx, "Activity: "+state.ElementId, &state); err != nil {
 			var escape *AbandonOpError
 			if errors.As(err, &escape) {
 				s.log.Error("saving Activity.Complete operation abandoned", zap.Error(err),
 					zap.String(keys.WorkflowInstanceID, state.WorkflowInstanceId),
-					zap.String(keys.TrackingID, state.Id),
-					zap.String(keys.ParentTrackingID, state.ParentId),
+					zap.String(keys.TrackingID, common.TrackingID(state.Id).ID()),
+					zap.String(keys.ParentTrackingID, common.TrackingID(state.Id).ParentID()),
 				)
 				return true, err
 			}
@@ -117,14 +113,13 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 		strings.Contains(msg.Subject, ".State.Job.Complete.UserTask"),
 		strings.Contains(msg.Subject, ".State.Job.Complete.ManualTask"),
 		strings.Contains(msg.Subject, ".State.Job.Complete.SendMessage"):
-		fmt.Println(msg.Subject, state.Id)
 		if err := s.spanEnd(ctx, "Job: "+state.ElementType, &state); err != nil {
 			var escape *AbandonOpError
 			if errors.As(err, &escape) {
 				s.log.Error("saving Job.Complete operation abandoned", zap.Error(err),
 					zap.String(keys.WorkflowInstanceID, state.WorkflowInstanceId),
-					zap.String(keys.TrackingID, state.Id),
-					zap.String(keys.ParentTrackingID, state.ParentId),
+					zap.String(keys.TrackingID, common.TrackingID(state.Id).ID()),
+					zap.String(keys.ParentTrackingID, common.TrackingID(state.Id).ParentID()),
 				)
 				return true, err
 			}
@@ -140,7 +135,7 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 }
 
 func (s *Server) spanStart(ctx context.Context, state *model.WorkflowState) error {
-	err := common.SaveObj(ctx, s.spanKV, state.Id, state)
+	err := common.SaveObj(ctx, s.spanKV, common.TrackingID(state.Id).ID(), state)
 	if err != nil {
 		return err
 	}
@@ -149,12 +144,12 @@ func (s *Server) spanStart(ctx context.Context, state *model.WorkflowState) erro
 
 func (s *Server) spanEnd(ctx context.Context, name string, state *model.WorkflowState) error {
 	oldState := model.WorkflowState{}
-	if err := common.LoadObj(s.spanKV, state.Id, &oldState); err != nil {
-		s.log.Error("Failed to load span state:", zap.Error(err), zap.String(keys.TrackingID, state.Id))
-		return Abandon(err)
+	if err := common.LoadObj(s.spanKV, common.TrackingID(state.Id).ID(), &oldState); err != nil {
+		s.log.Error("Failed to load span state:", zap.Error(err), zap.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
+		return abandon(err)
 	}
 	state.WorkflowInstanceId = oldState.WorkflowInstanceId
-	state.ParentId = oldState.ParentId
+	state.Id = oldState.Id
 	state.WorkflowId = oldState.WorkflowId
 	state.ElementId = oldState.ElementId
 	state.Execute = oldState.Execute
@@ -162,7 +157,7 @@ func (s *Server) spanEnd(ctx context.Context, name string, state *model.Workflow
 	state.ElementType = oldState.ElementType
 	state.State = oldState.State
 	if err := s.saveSpan(ctx, name, &oldState, state); err != nil {
-		s.log.Error("Failed to record span:", zap.Error(err), zap.String(keys.TrackingID, state.Id))
+		s.log.Error("Failed to record span:", zap.Error(err), zap.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
 		return err
 	}
 	return nil
@@ -170,16 +165,17 @@ func (s *Server) spanEnd(ctx context.Context, name string, state *model.Workflow
 
 func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.WorkflowState, newState *model.WorkflowState) error {
 	traceID := common.KSuidTo128bit(oldState.WorkflowInstanceId)
-	spanID := common.KSuidTo64bit(oldState.Id)
-	parentID := common.KSuidTo64bit(oldState.ParentId)
+	spanID := common.KSuidTo64bit(common.TrackingID(oldState.Id).ID())
+	parentID := common.KSuidTo64bit(common.TrackingID(oldState.Id).ParentID())
 	parentSpan := trace.SpanContext{}
-	if len(oldState.ParentId) > 0 {
+	if len(common.TrackingID(oldState.Id).ParentID()) > 0 {
 		parentSpan = trace.NewSpanContext(trace.SpanContextConfig{
 			TraceID: traceID,
 			SpanID:  parentID,
 		})
 	}
-
+	pid := common.TrackingID(oldState.Id).ParentID()
+	id := common.TrackingID(oldState.Id).ID()
 	st := oldState.State.String()
 	at := map[string]*string{
 		keys.ElementID:          &oldState.ElementId,
@@ -189,13 +185,13 @@ func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.Work
 		keys.Condition:          oldState.Condition,
 		keys.Execute:            oldState.Execute,
 		keys.State:              &st,
-		"trackingId":            &oldState.Id,
-		"parentTrId":            &oldState.ParentId,
+		"trackingId":            &id,
+		"parentTrId":            &pid,
 	}
 
 	kv, err := vars.Decode(s.log, newState.Vars)
 	if err != nil {
-		return Abandon(err)
+		return abandon(err)
 	}
 
 	for k, v := range kv {
@@ -238,9 +234,10 @@ func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.Work
 	if err != nil {
 		return err
 	}
-	err = s.spanKV.Delete(oldState.Id)
+	err = s.spanKV.Delete(common.TrackingID(oldState.Id).ID())
 	if err != nil {
-		s.log.Warn("Could not delete the cached span", zap.Error(err), zap.String(keys.TrackingID, oldState.Id))
+		id := common.TrackingID(oldState.Id).ID()
+		s.log.Warn("Could not delete the cached span", zap.Error(err), zap.String(keys.TrackingID, id))
 	}
 	return nil
 }

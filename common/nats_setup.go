@@ -21,7 +21,7 @@ func SetUpNats(js nats.JetStreamContext, storageType nats.StorageType) error {
 		AckPolicy:       nats.AckExplicitPolicy,
 		AckWait:         30 * time.Second,
 		MaxAckPending:   65535,
-		FilterSubject:   subj.SubjNS(messages.WorkflowTraversalExecute, "default"),
+		FilterSubject:   subj.NS(messages.WorkflowTraversalExecute, "default"),
 		MaxRequestBatch: 1,
 	}
 
@@ -45,7 +45,7 @@ func SetUpNats(js nats.JetStreamContext, storageType nats.StorageType) error {
 		MaxAckPending:   -1,
 	}
 
-	if err := EnsureStream(js, scfg); err != nil {
+	if err := ensureStream(js, scfg); err != nil {
 		return err
 	}
 	if err := EnsureConsumer(js, "WORKFLOW", ccfg); err != nil {

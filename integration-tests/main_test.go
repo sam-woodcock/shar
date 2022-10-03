@@ -1,4 +1,4 @@
-package main
+package intTests
 
 import (
 	"context"
@@ -23,15 +23,6 @@ type integration struct {
 	finalVars      map[string]interface{}
 	test           *testing.T
 }
-
-/*
-	func TestMain(m *testing.M) {
-		//	setup()
-		code := m.Run()
-		//	teardown()
-		os.Exit(code)
-	}
-*/
 
 //goland:noinspection GoNilness
 func (s *integration) setup(t *testing.T) {
@@ -181,7 +172,7 @@ func (s *integration) teardown() {
 			cancel()
 			s.test.Fatal(err)
 		}
-		//fmt.Println("MSG: ", *msg[0])
+
 		cancel()
 	}
 	s.test.Log("TEARDOWN")

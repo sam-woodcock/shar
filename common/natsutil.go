@@ -21,7 +21,7 @@ type NatsConn interface {
 	QueueSubscribe(subj string, queue string, cb nats.MsgHandler) (*nats.Subscription, error)
 }
 
-func UpdateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []byte, msg proto.Message) ([]byte, error)) error {
+func updateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []byte, msg proto.Message) ([]byte, error)) error {
 	for {
 		entry, err := wf.Get(k)
 		if err != nil {
@@ -77,7 +77,7 @@ func LoadObj(wf nats.KeyValue, k string, v proto.Message) error {
 	if kv, err := Load(wf, k); err == nil {
 		return proto.Unmarshal(kv, v)
 	} else {
-		return fmt.Errorf("failed to load object from KV: %w", err)
+		return fmt.Errorf("failed to load object from KV %s(%s): %w", wf.Bucket(), k, err)
 	}
 }
 
@@ -87,7 +87,7 @@ func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string,
 			return err
 		}
 	}
-	return UpdateKV(wf, k, msg, func(bv []byte, msg proto.Message) ([]byte, error) {
+	return updateKV(wf, k, msg, func(bv []byte, msg proto.Message) ([]byte, error) {
 		if err := proto.Unmarshal(bv, msg); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal proto for KV update: %w", err)
 		}
@@ -201,7 +201,7 @@ func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig 
 	return nil
 }
 
-func EnsureStream(js nats.JetStreamContext, streamConfig *nats.StreamConfig) error {
+func ensureStream(js nats.JetStreamContext, streamConfig *nats.StreamConfig) error {
 	if _, err := js.StreamInfo(streamConfig.Name); err == nats.ErrStreamNotFound {
 		if _, err := js.AddStream(streamConfig); err != nil {
 			return err

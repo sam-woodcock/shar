@@ -30,14 +30,15 @@ type NatsService interface {
 	SetEventProcessor(processor services.EventProcessorFunc)
 	SetMessageCompleteProcessor(processor services.MessageCompleteProcessorFunc)
 	SetCompleteJobProcessor(processor services.CompleteJobProcessorFunc)
-	PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState, delay int) error
+	DeleteJob(ctx context.Context, trackingID string) error
+	SetCompleteActivityProcessor(processor services.CompleteActivityProcessorFunc)
+	SetLaunchFunc(processor services.LaunchFunc)
+	PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState, ops ...services.PublishOpt) error
 	PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string, vars []byte) error
 	Conn() common.NatsConn
 	Shutdown()
 	CloseUserTask(ctx context.Context, trackingID string) error
 	OwnerId(name string) (string, error)
 	OwnerName(id string) (string, error)
-	SaveVariableState(ctx context.Context, key string, vars []byte) error
-	LoadVariableState(ctx context.Context, key string) ([]byte, error)
-	DeleteVariableState(ctx context.Context, key string) error
+	GetOldState(id string) (*model.WorkflowState, error)
 }

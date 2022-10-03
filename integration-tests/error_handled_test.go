@@ -1,4 +1,4 @@
-package main
+package intTests
 
 import (
 	"context"
@@ -14,10 +14,6 @@ import (
 )
 
 func TestHandledError(t *testing.T) {
-	//	if os.Getenv("INT_TEST") != "true" {
-	//		t.Skip("Skipping integration test " + t.Name())
-	//	}
-
 	tst := &integration{}
 	tst.setup(t)
 	defer tst.teardown()
@@ -82,13 +78,13 @@ type errorHandledHandlerDef struct {
 }
 
 // A "Hello World" service task
-func (d *errorHandledHandlerDef) mayFail(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *errorHandledHandlerDef) mayFail(_ context.Context, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Throw handled error")
 	return model.Vars{"success": false}, workflow.Error{Code: "101", WrappedError: errors.New("things went badly")}
 }
 
 // A "Hello World" service task
-func (d *errorHandledHandlerDef) fixSituation(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *errorHandledHandlerDef) fixSituation(_ context.Context, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Fixing")
 	d.fixed = true
 	return model.Vars{}, nil

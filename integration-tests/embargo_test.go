@@ -1,4 +1,4 @@
-package main
+package intTests
 
 import (
 	"context"
@@ -14,10 +14,6 @@ import (
 )
 
 func TestEmbargo(t *testing.T) {
-	//if os.Getenv("INT_TEST") != "true" {
-	//	t.Skip("Skipping integration test " + t.Name())
-	//}
-
 	tst := &integration{}
 	tst.setup(t)
 	defer tst.teardown()

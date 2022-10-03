@@ -68,7 +68,7 @@ func run(_ *cobra.Command, args []string) error {
 			Durable:       "Tracing",
 			Description:   "Sequential Trace Consumer",
 			DeliverPolicy: nats.DeliverAllPolicy,
-			FilterSubject: subj.SubjNS(messages.WorkflowStateAll, "*"),
+			FilterSubject: subj.NS(messages.WorkflowStateAll, "*"),
 			AckPolicy:     nats.AckExplicitPolicy,
 		}); err != nil {
 			panic(err)
@@ -78,7 +78,7 @@ func run(_ *cobra.Command, args []string) error {
 		closer := make(chan struct{})
 		workflowMessages := make(chan *nats.Msg)
 
-		common.Process(ctx, js, log, "trace", closer, subj.SubjNS(messages.WorkflowStateAll, "*"), "Tracing", 1, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+		common.Process(ctx, js, log, "trace", closer, subj.NS(messages.WorkflowStateAll, "*"), "Tracing", 1, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 			workflowMessages <- msg
 			return true, nil
 		})
