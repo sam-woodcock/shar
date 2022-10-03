@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-// duration represents an ISO8601 duration
+// Duration represents an ISO8601 Duration
 // https://en.wikipedia.org/wiki/ISO_8601#Durations
-type duration struct {
+type Duration struct {
 	Y int
 	M int
 	W int
@@ -23,15 +23,15 @@ type duration struct {
 
 var pattern = regexp.MustCompile(`^P((?P<year>\d+)Y)?((?P<month>\d+)M)?((?P<week>\d+)W)?((?P<day>\d+)D)?(T((?P<hour>\d+)H)?((?P<minute>\d+)M)?((?P<second>\d+)S)?)?$`)
 
-// ParseISO8601 parses an ISO8601 duration string.
-func ParseISO8601(from string) (duration, error) {
+// ParseISO8601 parses an ISO8601 Duration string.
+func ParseISO8601(from string) (Duration, error) {
 	var match []string
-	var d duration
+	var d Duration
 
 	if pattern.MatchString(from) {
 		match = pattern.FindStringSubmatch(from)
 	} else {
-		return d, errors.New("could not parse duration string")
+		return d, errors.New("could not parse Duration string")
 	}
 
 	for i, name := range pattern.SubexpNames() {
@@ -67,12 +67,12 @@ func ParseISO8601(from string) (duration, error) {
 	return d, nil
 }
 
-// IsZero reports whether d represents the zero duration, P0D.
-func (d duration) IsZero() bool {
+// IsZero reports whether d represents the zero Duration, P0D.
+func (d Duration) IsZero() bool {
 	return d.Y == 0 && d.M == 0 && d.W == 0 && d.D == 0 && d.TH == 0 && d.TM == 0 && d.TS == 0
 }
 
-// Shift returns a time.Time, shifted by the duration from the given start.
+// Shift returns a time.Time, shifted by the Duration from the given start.
 //
 // NB: Shift uses time.AddDate for years, months, weeks, and days, and so
 // shares its limitations. In particular, shifting by months is not recommended
@@ -80,7 +80,7 @@ func (d duration) IsZero() bool {
 // roll over, e.g. Aug 31 + P1M = Oct 1.
 //
 // Week and Day values will be combined as W*7 + D.
-func (d duration) Shift(t time.Time) time.Time {
+func (d Duration) Shift(t time.Time) time.Time {
 	if d.Y != 0 || d.M != 0 || d.W != 0 || d.D != 0 {
 		days := d.W*7 + d.D
 		t = t.AddDate(d.Y, d.M, days)
@@ -89,7 +89,7 @@ func (d duration) Shift(t time.Time) time.Time {
 	return t
 }
 
-func (d duration) timeDuration() time.Duration {
+func (d Duration) timeDuration() time.Duration {
 	var dur time.Duration
 	dur = dur + (time.Duration(d.TH) * time.Hour)
 	dur = dur + (time.Duration(d.TM) * time.Minute)

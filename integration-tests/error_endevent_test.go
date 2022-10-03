@@ -86,6 +86,7 @@ func (d *testErrorEndEventHandlerDef) mayFail3(_ context.Context, _ model.Vars) 
 }
 
 // A "Hello World" service task
-func (d *testErrorEndEventHandlerDef) fixSituation(_ context.Context, _ model.Vars) (model.Vars, error) {
+func (d *testErrorEndEventHandlerDef) fixSituation(_ context.Context, vars model.Vars) (model.Vars, error) {
+	fmt.Println("carried", vars["carried"])
 	panic("this event should not fire")
 }

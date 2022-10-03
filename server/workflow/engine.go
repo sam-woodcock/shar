@@ -56,6 +56,8 @@ func (c *Engine) Start(ctx context.Context) error {
 	// Set the completed activity processor
 	c.ns.SetCompleteActivityProcessor(c.activityCompleteProcessor)
 
+	c.ns.SetMessageProcessor(c.messageProcessor)
+
 	c.ns.SetLaunchFunc(c.launchProcessor)
 
 	return c.ns.StartProcessing(ctx)
@@ -138,6 +140,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 					LastFired: 0,
 					Count:     0,
 				},
+				Vars: vrs,
 			}
 			return c.ns.PublishWorkflowState(ctx, subj.NS(messages.WorkflowTimedExecute, "default"), timer)
 		}
@@ -526,7 +529,7 @@ func apErrFields(workflowInstanceID, workflowID, elementID, elementName, element
 	return fields
 }
 
-// completeJobProcessor processes completed serviceTasks
+// completeJobProcessor processes completed jobs
 func (c *Engine) completeJobProcessor(ctx context.Context, job *model.WorkflowState) error {
 	// get the relevant workflow instance
 	wfi, err := c.ns.GetWorkflowInstance(ctx, job.WorkflowInstanceId)
@@ -857,4 +860,75 @@ func (c *Engine) launchProcessor(ctx context.Context, state *model.WorkflowState
 		return c.engineErr("failed to launch child workflow", &errors.ErrWorkflowFatal{Err: err})
 	}
 	return nil
+}
+
+func (c *Engine) messageProcessor(ctx context.Context, state *model.WorkflowState) (bool, int, error) {
+	wf, err := c.ns.GetWorkflow(ctx, state.WorkflowId)
+	if err != nil {
+		c.log.Error("could not get timer proto workflow: %s", zap.Error(err))
+		return true, 0, err
+	}
+
+	els := common.ElementTable(wf)
+	el := els[state.ElementId]
+
+	now := time.Now().UnixNano()
+	elapsed := now - state.Timer.LastFired
+	count := state.Timer.Count
+	repeat := el.Timer.Repeat
+	value := el.Timer.Value
+
+	newTimer := &model.WorkflowState{
+		WorkflowId: state.WorkflowId,
+		ElementId:  state.ElementId,
+		Timer: &model.WorkflowTimer{
+			LastFired: now,
+			Count:     count + 1,
+		},
+		Vars: state.Vars,
+	}
+
+	var (
+		isTimer    bool
+		shouldFire bool
+	)
+
+	switch el.Timer.Type {
+	case model.WorkflowTimerType_fixed:
+		isTimer = true
+		shouldFire = value <= now
+	case model.WorkflowTimerType_duration:
+		if repeat != 0 && count >= repeat {
+			return true, 0, nil
+		}
+		isTimer = true
+		shouldFire = elapsed >= value
+	}
+
+	if isTimer {
+		if shouldFire {
+			wfi, err := c.ns.CreateWorkflowInstance(ctx, &model.WorkflowInstance{
+				WorkflowId: state.WorkflowId,
+			})
+			if err != nil {
+				c.log.Error("error creating timed workflow instance", zap.Error(err))
+				return false, 0, err
+			}
+			if err := vars.OutputVars(c.log, newTimer.Vars, &newTimer.Vars, el); err != nil {
+				c.log.Error("error merging variables", zap.Error(err))
+				return false, 0, nil
+			}
+			if err := c.traverse(ctx, wfi, []string{ksuid.New().String()}, el.Outbound, els, newTimer.Vars); err != nil {
+				c.log.Error("error traversing for timed workflow instance", zap.Error(err))
+				return false, 0, nil
+			}
+			if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowTimedExecute, newTimer); err != nil {
+				c.log.Error("error publishing timer", zap.Error(err))
+				return false, 0, nil
+			}
+		} else if el.Timer.Type == model.WorkflowTimerType_duration {
+			return false, int(value - now), err
+		}
+	}
+	return true, 0, nil
 }
