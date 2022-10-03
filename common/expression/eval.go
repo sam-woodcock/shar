@@ -97,4 +97,4 @@ func (w *variableWalker) Enter(n *ast.Node) {
 	}
 }
 
-func (w *variableWalker) Exit(n *ast.Node) {}
+func (w *variableWalker) Exit(_ *ast.Node) {}

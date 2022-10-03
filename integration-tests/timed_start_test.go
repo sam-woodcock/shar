@@ -1,4 +1,4 @@
-package main
+package intTests
 
 import (
 	"context"
@@ -15,10 +15,6 @@ import (
 )
 
 func TestTimedStart(t *testing.T) {
-	//	if os.Getenv("INT_TEST") != "true" {
-	//		t.Skip("Skipping integration test " + t.Name())
-	//	}
-
 	tst := &integration{}
 	tst.setup(t)
 	defer tst.teardown()
@@ -69,7 +65,7 @@ type timedStartHandlerDef struct {
 	count int
 }
 
-func (d *timedStartHandlerDef) integrationSimple(ctx context.Context, vars model.Vars) (model.Vars, error) {
+func (d *timedStartHandlerDef) integrationSimple(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Hi")
 	d.mx.Lock()
 	defer d.mx.Unlock()

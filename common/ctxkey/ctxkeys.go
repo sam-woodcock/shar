@@ -1,5 +1,5 @@
 package ctxkey
 
-type SharContextKey string
+type sharContextKey string
 
-var WorkflowInstanceID = SharContextKey("WORKFLOW_INSTANCE_ID")
+var WorkflowInstanceID = sharContextKey("WORKFLOW_INSTANCE_ID")

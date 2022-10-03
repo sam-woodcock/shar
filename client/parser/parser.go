@@ -175,9 +175,7 @@ func parseStartEvent(n *xmlquery.Node, el *model.Element) error {
 
 func parseElementErrors(doc *xmlquery.Node, i *xmlquery.Node, el *model.Element) {
 	if errorRef := i.SelectElement("//bpmn:errorEventDefinition/@errorRef"); errorRef != nil {
-		fmt.Println("error", errorRef.InnerText())
 		tg := doc.SelectElement("//*[@id=\"" + errorRef.InnerText() + "\"]")
-		fmt.Println(tg.InnerText())
 		el.Error = &model.Error{
 			Id:   tg.SelectAttr("id"),
 			Code: tg.SelectAttr("errorCode"),
@@ -196,7 +194,6 @@ func parseBoundaryEvent(i *xmlquery.Node, pr *model.Process) {
 		}
 	}
 	if errorRef := i.SelectElement("//bpmn:errorEventDefinition/@errorRef"); errorRef != nil {
-		fmt.Println(attach, errorRef.InnerText())
 		allFlow := i.SelectElements("..//bpmn:sequenceFlow")
 		flowID := i.SelectElement("//bpmn:outgoing").InnerText()
 		var target string

@@ -83,7 +83,7 @@ func main() {
 		Durable:       "Tracing",
 		Description:   "Sequential Trace Consumer",
 		DeliverPolicy: nats.DeliverAllPolicy,
-		FilterSubject: subj.SubjNS(messages.WorkflowStateAll, "*"),
+		FilterSubject: subj.NS(messages.WorkflowStateAll, "*"),
 		AckPolicy:     nats.AckExplicitPolicy,
 	}); err != nil {
 		panic(err)

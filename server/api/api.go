@@ -223,7 +223,7 @@ func (s *SharServer) listUserTaskIDs(ctx context.Context, req *model.ListUserTas
 	if err != nil {
 		return nil, err
 	}
-	ut, err := s.ns.GetUserTaskIDs(ctx, oid)
+	ut, err := s.ns.GetUserTaskIDs(oid)
 	if errors.Is(err, nats.ErrKeyNotFound) {
 		return &model.UserTasks{Id: []string{}}, nil
 	}
@@ -247,7 +247,7 @@ func (s *SharServer) getUserTask(ctx context.Context, req *model.GetUserTaskRequ
 		common.IndexProcessElements(v.Elements, els)
 	}
 	return &model.GetUserTaskResponse{
-		TrackingId:  job.Id,
+		TrackingId:  common.TrackingID(job.Id).ID(),
 		Owner:       req.Owner,
 		Name:        els[job.ElementId].Name,
 		Description: els[job.ElementId].Documentation,
@@ -321,9 +321,8 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		WorkflowId:         job.WorkflowId,
 		WorkflowInstanceId: job.WorkflowInstanceId,
 		Id:                 job.Id,
-		ParentId:           job.ParentId,
 		Vars:               job.Vars,
-	}, 0); err != nil {
+	}); err != nil {
 		s.log.Error("failed to publish workflow state", zap.Error(err))
 		return nil, err
 	}

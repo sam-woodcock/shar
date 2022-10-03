@@ -16,12 +16,17 @@ const (
 	WorkflowJobSendMessageExecute     = "WORKFLOW.%s.State.Job.Execute.SendMessage"
 	WorkflowJobSendMessageExecuteWild = "WORKFLOW.%s.State.Job.Execute.SendMessage.>"
 	WorkflowJobSendMessageComplete    = "WORKFLOW.%s.State.Job.Complete.SendMessage"
+	WorkflowJobTimerTaskExecute       = "WORKFLOW.%s.State.Job.Execute.Timer"
+	WorkflowJobTimerTaskComplete      = "WORKFLOW.%s.State.Job.Complete.Timer"
+	WorkflowJobLaunchExecute          = "WORKFLOW.%s.State.Job.Execute.Launch"
+	WorkflowJobLaunchComplete         = "WORKFLOW.%s.State.Job.Complete.Launch"
 	WorkflowInstanceExecute           = "WORKFLOW.%s.State.Workflow.Execute"
 	WorkflowInstanceComplete          = "WORKFLOW.%s.State.Workflow.Complete"
 	WorkflowInstanceTerminated        = "WORKFLOW.%s.State.Workflow.Terminated"
 	WorkflowInstanceAll               = "WORKFLOW.%s.State.Workflow.>"
 	WorkflowActivityExecute           = "WORKFLOW.%s.State.Activity.Execute"
 	WorkflowActivityComplete          = "WORKFLOW.%s.State.Activity.Complete"
+	WorkflowActivityAll               = "WORKFLOW.%s.State.Activity.>"
 	WorkflowTraversalExecute          = "WORKFLOW.%s.State.Traversal.Execute"
 	WorkflowTraversalComplete         = "WORKFLOW.%s.State.Traversal.Complete"
 	WorkflowTimedExecute              = "WORKFLOW.%s.Timers.WorkflowExecute"
@@ -29,18 +34,20 @@ const (
 )
 
 var AllMessages = []string{
-	subj.SubjNS(WorkflowInstanceAll, "*"),
-	subj.SubjNS(WorkFlowJobCompleteAll, "*"),
-	subj.SubjNS(WorkflowJobServiceTaskExecuteWild, "*"),
-	subj.SubjNS(WorkflowJobSendMessageExecuteWild, "*"),
-	subj.SubjNS(WorkflowJobUserTaskExecute, "*"),
-	subj.SubjNS(WorkflowJobManualTaskExecute, "*"),
-	subj.SubjNS(WorkflowActivityExecute, "*"),
-	subj.SubjNS(WorkflowActivityComplete, "*"),
-	subj.SubjNS(WorkflowTraversalExecute, "*"),
-	subj.SubjNS(WorkflowTraversalComplete, "*"),
-	subj.SubjNS(WorkflowMessages, "*"),
-	subj.SubjNS(WorkflowTimedExecute, "*"),
+	subj.NS(WorkflowInstanceAll, "*"),
+	subj.NS(WorkFlowJobCompleteAll, "*"),
+	subj.NS(WorkflowJobServiceTaskExecuteWild, "*"),
+	subj.NS(WorkflowJobSendMessageExecuteWild, "*"),
+	subj.NS(WorkflowJobUserTaskExecute, "*"),
+	subj.NS(WorkflowJobManualTaskExecute, "*"),
+	subj.NS(WorkflowJobTimerTaskExecute, "*"),
+	subj.NS(WorkflowJobLaunchExecute, "*"),
+	subj.NS(WorkflowActivityExecute, "*"),
+	subj.NS(WorkflowActivityComplete, "*"),
+	subj.NS(WorkflowTraversalExecute, "*"),
+	subj.NS(WorkflowTraversalComplete, "*"),
+	subj.NS(WorkflowMessages, "*"),
+	subj.NS(WorkflowTimedExecute, "*"),
 	ApiAll,
 }
 
