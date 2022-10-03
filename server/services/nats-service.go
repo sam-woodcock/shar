@@ -955,21 +955,35 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 				}
 
 				ack, delay, err := s.messageProcessor(ctx, state)
+				if err != nil {
+					if errors.IsWorkflowFatal(err) {
+						if err := msg[0].Ack(); err != nil {
+							s.log.Error("failed to ack after a fatal error in message processing: %s", zap.Error(err))
+						}
+						s.log.Error("a fatal error occurred processing a message: %s", zap.Error(err))
+						return
+					}
+					s.log.Error("an error occured processing a message: %s", zap.Error(err))
+					return
+				}
 				if ack {
 					err := msg[0].Ack()
 					if err != nil {
 						s.log.Error("could not ack after message processing: %s", zap.Error(err))
+						return
 					}
 				} else {
 					if delay > 0 {
 						err := msg[0].NakWithDelay(time.Duration(delay))
 						if err != nil {
 							s.log.Error("could not nak message with delay: %s", zap.Error(err))
+							return
 						}
 					} else {
 						err := msg[0].Nak()
 						if err != nil {
 							s.log.Error("could not nak message: %s", zap.Error(err))
+							return
 						}
 					}
 				}
