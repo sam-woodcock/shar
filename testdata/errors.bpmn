@@ -2,6 +2,11 @@
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_0x5zb86" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.0.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.0.0">
   <bpmn:process id="Process_07lm3kx" isExecutable="true">
     <bpmn:startEvent id="StartEvent_1">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="= 32768" target="carried" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_16598pe</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:boundaryEvent id="Event_0u7ah7z" attachedToRef="Activity_13m95k5">
@@ -19,6 +24,9 @@
     <bpmn:serviceTask id="Activity_0vt8rl9">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="fixSituation" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= carried" target="carried" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_19bx1x7</bpmn:incoming>
       <bpmn:outgoing>Flow_07si4zr</bpmn:outgoing>
@@ -38,21 +46,21 @@
   <bpmn:error id="Error_0shcmov" name="CatastrophicError" errorCode="103" />
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_07lm3kx">
-      <bpmndi:BPMNEdge id="Flow_19bx1x7_di" bpmnElement="Flow_19bx1x7">
-        <di:waypoint x="360" y="175" />
-        <di:waypoint x="360" y="240" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_16598pe_di" bpmnElement="Flow_16598pe">
-        <di:waypoint x="215" y="117" />
-        <di:waypoint x="310" y="117" />
+      <bpmndi:BPMNEdge id="Flow_1o7yj3z_di" bpmnElement="Flow_1o7yj3z">
+        <di:waypoint x="410" y="117" />
+        <di:waypoint x="542" y="117" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_07si4zr_di" bpmnElement="Flow_07si4zr">
         <di:waypoint x="360" y="320" />
         <di:waypoint x="360" y="362" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1o7yj3z_di" bpmnElement="Flow_1o7yj3z">
-        <di:waypoint x="410" y="117" />
-        <di:waypoint x="542" y="117" />
+      <bpmndi:BPMNEdge id="Flow_16598pe_di" bpmnElement="Flow_16598pe">
+        <di:waypoint x="215" y="117" />
+        <di:waypoint x="310" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_19bx1x7_di" bpmnElement="Flow_19bx1x7">
+        <di:waypoint x="360" y="175" />
+        <di:waypoint x="360" y="240" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
         <dc:Bounds x="179" y="99" width="36" height="36" />

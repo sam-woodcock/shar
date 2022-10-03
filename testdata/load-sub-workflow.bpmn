@@ -2,12 +2,20 @@
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_0n1h1vx" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.0.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.0.0">
   <bpmn:process id="Process_1fzjzix" isExecutable="true">
     <bpmn:startEvent id="StartEvent_1">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="= 32768" target="carried" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_0hxyk1h</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="Flow_0hxyk1h" sourceRef="StartEvent_1" targetRef="Activity_1t68njw" />
     <bpmn:serviceTask id="Activity_1t68njw" name="Stage Sub 1">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="Sub1Task" />
+        <zeebe:ioMapping>
+          <zeebe:output source="= carried" target="carried" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0hxyk1h</bpmn:incoming>
       <bpmn:outgoing>Flow_0du1j40</bpmn:outgoing>
@@ -19,13 +27,13 @@
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1fzjzix">
-      <bpmndi:BPMNEdge id="Flow_0hxyk1h_di" bpmnElement="Flow_0hxyk1h">
-        <di:waypoint x="215" y="117" />
-        <di:waypoint x="370" y="117" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_0du1j40_di" bpmnElement="Flow_0du1j40">
         <di:waypoint x="470" y="117" />
         <di:waypoint x="632" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0hxyk1h_di" bpmnElement="Flow_0hxyk1h">
+        <di:waypoint x="215" y="117" />
+        <di:waypoint x="370" y="117" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
         <dc:Bounds x="179" y="99" width="36" height="36" />

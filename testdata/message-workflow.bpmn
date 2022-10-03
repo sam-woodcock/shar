@@ -6,16 +6,13 @@
     <bpmn:messageFlow id="Flow_0asztzp" sourceRef="SendMessage" targetRef="ReceiveMessage" />
   </bpmn:collaboration>
   <bpmn:process id="Process_0hgpt6k" isExecutable="true">
-    <bpmn:serviceTask id="Step1" name="Step 1">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="step1" />
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_06ow1k2</bpmn:incoming>
-      <bpmn:outgoing>Flow_0gbijao</bpmn:outgoing>
-    </bpmn:serviceTask>
     <bpmn:intermediateThrowEvent id="SendMessage" name="Send Continue Message">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="continueMessage" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= carried" target="carried" />
+          <zeebe:output source="= carried" target="carried" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0gbijao</bpmn:incoming>
       <bpmn:messageEventDefinition id="MessageEventDefinition_1darjdw" />
@@ -24,11 +21,19 @@
       <bpmn:extensionElements>
         <zeebe:ioMapping>
           <zeebe:output source="= orderId" target="orderId" />
+          <zeebe:output source="= &#34;carried1value&#34;" target="carried" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:outgoing>Flow_06ow1k2</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="Flow_06ow1k2" sourceRef="StartEvent_1" targetRef="Step1" />
+    <bpmn:serviceTask id="Step1" name="Step 1">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="step1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_06ow1k2</bpmn:incoming>
+      <bpmn:outgoing>Flow_0gbijao</bpmn:outgoing>
+    </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_0gbijao" sourceRef="Step1" targetRef="SendMessage" />
   </bpmn:process>
   <bpmn:process id="Process_03llwnm" isExecutable="false">
@@ -36,6 +41,7 @@
       <bpmn:extensionElements>
         <zeebe:ioMapping>
           <zeebe:output source="= msgVar" target="MessageVar" />
+          <zeebe:output source="= carried" target="carried" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0b7z5v8</bpmn:incoming>
@@ -49,6 +55,7 @@
       <bpmn:extensionElements>
         <zeebe:ioMapping>
           <zeebe:output source="= orderId" target="orderId" />
+          <zeebe:output source="= &#34;carried2value&#34;" target="carried2" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:outgoing>Flow_0b7z5v8</bpmn:outgoing>
@@ -56,6 +63,10 @@
     <bpmn:serviceTask id="Step2" name="Step 2">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="step2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= carried" target="carried" />
+          <zeebe:input source="= carried2" target="carried2" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0nfs5sn</bpmn:incoming>
       <bpmn:outgoing>Flow_0fqsoiu</bpmn:outgoing>
@@ -82,10 +93,6 @@
         <di:waypoint x="215" y="160" />
         <di:waypoint x="250" y="160" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNShape id="Activity_148gitu_di" bpmnElement="Step1">
-        <dc:Bounds x="250" y="120" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Event_0n1r4fm_di" bpmnElement="SendMessage">
         <dc:Bounds x="382" y="142" width="36" height="36" />
         <bpmndi:BPMNLabel>
@@ -94,6 +101,10 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
         <dc:Bounds x="179" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_148gitu_di" bpmnElement="Step1">
+        <dc:Bounds x="250" y="120" width="100" height="80" />
+        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Participant_0pzg05b_di" bpmnElement="Participant_0pzg05b" isHorizontal="true">
         <dc:Bounds x="129" y="240" width="551" height="160" />

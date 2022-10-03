@@ -12,3 +12,4 @@ type CompleteJobProcessorFunc func(ctx context.Context, job *model.WorkflowState
 type MessageCompleteProcessorFunc func(ctx context.Context, state *model.WorkflowState) error
 type TraversalFunc func(ctx context.Context, wfi *model.WorkflowInstance, trackingId common.TrackingID, outbound *model.Targets, el map[string]*model.Element, v []byte) error
 type LaunchFunc func(ctx context.Context, state *model.WorkflowState) error
+type MessageProcessorFunc func(ctx context.Context, state *model.WorkflowState) (bool, int, error)

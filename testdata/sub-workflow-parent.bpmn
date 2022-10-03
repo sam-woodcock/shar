@@ -3,6 +3,11 @@
   <bpmn:error id="Error_0zgea2p" name="Bad stuff" errorCode="23" />
   <bpmn:process id="WorkflowDemo" name="WorkflowDemo" isExecutable="true">
     <bpmn:startEvent id="StartEvent" name="StartEvent">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="= 32767" target="carried" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_1f45p7m</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="Flow_1f45p7m" sourceRef="StartEvent" targetRef="Step1" />
@@ -12,6 +17,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="= x" target="z" />
           <zeebe:output source="= z" target="x" />
+          <zeebe:output source="= carried2" target="carried2" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0ot1m1x</bpmn:incoming>
@@ -34,6 +40,8 @@
         <zeebe:taskDefinition type="AfterCallingSubProcess" />
         <zeebe:ioMapping>
           <zeebe:input source="= x" target="x" />
+          <zeebe:input source="= carried" target="carried" />
+          <zeebe:input source="= carried2" target="carried2" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0s31piw</bpmn:incoming>

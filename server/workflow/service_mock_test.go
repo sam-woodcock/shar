@@ -488,6 +488,11 @@ func (_m *MockNatsService) SetMessageCompleteProcessor(processor services.Messag
 	_m.Called(processor)
 }
 
+// SetMessageProcessor provides a mock function with given fields: processor
+func (_m *MockNatsService) SetMessageProcessor(processor services.MessageProcessorFunc) {
+	_m.Called(processor)
+}
+
 // SetTraversalProvider provides a mock function with given fields: provider
 func (_m *MockNatsService) SetTraversalProvider(provider services.TraversalFunc) {
 	_m.Called(provider)

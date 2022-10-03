@@ -113,20 +113,23 @@ func (x *testMultiworkflowMessagingHandlerDef) step1(_ context.Context, _ model.
 	return model.Vars{}, nil
 }
 
-func (x *testMultiworkflowMessagingHandlerDef) step2(_ context.Context, _ model.Vars) (model.Vars, error) {
+func (x *testMultiworkflowMessagingHandlerDef) step2(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Step 2")
+	fmt.Println("carried", vars["carried"])
+	fmt.Println("carried2", vars["carried2"])
 	//time.Sleep(1 * time.Second)
 	return model.Vars{}, nil
 }
 
-func (x *testMultiworkflowMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, _ model.Vars) error {
+func (x *testMultiworkflowMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
 	fmt.Println("Sending Message...")
-	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{})
+	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]})
 }
 
 // A "Hello World" service task
-func (x *testMultiworkflowMessagingHandlerDef) simpleProcess(_ context.Context, _ model.Vars) (model.Vars, error) {
+func (x *testMultiworkflowMessagingHandlerDef) simpleProcess(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Hello World")
-	//time.Sleep(1 * time.Second)
+	fmt.Println("carried", vars["carried"])
+	fmt.Println("carried2", vars["carried2"])
 	return model.Vars{}, nil
 }

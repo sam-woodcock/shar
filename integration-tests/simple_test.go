@@ -69,5 +69,6 @@ type testSimpleHandlerDef struct {
 
 func (d *testSimpleHandlerDef) integrationSimple(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Hi")
+	fmt.Println("carried", vars["carried"])
 	return vars, nil
 }

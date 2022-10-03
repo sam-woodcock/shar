@@ -33,6 +33,7 @@ type NatsService struct {
 	eventJobCompleteProcessor      CompleteJobProcessorFunc
 	traverslFunc                   TraversalFunc
 	launchFunc                     LaunchFunc
+	messageProcessor               MessageProcessorFunc
 	log                            *zap.Logger
 	storageType                    nats.StorageType
 	concurrency                    int
@@ -514,6 +515,11 @@ func (s *NatsService) SetEventProcessor(processor EventProcessorFunc) {
 func (s *NatsService) SetMessageCompleteProcessor(processor MessageCompleteProcessorFunc) {
 	s.messageCompleteProcessor = processor
 }
+
+func (s *NatsService) SetMessageProcessor(processor MessageProcessorFunc) {
+	s.messageProcessor = processor
+}
+
 func (s *NatsService) SetCompleteJobProcessor(processor CompleteJobProcessorFunc) {
 	s.eventJobCompleteProcessor = processor
 }
@@ -731,7 +737,7 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 			return true, &errors.ErrWorkflowFatal{Err: err}
 		}
 
-		err = vars.OutputVars(s.log, sub.Vars, &sub.Vars, el)
+		err = vars.OutputVars(s.log, instance.Vars, &sub.Vars, el)
 		if err != nil {
 			return false, err
 		}
@@ -948,92 +954,37 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 					return
 				}
 
-				wf, err := s.GetWorkflow(ctx, state.WorkflowId)
+				ack, delay, err := s.messageProcessor(ctx, state)
 				if err != nil {
-					s.log.Error("could not get timer proto workflow: %s", zap.Error(err))
-					err := msg[0].Ack()
-					if err != nil {
-						s.log.Error("could not dispose of timer message after faliure to obtain workflow: %s", zap.Error(err))
+					if errors.IsWorkflowFatal(err) {
+						if err := msg[0].Ack(); err != nil {
+							s.log.Error("failed to ack after a fatal error in message processing: %s", zap.Error(err))
+						}
+						s.log.Error("a fatal error occurred processing a message: %s", zap.Error(err))
+						return
 					}
+					s.log.Error("an error occured processing a message: %s", zap.Error(err))
 					return
 				}
-
-				els := common.ElementTable(wf)
-				el := els[state.ElementId]
-
-				now := time.Now().UnixNano()
-				elapsed := now - state.Timer.LastFired
-				count := state.Timer.Count
-				repeat := el.Timer.Repeat
-				value := el.Timer.Value
-
-				newTimer := &model.WorkflowState{
-					WorkflowId: state.WorkflowId,
-					ElementId:  state.ElementId,
-					Timer: &model.WorkflowTimer{
-						LastFired: now,
-						Count:     count + 1,
-					},
-				}
-
-				switch el.Timer.Type {
-				case model.WorkflowTimerType_fixed:
-					if value <= now {
-						wfi, err := s.CreateWorkflowInstance(ctx, &model.WorkflowInstance{
-							WorkflowId: state.WorkflowId,
-						})
+				if ack {
+					err := msg[0].Ack()
+					if err != nil {
+						s.log.Error("could not ack after message processing: %s", zap.Error(err))
+						return
+					}
+				} else {
+					if delay > 0 {
+						err := msg[0].NakWithDelay(time.Duration(delay))
 						if err != nil {
-							s.log.Error("error creating timed workflow instance", zap.Error(err))
-							return
-						}
-						if err := s.traverslFunc(ctx, wfi, []string{ksuid.New().String()}, el.Outbound, els, state.Vars); err != nil {
-							s.log.Error("error traversing for timed workflow instance", zap.Error(err))
-							return
-						}
-						if err := s.PublishWorkflowState(ctx, messages.WorkflowTimedExecute, newTimer); err != nil {
-							s.log.Error("error publishing timer", zap.Error(err))
+							s.log.Error("could not nak message with delay: %s", zap.Error(err))
 							return
 						}
 					} else {
-						if err := msg[0].NakWithDelay(time.Duration(value - now)); err != nil {
-							s.log.Error("error backing off timer", zap.Error(err))
+						err := msg[0].Nak()
+						if err != nil {
+							s.log.Error("could not nak message: %s", zap.Error(err))
 							return
 						}
-						return
-					}
-					if err := msg[0].Ack(); err != nil {
-						s.log.Error("error acknowledging timer", zap.Error(err))
-						return
-					}
-				case model.WorkflowTimerType_duration:
-					if repeat == 0 || count < repeat {
-						if elapsed >= value {
-							wfi, err := s.CreateWorkflowInstance(ctx, &model.WorkflowInstance{
-								WorkflowId: state.WorkflowId,
-							})
-							if err != nil {
-								s.log.Error("error creating timed workflow instance", zap.Error(err))
-								return
-							}
-							if err := s.traverslFunc(ctx, wfi, []string{ksuid.New().String()}, el.Outbound, els, state.Vars); err != nil {
-								s.log.Error("error traversing for timed workflow instance", zap.Error(err))
-								return
-							}
-							if err := s.PublishWorkflowState(ctx, messages.WorkflowTimedExecute, newTimer); err != nil {
-								s.log.Error("error publishing timer", zap.Error(err))
-								return
-							}
-						} else {
-							if err := msg[0].NakWithDelay(time.Duration(value - elapsed)); err != nil {
-								s.log.Error("error backing off timer", zap.Error(err))
-								return
-							}
-							return
-						}
-					}
-					if err := msg[0].Ack(); err != nil {
-						s.log.Error("error acknowledging timer", zap.Error(err))
-						return
 					}
 				}
 			}

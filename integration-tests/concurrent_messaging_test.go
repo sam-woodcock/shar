@@ -77,34 +77,6 @@ func TestConcurrentMessaging(t *testing.T) {
 		}
 	}
 	fmt.Println("Stopwatch:", -time.Until(tm))
-	/*
-		// Check consistency
-		js, err := GetJetstream()
-		require.NoError(t, err)
-
-		getKeys := func(kv string) ([]string, error) {
-			messageSubs, err := js.KeyValue(kv)
-			if err != nil {
-				return nil, err
-			}
-			k, err := messageSubs.Keys()
-			if err != nil {
-				return nil, err
-			}
-			return k, nil
-		}
-
-		// Check cleanup
-		ids, err := getKeys(messages.KvMessageID)
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(ids))
-		_, err = getKeys(messages.KvMessageSubs)
-		assert.Equal(t, err.Error(), "nats: no keys found")
-		_, err = getKeys(messages.KvMessageSub)
-		assert.Equal(t, err.Error(), "nats: no keys found")
-		_, err = getKeys(messages.KvInstance)
-		assert.Equal(t, err.Error(), "nats: no keys found")
-	*/
 }
 
 type testConcurrentMessagingHandlerDef struct {
@@ -116,14 +88,16 @@ func (x *testConcurrentMessagingHandlerDef) step1(_ context.Context, _ model.Var
 	return model.Vars{}, nil
 }
 
-func (x *testConcurrentMessagingHandlerDef) step2(_ context.Context, _ model.Vars) (model.Vars, error) {
+func (x *testConcurrentMessagingHandlerDef) step2(_ context.Context, vars model.Vars) (model.Vars, error) {
+	fmt.Println("carried", vars["carried"])
+	fmt.Println("carried2", vars["carried2"])
 	fmt.Println("Step 2")
 	time.Sleep(1 * time.Second)
 	return model.Vars{}, nil
 }
 
-func (x *testConcurrentMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, _ model.Vars) error {
+func (x *testConcurrentMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
 
 	fmt.Println("Sending Message...")
-	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{})
+	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]})
 }
