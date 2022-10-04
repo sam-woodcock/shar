@@ -317,7 +317,7 @@ func (s *NatsService) GetWorkflowInstance(_ context.Context, workflowInstanceId 
 func (s *NatsService) GetServiceTaskRoutingKey(taskName string) (string, error) {
 	var b []byte
 	var err error
-	if b, err = common.Load(s.wfClientTask, taskName); strings.HasSuffix(err.Error(), "nats: key not found") {
+	if b, err = common.Load(s.wfClientTask, taskName); err != nil && strings.HasSuffix(err.Error(), "nats: key not found") {
 		if !s.allowOrphanServiceTasks {
 			return "", fmt.Errorf("failed attept to get service task key. key not present: %w", err)
 		}
