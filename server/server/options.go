@@ -28,3 +28,14 @@ type panicOption struct{ value bool }
 func (o panicOption) configure(server *Server) {
 	server.panicRecovery = o.value
 }
+
+// PreventOrphanServiceTasks enables or disables SHAR's validation of service task names againt existing workflows.
+func PreventOrphanServiceTasks() orphanTaskOption {
+	return orphanTaskOption{value: true}
+}
+
+type orphanTaskOption struct{ value bool }
+
+func (o orphanTaskOption) configure(server *Server) {
+	server.allowOrphanServiceTasks = o.value
+}
