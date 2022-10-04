@@ -59,6 +59,7 @@ type NatsService struct {
 	wfName                         nats.KeyValue
 	publishTimeout                 time.Duration
 	eventActivityCompleteProcessor CompleteActivityProcessorFunc
+	allowOrphanServiceTasks        bool
 }
 
 func (s *NatsService) WorkflowStats() *model.WorkflowStats {
@@ -112,7 +113,7 @@ func (s *NatsService) ListWorkflows(_ context.Context) (chan *model.ListWorkflow
 	return res, errs
 }
 
-func NewNatsService(log *zap.Logger, conn common.NatsConn, txConn common.NatsConn, storageType nats.StorageType, concurrency int) (*NatsService, error) {
+func NewNatsService(log *zap.Logger, conn common.NatsConn, txConn common.NatsConn, storageType nats.StorageType, concurrency int, allowOrphanServiceTasks bool) (*NatsService, error) {
 	if concurrency < 1 || concurrency > 200 {
 		return nil, errors2.New("invalid concurrency set")
 	}
@@ -126,16 +127,17 @@ func NewNatsService(log *zap.Logger, conn common.NatsConn, txConn common.NatsCon
 		return nil, fmt.Errorf("failed to open jetstream: %w", err)
 	}
 	ms := &NatsService{
-		conn:           conn,
-		txConn:         txConn,
-		js:             js,
-		txJS:           txJS,
-		log:            log,
-		concurrency:    concurrency,
-		storageType:    storageType,
-		closing:        make(chan struct{}),
-		workflowStats:  &model.WorkflowStats{},
-		publishTimeout: time.Second * 30,
+		conn:                    conn,
+		txConn:                  txConn,
+		js:                      js,
+		txJS:                    txJS,
+		log:                     log,
+		concurrency:             concurrency,
+		storageType:             storageType,
+		closing:                 make(chan struct{}),
+		workflowStats:           &model.WorkflowStats{},
+		publishTimeout:          time.Second * 30,
+		allowOrphanServiceTasks: allowOrphanServiceTasks,
 	}
 
 	if err := common.SetUpNats(js, storageType); err != nil {
@@ -315,7 +317,17 @@ func (s *NatsService) GetWorkflowInstance(_ context.Context, workflowInstanceId 
 func (s *NatsService) GetServiceTaskRoutingKey(taskName string) (string, error) {
 	var b []byte
 	var err error
-	if b, err = common.Load(s.wfClientTask, taskName); err != nil {
+	if b, err = common.Load(s.wfClientTask, taskName); strings.HasSuffix(err.Error(), "nats: key not found") {
+		if !s.allowOrphanServiceTasks {
+			return "", fmt.Errorf("failed attept to get service task key. key not present: %w", err)
+		}
+		id := ksuid.New().String()
+		_, err := s.wfClientTask.Put(taskName, []byte(id))
+		if err != nil {
+			return "", fmt.Errorf("failed to register service task key: %w", err)
+		}
+		return id, nil
+	} else if err != nil {
 		return "", fmt.Errorf("failed attept to get service task key: %w", err)
 	}
 	return string(b), nil
