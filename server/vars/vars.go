@@ -16,7 +16,7 @@ func Encode(log *zap.Logger, vars model.Vars) ([]byte, error) {
 	enc := gob.NewEncoder(&buf)
 	if err := enc.Encode(vars); err != nil {
 		msg := "failed to encode vars"
-		log.Error(msg, zap.Any("vars", vars))
+		log.Error(msg, zap.Any("vars", vars), zap.Error(err))
 		return nil, fmt.Errorf(msg+": %w", &errors.ErrWorkflowFatal{Err: err})
 	}
 	return buf.Bytes(), nil
@@ -38,6 +38,7 @@ func Decode(log *zap.Logger, vars []byte) (model.Vars, error) {
 	return ret, nil
 }
 
+// InputVars returns a set of variables matching an input requirement after transformation through expressions contained in an element.
 func InputVars(log *zap.Logger, oldVarsBin []byte, newVarsBin *[]byte, el *model.Element) error {
 	localVars := make(map[string]interface{})
 	if el.InputTransform != nil {
@@ -61,6 +62,7 @@ func InputVars(log *zap.Logger, oldVarsBin []byte, newVarsBin *[]byte, el *model
 	return nil
 }
 
+// OutputVars merges one variable set into another based upon any expressions contained in an element.
 func OutputVars(log *zap.Logger, newVarsBin []byte, mergeVarsBin *[]byte, el *model.Element) error {
 	if el.OutputTransform != nil {
 		localVars, err := Decode(log, newVarsBin)
@@ -93,6 +95,7 @@ func OutputVars(log *zap.Logger, newVarsBin []byte, mergeVarsBin *[]byte, el *mo
 	return nil
 }
 
+// CheckVars checks for missing variables expected in a result
 func CheckVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) error {
 	if el.OutputTransform != nil {
 		vrs, err := Decode(log, state.Vars)
@@ -106,7 +109,7 @@ func CheckVars(log *zap.Logger, state *model.WorkflowState, el *model.Element) e
 			}
 			for i := range list {
 				if _, ok := vrs[i]; !ok {
-					return fmt.Errorf("expected output variable [%s] missing", i)
+					return errors.ErrWorkflowFatal{Err: fmt.Errorf("expected output variable [%s] missing", i)}
 				}
 			}
 		}

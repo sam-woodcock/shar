@@ -44,7 +44,15 @@ message Element {
   map<string, string> inputTransform = 14;
   map<string, string> outputTransform = 15;
   WorkflowTimerDefinition timer = 16;
+  repeated Timer boundaryTimer = 17;
 }
+
+message Timer {
+  string id = 1;
+  string duration = 2;
+  string target = 3;
+}
+
 
 message Target {
   string id          = 1;
@@ -112,6 +120,7 @@ message WorkflowInstance {
   optional string parentWorkflowInstanceId = 2;
   optional string parentElementId = 3;
   string workflowId = 4;
+  map<string, bool> inFlight = 6;
 }
 
 message MessageInstance {
@@ -135,10 +144,11 @@ message LaunchWorkflowRequest {
 }
 
 enum CancellationState {
-  Executing = 0;
-  Completed = 1;
-  Terminated = 2;
-  Errored = 3;
+  Executing = 0;  // The state machine is executing
+  Completed = 1;  // The state machine has completed successfully
+  Terminated = 2; // The state machine instance was terminated
+  Errored = 3;    // An error occured during state machine execution
+  Obsolete = 4;   // This state is obsolete due to an alternate flow
 }
 
 message CancelWorkflowInstanceRequest {

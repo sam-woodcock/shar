@@ -18,7 +18,7 @@ func Trace(natsUrl string) *nats.Subscription {
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println(msg.Subject, Last4(d.WorkflowInstanceId), "T:"+Last4(common.TrackingID(d.Id).ID()), "P:"+Last4(common.TrackingID(d.Id).ParentID()), d.ElementType, d.ElementId)
+			fmt.Println(msg.Subject, d.State, Last4(d.WorkflowInstanceId), "T:"+Last4(common.TrackingID(d.Id).ID()), "P:"+Last4(common.TrackingID(d.Id).ParentID()), d.ElementType, d.ElementId)
 		} else {
 			fmt.Println(msg.Subject)
 		}

@@ -208,6 +208,23 @@ func parseBoundaryEvent(i *xmlquery.Node, pr *model.Process) {
 			Target:  target,
 		})
 	}
+	if timerEvent := i.SelectElement("//bpmn:timerEventDefinition"); timerEvent != nil {
+		fmt.Println(attach, timerEvent.InnerText())
+		allFlow := i.SelectElements("..//bpmn:sequenceFlow")
+		flowID := i.SelectElement("//bpmn:outgoing").InnerText()
+		var target string
+		for _, v := range allFlow {
+			if v.SelectAttr("id") == flowID {
+				target = v.SelectAttr("targetRef")
+			}
+		}
+		durationExpr := i.SelectElement("//bpmn:timeDuration").InnerText()
+		el.BoundaryTimer = append(el.BoundaryTimer, &model.Timer{
+			Id:       i.SelectElement("//bpmn:timerEventDefinition/@id").InnerText(),
+			Duration: durationExpr,
+			Target:   target,
+		})
+	}
 }
 
 func parseIntermediateCatchEvent(i *xmlquery.Node, _ *model.Element) {
