@@ -60,6 +60,7 @@ type NatsService struct {
 	publishTimeout                 time.Duration
 	eventActivityCompleteProcessor CompleteActivityProcessorFunc
 	allowOrphanServiceTasks        bool
+	completeActivityFunc           CompleteActivityFunc
 }
 
 func (s *NatsService) WorkflowStats() *model.WorkflowStats {
@@ -293,6 +294,7 @@ func (s *NatsService) GetWorkflow(_ context.Context, workflowId string) (*model.
 func (s *NatsService) CreateWorkflowInstance(ctx context.Context, wfInstance *model.WorkflowInstance) (*model.WorkflowInstance, error) {
 	wfiID := ksuid.New().String()
 	wfInstance.WorkflowInstanceId = wfiID
+	wfInstance.InFlight = make(map[string]bool)
 	if err := common.SaveObj(ctx, s.wfInstance, wfiID, wfInstance); err != nil {
 		return nil, fmt.Errorf("failed to save workflow instance object to KV: %w", err)
 	}
@@ -343,6 +345,21 @@ func (s *NatsService) GetMessageSenderRoutingKey(workflowName string, messageNam
 		return "", fmt.Errorf("failed attept to get service task key: %w", err)
 	}
 	return string(b), nil
+}
+
+func (s *NatsService) SetInFlight(ctx context.Context, wfiID string, activityID string, inFlight bool) error {
+	wfi := &model.WorkflowInstance{}
+	return common.UpdateObj(ctx, s.wfInstance, wfiID, wfi, func(i *model.WorkflowInstance) (*model.WorkflowInstance, error) {
+		if i.InFlight == nil {
+			i.InFlight = make(map[string]bool)
+		}
+		if inFlight {
+			i.InFlight[activityID] = true
+		} else {
+			delete(i.InFlight, activityID)
+		}
+		return i, nil
+	})
 }
 
 func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string, state model.CancellationState, wfError *model.Error) error {
@@ -442,10 +459,15 @@ func (s *NatsService) CreateJob(ctx context.Context, job *model.WorkflowState) (
 
 func (s *NatsService) GetJob(_ context.Context, trackingID string) (*model.WorkflowState, error) {
 	job := &model.WorkflowState{}
-	if err := common.LoadObj(s.job, trackingID, job); err != nil {
+	if err := common.LoadObj(s.job, trackingID, job); err == nil {
+		return job, nil
+	} else if strings.HasSuffix(err.Error(), "nats: key not found") {
+		return nil, errors.ErrJobNotFound
+	} else if err != nil {
 		return nil, fmt.Errorf("failed to load job from KV: %w", err)
+	} else {
+		return nil, err
 	}
-	return job, nil
 }
 
 func (s *NatsService) DeleteJob(_ context.Context, trackingID string) error {
@@ -546,6 +568,10 @@ func (s *NatsService) SetLaunchFunc(processor LaunchFunc) {
 
 func (s *NatsService) SetTraversalProvider(provider TraversalFunc) {
 	s.traverslFunc = provider
+}
+
+func (s *NatsService) SetCompleteActivity(processor CompleteActivityFunc) {
+	s.completeActivityFunc = processor
 }
 func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState, opts ...PublishOpt) error {
 	c := &publishOptions{}
@@ -808,16 +834,25 @@ func (s *NatsService) processActivities(ctx context.Context) {
 			if err := proto.Unmarshal(msg.Data, &activity); err != nil {
 				return false, err
 			}
+			activityID := common.TrackingID(activity.Id).ID()
 			if err := s.eventActivityCompleteProcessor(ctx, &activity); err != nil {
 				return false, err
 			}
-			if err := common.Delete(s.wfVarState, common.TrackingID(activity.Id).ID()); err != nil {
-				return false, err
+			err := s.deleteSavedState(activityID)
+			if err != nil {
+				return true, err
 			}
 		}
 
 		return true, nil
 	})
+}
+
+func (s *NatsService) deleteSavedState(activityID string) error {
+	if err := common.Delete(s.wfVarState, activityID); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *NatsService) CloseUserTask(ctx context.Context, trackingID string) error {
@@ -910,7 +945,7 @@ func (s *NatsService) expectPossibleMissingKey(msg string, err error) error {
 }
 
 func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, closer chan struct{}, concurrency int) {
-	subject := subj.NS(messages.WorkflowTimedExecute, "*")
+	subject := subj.NS("WORKFLOW.%s.Timers.>", "*")
 	durable := "workflowTimers"
 	for i := 0; i < concurrency; i++ {
 		go func() {
@@ -963,7 +998,47 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 					if err != nil {
 						s.log.Error("could not dispose of timer message after unmarshal error: %s", zap.Error(err))
 					}
-					return
+					continue
+				}
+
+				if strings.HasSuffix(msg[0].Subject, ".Timers.ElementExecute") {
+					wfi, err := s.GetWorkflowInstance(ctx, state.WorkflowInstanceId)
+					if err == errors.ErrWorkflowInstanceNotFound {
+						if err := msg[0].Ack(); err != nil {
+							s.log.Error("failed to ack message after workflow instance not found", zap.Error(err))
+						}
+						continue
+					}
+					wf, err := s.GetWorkflow(ctx, wfi.WorkflowId)
+					if err != nil {
+						s.log.Error("failed to get workflow", zap.Error(err))
+					}
+					activityID := common.TrackingID(state.Id).ID()
+					fmt.Println("LOCATESTATE:" + activityID)
+					st, err := s.GetOldState(activityID)
+					if err == errors.ErrStateNotFound {
+						if err := msg[0].Ack(); err != nil {
+							s.log.Error("failed to ack message after state not found", zap.Error(err))
+						}
+					}
+					if err != nil {
+						return
+					}
+					fmt.Println(st)
+					els := common.ElementTable(wf)
+					if err := s.traverslFunc(ctx, wfi, state.Id, &model.Targets{Target: []*model.Target{{Id: "timer-target", Target: *state.Execute}}}, els, state.Vars); err != nil {
+						s.log.Error("failed to traverse", zap.Error(err))
+					}
+					if err := s.completeActivityFunc(ctx, state.Id, els[state.ElementId], wfi, model.CancellationState_Obsolete, state.Vars); err != nil {
+						continue
+					}
+					if err = s.deleteSavedState(activityID); err != nil {
+						s.log.Warn("failed to delete saved state", zap.Error(err))
+					}
+					if err = msg[0].Ack(); err != nil {
+						s.log.Warn("failed to ack after timer redirect", zap.Error(err))
+					}
+					continue
 				}
 
 				ack, delay, err := s.messageProcessor(ctx, state)
@@ -973,29 +1048,29 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 							s.log.Error("failed to ack after a fatal error in message processing: %s", zap.Error(err))
 						}
 						s.log.Error("a fatal error occurred processing a message: %s", zap.Error(err))
-						return
+						continue
 					}
 					s.log.Error("an error occured processing a message: %s", zap.Error(err))
-					return
+					continue
 				}
 				if ack {
 					err := msg[0].Ack()
 					if err != nil {
 						s.log.Error("could not ack after message processing: %s", zap.Error(err))
-						return
+						continue
 					}
 				} else {
 					if delay > 0 {
 						err := msg[0].NakWithDelay(time.Duration(delay))
 						if err != nil {
 							s.log.Error("could not nak message with delay: %s", zap.Error(err))
-							return
+							continue
 						}
 					} else {
 						err := msg[0].Nak()
 						if err != nil {
 							s.log.Error("could not nak message: %s", zap.Error(err))
-							return
+							continue
 						}
 					}
 				}
@@ -1007,10 +1082,12 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 func (s *NatsService) GetOldState(id string) (*model.WorkflowState, error) {
 	oldState := &model.WorkflowState{}
 	err := common.LoadObj(s.wfVarState, id, oldState)
-	if err != nil {
-		return nil, err
+	if err == nil {
+		return oldState, nil
+	} else if strings.HasSuffix(err.Error(), errors.NatsMsgKeyNotFound) {
+		return nil, errors.ErrStateNotFound
 	}
-	return oldState, nil
+	return nil, err
 }
 
 func (s *NatsService) processLaunch(ctx context.Context) {

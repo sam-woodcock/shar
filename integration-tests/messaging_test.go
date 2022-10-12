@@ -80,7 +80,7 @@ type testMessagingHandlerDef struct {
 	tst *integration
 }
 
-func (x *testMessagingHandlerDef) step1(_ context.Context, _ model.Vars) (model.Vars, error) {
+func (x *testMessagingHandlerDef) step1(_ context.Context, vars model.Vars) (model.Vars, error) {
 	x.log.Info("Step 1")
 	return model.Vars{}, nil
 }

@@ -134,8 +134,8 @@ func (s *SharServer) completeServiceTask(ctx context.Context, req *model.Complet
 	return &emptypb.Empty{}, s.engine.CompleteServiceTask(ctx, req.TrackingId, req.Vars)
 }
 
-func (s *SharServer) completeSendMessage(ctx context.Context, req *model.CompleteSendMessageRequest) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, s.engine.CompleteSendMessage(ctx, req.TrackingId, req.Vars)
+func (s *SharServer) completeSendMessageTask(ctx context.Context, req *model.CompleteSendMessageRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, s.engine.CompleteSendMessageTask(ctx, req.TrackingId, req.Vars)
 }
 
 func (s *SharServer) completeUserTask(ctx context.Context, req *model.CompleteUserTaskRequest) (*emptypb.Empty, error) {
@@ -210,7 +210,7 @@ func (s *SharServer) Listen() error {
 		return err
 	}
 
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiCompleteSendMessage, &model.CompleteSendMessageRequest{}, s.completeSendMessage); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiCompleteSendMessageTask, &model.CompleteSendMessageRequest{}, s.completeSendMessageTask); err != nil {
 		return err
 	}
 
