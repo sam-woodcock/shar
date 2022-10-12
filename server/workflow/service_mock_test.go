@@ -463,6 +463,11 @@ func (_m *MockNatsService) PublishWorkflowState(ctx context.Context, stateName s
 	return r0
 }
 
+// SetCompleteActivity provides a mock function with given fields: processor
+func (_m *MockNatsService) SetCompleteActivity(processor services.CompleteActivityFunc) {
+	_m.Called(processor)
+}
+
 // SetCompleteActivityProcessor provides a mock function with given fields: processor
 func (_m *MockNatsService) SetCompleteActivityProcessor(processor services.CompleteActivityProcessorFunc) {
 	_m.Called(processor)

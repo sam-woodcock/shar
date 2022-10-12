@@ -73,7 +73,7 @@ func TestConcurrentMessaging(t *testing.T) {
 		select {
 		case c := <-complete:
 			fmt.Println("completed " + c.WorkflowInstanceId)
-		case <-time.After(120 * time.Second):
+		case <-time.After(20 * time.Second):
 		}
 	}
 	fmt.Println("Stopwatch:", -time.Until(tm))

@@ -243,8 +243,10 @@ func (c *Client) listen(ctx context.Context) error {
 						c.log.Warn("nats listener", zap.Error(err))
 						return false, err
 					}
-					if err := c.completeSendMessage(xctx, common.TrackingID(ut.Id).ID(), make(map[string]any)); err != nil {
-						c.log.Error("proto unmarshal error", zap.Error(err))
+					if err := c.completeSendMessage(xctx, common.TrackingID(ut.Id).ID(), make(map[string]any)); errors2.IsWorkflowFatal(err) {
+						c.log.Error("a fatal error occurred in message sender "+*job.Execute, zap.Error(err))
+					} else if err != nil {
+						c.log.Error("API error", zap.Error(err))
 						return false, err
 					}
 					return true, nil
@@ -320,7 +322,7 @@ func (c *Client) completeSendMessage(ctx context.Context, trackingID string, new
 	}
 	res := &emptypb.Empty{}
 	req := &model.CompleteSendMessageRequest{TrackingId: trackingID, Vars: ev}
-	if err := callAPI(ctx, c.txCon, messages.ApiCompleteSendMessage, req, res); err != nil {
+	if err := callAPI(ctx, c.txCon, messages.ApiCompleteSendMessageTask, req, res); err != nil {
 		return c.clientErr(ctx, err)
 	}
 	return nil

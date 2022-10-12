@@ -30,6 +30,7 @@ const (
 	WorkflowTraversalExecute          = "WORKFLOW.%s.State.Traversal.Execute"
 	WorkflowTraversalComplete         = "WORKFLOW.%s.State.Traversal.Complete"
 	WorkflowTimedExecute              = "WORKFLOW.%s.Timers.WorkflowExecute"
+	ElementTimedExecute               = "WORKFLOW.%s.Timers.ElementExecute"
 	WorkflowMessages                  = "WORKFLOW.%s.Message.>"
 )
 
@@ -48,6 +49,7 @@ var AllMessages = []string{
 	subj.NS(WorkflowTraversalComplete, "*"),
 	subj.NS(WorkflowMessages, "*"),
 	subj.NS(WorkflowTimedExecute, "*"),
+	subj.NS(ElementTimedExecute, "*"),
 	ApiAll,
 }
 
@@ -65,7 +67,7 @@ const (
 	ApiCompleteManualTask        = "WORKFLOW.Api.CompleteManualTask"
 	ApiCompleteServiceTask       = "WORKFLOW.Api.CompleteServiceTask"
 	ApiCompleteUserTask          = "WORKFLOW.Api.CompleteUserTask"
-	ApiCompleteSendMessage       = "WORKFLOW.Api.CompleteSendMessage"
+	ApiCompleteSendMessageTask   = "WORKFLOW.Api.CompleteSendMessageTask"
 	ApiListUserTaskIDs           = "WORKFLOW.Api.ListUserTaskIDs"
 	ApiGetUserTask               = "WORKFLOW.Api.GetUserTask"
 	ApiHandleWorkflowError       = "WORKFLOW.Api.HandleWorkflowError"
