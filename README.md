@@ -30,6 +30,52 @@ In the future we hope to provide a dedicated modeler just for SHAR workflows.
 
 The following example assumes you have started the SHAR server. A [docker compose file](deploy/compose/docker-compose.yml) is provided to make this simple.
 
+## Prerequesits
+Install the packages to build and run the SHAR-server, SHAR-telemetry or examples on this box :-
+
+golang
+make
+protobuf-compiler
+protoc-gen-go
+docker (optional)
+docker-compose (optional)
+
+## Building
+
+to build use :-
+
+make configure
+make
+
+# Running from cmdline
+You then need to start the shar-server and the shar-telemetry
+
+build/telemetry/shar-telemetry &
+build/server/shar 
+
+# Running as a docker image
+I suggest to use the docker loopback address host.docker.internal to reach NATS running on the same docker node/swarm, the localhost address 127.0.0.1 (default) will be local to the container so fails. If the address doesn't resolve, it will be something like 172.17.0.1 or 172.18.0.1. 
+
+make docker
+docker run -d -e NATS_URL=nats://host.docker.internal:4222 shar
+docker run -d -e JAEGER_URL=http://host.docker.internal:14268/api/traces -e NATS_URL=nats://host.docker.internal:4222 shar-telemetry
+
+
+# Build CLI tool
+
+cd cli/cmd/shar
+go build
+
+# Using CLI tool
+You can view the workflows already registered, and check connectivity.
+
+cli/cmd/shar/shar --help
+
+# Run an example workflow 
+
+go run examples/sub-workflow/main.go
+
+
 ```go
 package main
 

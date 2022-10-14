@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
 	"go.uber.org/zap"
-	"os"
 )
 
 func main() {
@@ -69,12 +70,12 @@ func main() {
 
 func afterCallingSubProcess(_ context.Context, vars model.Vars) (model.Vars, error) {
 	fmt.Println(vars["x"])
-	return model.Vars{}, nil
+	return vars, nil
 }
 
 func duringSubProcess(_ context.Context, vars model.Vars) (model.Vars, error) {
-	x := vars["x"].(int)
-	return model.Vars{"x": x + 41}, nil
+	z := vars["z"].(int)
+	return model.Vars{"z": z + 41}, nil
 }
 
 func beforeCallingSubProcess(_ context.Context, _ model.Vars) (model.Vars, error) {
