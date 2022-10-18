@@ -74,6 +74,7 @@ func TestEndEventError(t *testing.T) {
 	assert.Equal(t, "103", final.Error.Code)
 	assert.Equal(t, "CatastrophicError", final.Error.Name)
 	assert.Equal(t, model.CancellationState_Errored, final.WorkflowState)
+	tst.AssertCleanKV()
 }
 
 type testErrorEndEventHandlerDef struct {

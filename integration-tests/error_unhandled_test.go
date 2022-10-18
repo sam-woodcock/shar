@@ -70,6 +70,7 @@ func TestUnhandledError(t *testing.T) {
 			break
 		}
 	}
+	//TODO: tst.AssertCleanKV()
 }
 
 type testErrorUnhandledHandlerDef struct {

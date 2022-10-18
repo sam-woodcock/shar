@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gitlab.com/shar-workflow/shar/model"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 	"sync"
 	"testing"
 	"time"
@@ -158,9 +161,68 @@ func (s *integration) setup(t *testing.T) {
 	s.test.Logf("\033[1;36m%s\033[0m", "> Setup completed\n")
 }
 
+func (s *integration) AssertCleanKV() {
+	js, err := s.GetJetstream()
+	require.NoError(s.test, err)
+
+	for n := range js.KeyValueStores() {
+		name := n.Bucket()
+		kvs, err := js.KeyValue(name)
+		require.NoError(s.test, err)
+		keys, err := kvs.Keys()
+		if err != nil && err.Error() == "nats: no keys found" {
+			continue
+		}
+		require.NoError(s.test, err)
+		switch name {
+		case "WORKFLOW_DEF",
+			"WORKFLOW_NAME",
+			"WORKFLOW_VERSION",
+			"WORKFLOW_CLIENTTASK",
+			"WORKFLOW_MSGID",
+			"WORKFLOW_MSGNAME",
+			"WORKFLOW_OWNERNAME",
+			"WORKFLOW_OWNERID",
+			"WORKFLOW_USERTASK":
+			//noop
+		default:
+			assert.Len(s.test, keys, 0, n.Bucket())
+		}
+	}
+
+	b, err := js.KeyValue("WORKFLOW_USERTASK")
+	if err != nil && err.Error() != "nats: no keys found" {
+		if err != nil {
+			s.test.Error(err)
+			return
+		}
+		keys, err := b.Keys()
+		if err != nil {
+			s.test.Error(err)
+			return
+		}
+		for _, k := range keys {
+			bts, err := b.Get(k)
+			if err != nil {
+				s.test.Error(err)
+				return
+			}
+			msg := &model.UserTasks{}
+			err = proto.Unmarshal(bts.Value(), msg)
+			if err != nil {
+				s.test.Error(err)
+				return
+			}
+			assert.Len(s.test, msg.Id, 0)
+		}
+	}
+}
+
 func (s *integration) teardown() {
+
 	n, err := s.GetJetstream()
 	require.NoError(s.test, err)
+
 	sub, err := n.PullSubscribe("WORKFLOW.>", "fin")
 	require.NoError(s.test, err)
 	for {

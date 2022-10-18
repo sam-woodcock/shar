@@ -48,7 +48,7 @@ func TestStartingVariable(t *testing.T) {
 	_, err = cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{})
 
 	assert.Error(t, err)
-
+	tst.AssertCleanKV()
 }
 
 type testStartingVariableHandlerDef struct {

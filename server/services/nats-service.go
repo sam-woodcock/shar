@@ -11,6 +11,7 @@ import (
 	"github.com/segmentio/ksuid"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/expression"
+	"gitlab.com/shar-workflow/shar/common/setup"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors"
@@ -141,7 +142,7 @@ func NewNatsService(log *zap.Logger, conn common.NatsConn, txConn common.NatsCon
 		allowOrphanServiceTasks: allowOrphanServiceTasks,
 	}
 
-	if err := common.SetUpNats(js, storageType); err != nil {
+	if err := setup.Nats(js, storageType); err != nil {
 		return nil, fmt.Errorf("failed to set up nats queue insfrastructure: %w", err)
 	}
 
@@ -229,10 +230,12 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 			Description:   "",
 			FilterSubject: subj.NS(messages.WorkflowJobSendMessageExecute, "default") + "." + ks.String(),
 			AckPolicy:     nats.AckExplicitPolicy,
+			MaxAckPending: 65536,
 		}
-		if err = common.EnsureConsumer(s.js, "WORKFLOW", jxCfg); err != nil {
+		if err = EnsureConsumer(s.js, "WORKFLOW", jxCfg); err != nil {
 			return "", fmt.Errorf("failed to add service task consumer: %w", err)
 		}
+
 	}
 	for _, i := range wf.Process {
 		for _, j := range i.Elements {
@@ -252,7 +255,7 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 						AckPolicy:     nats.AckExplicitPolicy,
 					}
 
-					if err = common.EnsureConsumer(s.js, "WORKFLOW", jxCfg); err != nil {
+					if err = EnsureConsumer(s.js, "WORKFLOW", jxCfg); err != nil {
 						return "", fmt.Errorf("failed to add service task consumer: %w", err)
 					}
 				}
@@ -279,6 +282,17 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 	go s.incrementWorkflowCount()
 
 	return wfID, nil
+}
+
+func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
+	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); err == nats.ErrConsumerNotFound {
+		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
+			panic(err)
+		}
+	} else if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *NatsService) GetWorkflow(_ context.Context, workflowId string) (*model.Workflow, error) {
@@ -529,18 +543,34 @@ func (s *NatsService) GetWorkflowInstanceStatus(_ context.Context, id string) (*
 
 func (s *NatsService) StartProcessing(ctx context.Context) error {
 
-	if err := common.SetUpNats(s.js, s.storageType); err != nil {
+	if err := setup.Nats(s.js, s.storageType); err != nil {
 		return err
 	}
 
-	go s.processTraversals(ctx)
-	go s.processTracking(ctx)
-	go s.processWorkflowEvents(ctx)
-	go s.processMessages(ctx)
-	go s.listenForTimer(ctx, s.js, s.log, s.closing, 4)
-	go s.processCompletedJobs(ctx)
-	go s.processActivities(ctx)
-	go s.processLaunch(ctx)
+	if err := s.processTraversals(ctx); err != nil {
+		return err
+	}
+	if err := s.processTracking(ctx); err != nil {
+		return err
+	}
+	if err := s.processWorkflowEvents(ctx); err != nil {
+		return err
+	}
+	if err := s.processMessages(ctx); err != nil {
+		return err
+	}
+	if err := s.listenForTimer(ctx, s.js, s.log, s.closing, 4); err != nil {
+		return err
+	}
+	if err := s.processCompletedJobs(ctx); err != nil {
+		return err
+	}
+	if err := s.processActivities(ctx); err != nil {
+		return err
+	}
+	if err := s.processLaunch(ctx); err != nil {
+		return err
+	}
 	return nil
 }
 func (s *NatsService) SetEventProcessor(processor EventProcessorFunc) {
@@ -645,8 +675,8 @@ func (s *NatsService) GetElement(_ context.Context, state *model.WorkflowState) 
 	return nil, errors.ErrElementNotFound
 }
 
-func (s *NatsService) processTraversals(ctx context.Context) {
-	common.Process(ctx, s.js, s.log, "traversal", s.closing, subj.NS(messages.WorkflowTraversalExecute, "default"), "Traversal", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+func (s *NatsService) processTraversals(ctx context.Context) error {
+	err := common.Process(ctx, s.js, s.log, "traversal", s.closing, subj.NS(messages.WorkflowTraversalExecute, "*"), "Traversal", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var traversal model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &traversal); err != nil {
 			return false, fmt.Errorf("could not unmarshal traversal proto: %w", err)
@@ -666,14 +696,22 @@ func (s *NatsService) processTraversals(ctx context.Context) {
 		}
 		return true, nil
 	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (s *NatsService) processTracking(ctx context.Context) {
-	common.Process(ctx, s.js, s.log, "tracking", s.closing, "WORKFLOW.>", "Tracking", 1, s.track)
+func (s *NatsService) processTracking(ctx context.Context) error {
+	err := common.Process(ctx, s.js, s.log, "tracking", s.closing, "WORKFLOW.>", "Tracking", 1, s.track)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (s *NatsService) processCompletedJobs(ctx context.Context) {
-	common.Process(ctx, s.js, s.log, "completedJob", s.closing, subj.NS(messages.WorkFlowJobCompleteAll, "default"), "JobCompleteConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+func (s *NatsService) processCompletedJobs(ctx context.Context) error {
+	err := common.Process(ctx, s.js, s.log, "completedJob", s.closing, subj.NS(messages.WorkFlowJobCompleteAll, "*"), "JobCompleteConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var job model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &job); err != nil {
 			return false, err
@@ -685,6 +723,10 @@ func (s *NatsService) processCompletedJobs(ctx context.Context) {
 		}
 		return true, nil
 	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *NatsService) track(ctx context.Context, msg *nats.Msg) (bool, error) {
@@ -723,8 +765,12 @@ func (s *NatsService) Conn() common.NatsConn {
 	return s.conn
 }
 
-func (s *NatsService) processMessages(ctx context.Context) {
-	common.Process(ctx, s.js, s.log, "message", s.closing, subj.NS(messages.WorkflowMessages, "*"), "Message", s.concurrency, s.processMessage)
+func (s *NatsService) processMessages(ctx context.Context) error {
+	err := common.Process(ctx, s.js, s.log, "message", s.closing, subj.NS(messages.WorkflowMessages, "*"), "Message", s.concurrency, s.processMessage)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, error) {
@@ -809,8 +855,8 @@ func (s *NatsService) Shutdown() {
 	close(s.closing)
 }
 
-func (s *NatsService) processWorkflowEvents(ctx context.Context) {
-	common.Process(ctx, s.js, s.log, "workflowEvent", s.closing, subj.NS(messages.WorkflowInstanceAll, "default"), "WorkflowConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+func (s *NatsService) processWorkflowEvents(ctx context.Context) error {
+	err := common.Process(ctx, s.js, s.log, "workflowEvent", s.closing, subj.NS(messages.WorkflowInstanceAll, "*"), "WorkflowConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var job model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &job); err != nil {
 			return false, err
@@ -822,10 +868,14 @@ func (s *NatsService) processWorkflowEvents(ctx context.Context) {
 		}
 		return true, nil
 	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (s *NatsService) processActivities(ctx context.Context) {
-	common.Process(ctx, s.js, s.log, "activity", s.closing, subj.NS(messages.WorkflowActivityAll, "*"), "ActivityConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+func (s *NatsService) processActivities(ctx context.Context) error {
+	err := common.Process(ctx, s.js, s.log, "activity", s.closing, subj.NS(messages.WorkflowActivityAll, "*"), "ActivityConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var activity model.WorkflowState
 		switch {
 		case strings.HasSuffix(msg.Subject, ".State.Activity.Execute"):
@@ -846,6 +896,10 @@ func (s *NatsService) processActivities(ctx context.Context) {
 
 		return true, nil
 	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *NatsService) deleteSavedState(activityID string) error {
@@ -944,7 +998,7 @@ func (s *NatsService) expectPossibleMissingKey(msg string, err error) error {
 	return err
 }
 
-func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, closer chan struct{}, concurrency int) {
+func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, closer chan struct{}, concurrency int) error {
 	subject := subj.NS("WORKFLOW.%s.Timers.>", "*")
 	durable := "workflowTimers"
 	for i := 0; i < concurrency; i++ {
@@ -1014,8 +1068,7 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 						s.log.Error("failed to get workflow", zap.Error(err))
 					}
 					activityID := common.TrackingID(state.Id).ID()
-					fmt.Println("LOCATESTATE:" + activityID)
-					st, err := s.GetOldState(activityID)
+					_, err = s.GetOldState(activityID)
 					if err == errors.ErrStateNotFound {
 						if err := msg[0].Ack(); err != nil {
 							s.log.Error("failed to ack message after state not found", zap.Error(err))
@@ -1024,7 +1077,6 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 					if err != nil {
 						return
 					}
-					fmt.Println(st)
 					els := common.ElementTable(wf)
 					if err := s.traverslFunc(ctx, wfi, state.Id, &model.Targets{Target: []*model.Target{{Id: "timer-target", Target: *state.Execute}}}, els, state.Vars); err != nil {
 						s.log.Error("failed to traverse", zap.Error(err))
@@ -1077,6 +1129,7 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 			}
 		}()
 	}
+	return nil
 }
 
 func (s *NatsService) GetOldState(id string) (*model.WorkflowState, error) {
@@ -1090,8 +1143,8 @@ func (s *NatsService) GetOldState(id string) (*model.WorkflowState, error) {
 	return nil, err
 }
 
-func (s *NatsService) processLaunch(ctx context.Context) {
-	common.Process(ctx, s.js, s.log, "launch", s.closing, subj.NS(messages.WorkflowJobLaunchExecute, "*"), "LaunchConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+func (s *NatsService) processLaunch(ctx context.Context) error {
+	err := common.Process(ctx, s.js, s.log, "launch", s.closing, subj.NS(messages.WorkflowJobLaunchExecute, "*"), "LaunchConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var job model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &job); err != nil {
 			return false, err
@@ -1101,4 +1154,8 @@ func (s *NatsService) processLaunch(ctx context.Context) {
 		}
 		return true, nil
 	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
