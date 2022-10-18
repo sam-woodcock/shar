@@ -72,6 +72,7 @@ func TestMessaging(t *testing.T) {
 	assert.Equal(t, "carried1value", tst.finalVars["carried"])
 	assert.Equal(t, "carried2value", tst.finalVars["carried2"])
 	tst.mx.Unlock()
+	tst.AssertCleanKV()
 }
 
 type testMessagingHandlerDef struct {

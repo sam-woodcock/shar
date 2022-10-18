@@ -31,6 +31,9 @@ func TestUserTasks(t *testing.T) {
 		panic(err)
 	}
 
+	//sub := tracer.Trace(natsURL)
+	//defer sub.Drain()
+
 	// Load BPMN workflow
 	b, err := os.ReadFile("../testdata/usertask.bpmn")
 	if err != nil {
@@ -98,6 +101,7 @@ func TestUserTasks(t *testing.T) {
 	assert.Equal(t, "Miggins", d.finalVars["Surname"].(string))
 	assert.Equal(t, 69, d.finalVars["OrderId"].(int))
 	assert.Equal(t, 32767, d.finalVars["carried"].(int))
+	tst.AssertCleanKV()
 }
 
 type testUserTaskHandlerDef struct {

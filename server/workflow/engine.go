@@ -1003,3 +1003,7 @@ func (c *Engine) messageProcessor(ctx context.Context, state *model.WorkflowStat
 	}
 	return true, 0, nil
 }
+
+func (c *Engine) PublishError(ctx context.Context, state *model.WorkflowState, err error) {
+
+}

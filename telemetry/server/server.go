@@ -47,7 +47,7 @@ func (s *Server) Listen() error {
 	ctx := context.Background()
 	closer := make(chan struct{})
 
-	kv, err := s.js.KeyValue(messages.KvTrace)
+	kv, err := s.js.KeyValue(messages.KvTracking)
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,10 @@ func (s *Server) Listen() error {
 		return err
 	}
 	s.wfi = kv
-	common.Process(ctx, s.js, s.log, "telemetry", closer, subj.NS(messages.WorkflowStateAll, "*"), "Tracing", 1, s.workflowTrace)
+	err = common.Process(ctx, s.js, s.log, "telemetry", closer, subj.NS(messages.WorkflowStateAll, "*"), "Tracing", 1, s.workflowTrace)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -198,6 +201,7 @@ func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.Work
 		val := fmt.Sprintf("var.%+v", v)
 		at[k] = &val
 	}
+
 	attrs := buildAttrs(at)
 	err = s.exp.ExportSpans(
 		ctx,

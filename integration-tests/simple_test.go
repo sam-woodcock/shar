@@ -61,7 +61,7 @@ func TestSimple(t *testing.T) {
 	case <-time.After(20 * time.Second):
 		assert.Fail(t, "Timed out")
 	}
-
+	tst.AssertCleanKV()
 }
 
 type testSimpleHandlerDef struct {

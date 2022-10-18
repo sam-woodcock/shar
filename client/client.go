@@ -149,7 +149,7 @@ func (c *Client) listen(ctx context.Context) error {
 		tasks[i] = subj.NS(messages.WorkflowJobSendMessageExecute+"."+i, c.ns)
 	}
 	for k, v := range tasks {
-		common.Process(ctx, c.js, c.log, "jobExecute", closer, v, "ServiceTask_"+k, 200, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+		err := common.Process(ctx, c.js, c.log, "jobExecute", closer, v, "ServiceTask_"+k, 200, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 			xctx := context.Background()
 
 			ut := &model.WorkflowState{}
@@ -254,6 +254,9 @@ func (c *Client) listen(ctx context.Context) error {
 			}
 			return true, nil
 		})
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

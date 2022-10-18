@@ -69,7 +69,7 @@ func TestSubWorkflow(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		assert.Fail(t, "Timed out")
 	}
-
+	//todo:	tst.AssertCleanKV()
 }
 
 type testSubWorkflowHandlerDef struct {

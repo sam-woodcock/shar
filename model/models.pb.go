@@ -121,6 +121,67 @@ func (CancellationState) EnumDescriptor() ([]byte, []int) {
 	return file_shar_workflow_models_proto_rawDescGZIP(), []int{1}
 }
 
+type LogSeverity int32
+
+const (
+	LogSeverity_Trace         LogSeverity = 0
+	LogSeverity_Debug         LogSeverity = 1
+	LogSeverity_Warning       LogSeverity = 2
+	LogSeverity_WorkflowError LogSeverity = 3
+	LogSeverity_WorkflowFatal LogSeverity = 4
+	LogSeverity_SharError     LogSeverity = 5
+	LogSeverity_SharFatal     LogSeverity = 6
+)
+
+// Enum value maps for LogSeverity.
+var (
+	LogSeverity_name = map[int32]string{
+		0: "Trace",
+		1: "Debug",
+		2: "Warning",
+		3: "WorkflowError",
+		4: "WorkflowFatal",
+		5: "SharError",
+		6: "SharFatal",
+	}
+	LogSeverity_value = map[string]int32{
+		"Trace":         0,
+		"Debug":         1,
+		"Warning":       2,
+		"WorkflowError": 3,
+		"WorkflowFatal": 4,
+		"SharError":     5,
+		"SharFatal":     6,
+	}
+)
+
+func (x LogSeverity) Enum() *LogSeverity {
+	p := new(LogSeverity)
+	*p = x
+	return p
+}
+
+func (x LogSeverity) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (LogSeverity) Descriptor() protoreflect.EnumDescriptor {
+	return file_shar_workflow_models_proto_enumTypes[2].Descriptor()
+}
+
+func (LogSeverity) Type() protoreflect.EnumType {
+	return &file_shar_workflow_models_proto_enumTypes[2]
+}
+
+func (x LogSeverity) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use LogSeverity.Descriptor instead.
+func (LogSeverity) EnumDescriptor() ([]byte, []int) {
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{2}
+}
+
 type Workflow struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -2704,6 +2765,124 @@ func (x *WorkflowStats) GetInstancesComplete() int64 {
 	return 0
 }
 
+type TelemetryState struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	State *WorkflowState               `protobuf:"bytes,1,opt,name=state,proto3" json:"state,omitempty"`
+	Log   map[int64]*TelemetryLogEntry `protobuf:"bytes,2,rep,name=log,proto3" json:"log,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (x *TelemetryState) Reset() {
+	*x = TelemetryState{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_shar_workflow_models_proto_msgTypes[41]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TelemetryState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TelemetryState) ProtoMessage() {}
+
+func (x *TelemetryState) ProtoReflect() protoreflect.Message {
+	mi := &file_shar_workflow_models_proto_msgTypes[41]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TelemetryState.ProtoReflect.Descriptor instead.
+func (*TelemetryState) Descriptor() ([]byte, []int) {
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *TelemetryState) GetState() *WorkflowState {
+	if x != nil {
+		return x.State
+	}
+	return nil
+}
+
+func (x *TelemetryState) GetLog() map[int64]*TelemetryLogEntry {
+	if x != nil {
+		return x.Log
+	}
+	return nil
+}
+
+type TelemetryLogEntry struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Severity   LogSeverity       `protobuf:"varint,1,opt,name=severity,proto3,enum=LogSeverity" json:"severity,omitempty"`
+	Message    string            `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Attributes map[string]string `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (x *TelemetryLogEntry) Reset() {
+	*x = TelemetryLogEntry{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_shar_workflow_models_proto_msgTypes[42]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TelemetryLogEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TelemetryLogEntry) ProtoMessage() {}
+
+func (x *TelemetryLogEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_shar_workflow_models_proto_msgTypes[42]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TelemetryLogEntry.ProtoReflect.Descriptor instead.
+func (*TelemetryLogEntry) Descriptor() ([]byte, []int) {
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *TelemetryLogEntry) GetSeverity() LogSeverity {
+	if x != nil {
+		return x.Severity
+	}
+	return LogSeverity_Trace
+}
+
+func (x *TelemetryLogEntry) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *TelemetryLogEntry) GetAttributes() map[string]string {
+	if x != nil {
+		return x.Attributes
+	}
+	return nil
+}
+
 var File_shar_workflow_models_proto protoreflect.FileDescriptor
 
 var file_shar_workflow_models_proto_rawDesc = []byte{
@@ -3022,19 +3201,51 @@ var file_shar_workflow_models_proto_rawDesc = []byte{
 	0x63, 0x65, 0x73, 0x53, 0x74, 0x61, 0x72, 0x74, 0x65, 0x64, 0x12, 0x2c, 0x0a, 0x11, 0x49, 0x6e,
 	0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x73, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x18,
 	0x03, 0x20, 0x01, 0x28, 0x03, 0x52, 0x11, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x73,
-	0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x2a, 0x2c, 0x0a, 0x11, 0x57, 0x6f, 0x72, 0x6b,
-	0x66, 0x6c, 0x6f, 0x77, 0x54, 0x69, 0x6d, 0x65, 0x72, 0x54, 0x79, 0x70, 0x65, 0x12, 0x0c, 0x0a,
-	0x08, 0x64, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x10, 0x00, 0x12, 0x09, 0x0a, 0x05, 0x66,
-	0x69, 0x78, 0x65, 0x64, 0x10, 0x01, 0x2a, 0x5c, 0x0a, 0x11, 0x43, 0x61, 0x6e, 0x63, 0x65, 0x6c,
-	0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x0d, 0x0a, 0x09, 0x45,
-	0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6e, 0x67, 0x10, 0x00, 0x12, 0x0d, 0x0a, 0x09, 0x43, 0x6f,
-	0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x64, 0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a, 0x54, 0x65, 0x72,
-	0x6d, 0x69, 0x6e, 0x61, 0x74, 0x65, 0x64, 0x10, 0x02, 0x12, 0x0b, 0x0a, 0x07, 0x45, 0x72, 0x72,
-	0x6f, 0x72, 0x65, 0x64, 0x10, 0x03, 0x12, 0x0c, 0x0a, 0x08, 0x4f, 0x62, 0x73, 0x6f, 0x6c, 0x65,
-	0x74, 0x65, 0x10, 0x04, 0x42, 0x25, 0x5a, 0x23, 0x67, 0x69, 0x74, 0x6c, 0x61, 0x62, 0x2e, 0x63,
-	0x6f, 0x6d, 0x2f, 0x73, 0x68, 0x61, 0x72, 0x2d, 0x77, 0x6f, 0x72, 0x6b, 0x66, 0x6c, 0x6f, 0x77,
-	0x2f, 0x73, 0x68, 0x61, 0x72, 0x2f, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x62, 0x06, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x33,
+	0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x22, 0xae, 0x01, 0x0a, 0x0e, 0x54, 0x65, 0x6c,
+	0x65, 0x6d, 0x65, 0x74, 0x72, 0x79, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x24, 0x0a, 0x05, 0x73,
+	0x74, 0x61, 0x74, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0e, 0x2e, 0x57, 0x6f, 0x72,
+	0x6b, 0x66, 0x6c, 0x6f, 0x77, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74,
+	0x65, 0x12, 0x2a, 0x0a, 0x03, 0x6c, 0x6f, 0x67, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x18,
+	0x2e, 0x54, 0x65, 0x6c, 0x65, 0x6d, 0x65, 0x74, 0x72, 0x79, 0x53, 0x74, 0x61, 0x74, 0x65, 0x2e,
+	0x4c, 0x6f, 0x67, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x03, 0x6c, 0x6f, 0x67, 0x1a, 0x4a, 0x0a,
+	0x08, 0x4c, 0x6f, 0x67, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x28, 0x0a, 0x05, 0x76,
+	0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x12, 0x2e, 0x54, 0x65, 0x6c,
+	0x65, 0x6d, 0x65, 0x74, 0x72, 0x79, 0x4c, 0x6f, 0x67, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x05,
+	0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0xda, 0x01, 0x0a, 0x11, 0x54, 0x65,
+	0x6c, 0x65, 0x6d, 0x65, 0x74, 0x72, 0x79, 0x4c, 0x6f, 0x67, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12,
+	0x28, 0x0a, 0x08, 0x73, 0x65, 0x76, 0x65, 0x72, 0x69, 0x74, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x0e, 0x32, 0x0c, 0x2e, 0x4c, 0x6f, 0x67, 0x53, 0x65, 0x76, 0x65, 0x72, 0x69, 0x74, 0x79, 0x52,
+	0x08, 0x73, 0x65, 0x76, 0x65, 0x72, 0x69, 0x74, 0x79, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73,
+	0x73, 0x61, 0x67, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73,
+	0x61, 0x67, 0x65, 0x12, 0x42, 0x0a, 0x0a, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65,
+	0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x22, 0x2e, 0x54, 0x65, 0x6c, 0x65, 0x6d, 0x65,
+	0x74, 0x72, 0x79, 0x4c, 0x6f, 0x67, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x2e, 0x41, 0x74, 0x74, 0x72,
+	0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x0a, 0x61, 0x74, 0x74,
+	0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x1a, 0x3d, 0x0a, 0x0f, 0x41, 0x74, 0x74, 0x72, 0x69,
+	0x62, 0x75, 0x74, 0x65, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65,
+	0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05,
+	0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c,
+	0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x2a, 0x2c, 0x0a, 0x11, 0x57, 0x6f, 0x72, 0x6b, 0x66, 0x6c,
+	0x6f, 0x77, 0x54, 0x69, 0x6d, 0x65, 0x72, 0x54, 0x79, 0x70, 0x65, 0x12, 0x0c, 0x0a, 0x08, 0x64,
+	0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x10, 0x00, 0x12, 0x09, 0x0a, 0x05, 0x66, 0x69, 0x78,
+	0x65, 0x64, 0x10, 0x01, 0x2a, 0x5c, 0x0a, 0x11, 0x43, 0x61, 0x6e, 0x63, 0x65, 0x6c, 0x6c, 0x61,
+	0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x0d, 0x0a, 0x09, 0x45, 0x78, 0x65,
+	0x63, 0x75, 0x74, 0x69, 0x6e, 0x67, 0x10, 0x00, 0x12, 0x0d, 0x0a, 0x09, 0x43, 0x6f, 0x6d, 0x70,
+	0x6c, 0x65, 0x74, 0x65, 0x64, 0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a, 0x54, 0x65, 0x72, 0x6d, 0x69,
+	0x6e, 0x61, 0x74, 0x65, 0x64, 0x10, 0x02, 0x12, 0x0b, 0x0a, 0x07, 0x45, 0x72, 0x72, 0x6f, 0x72,
+	0x65, 0x64, 0x10, 0x03, 0x12, 0x0c, 0x0a, 0x08, 0x4f, 0x62, 0x73, 0x6f, 0x6c, 0x65, 0x74, 0x65,
+	0x10, 0x04, 0x2a, 0x74, 0x0a, 0x0b, 0x4c, 0x6f, 0x67, 0x53, 0x65, 0x76, 0x65, 0x72, 0x69, 0x74,
+	0x79, 0x12, 0x09, 0x0a, 0x05, 0x54, 0x72, 0x61, 0x63, 0x65, 0x10, 0x00, 0x12, 0x09, 0x0a, 0x05,
+	0x44, 0x65, 0x62, 0x75, 0x67, 0x10, 0x01, 0x12, 0x0b, 0x0a, 0x07, 0x57, 0x61, 0x72, 0x6e, 0x69,
+	0x6e, 0x67, 0x10, 0x02, 0x12, 0x11, 0x0a, 0x0d, 0x57, 0x6f, 0x72, 0x6b, 0x66, 0x6c, 0x6f, 0x77,
+	0x45, 0x72, 0x72, 0x6f, 0x72, 0x10, 0x03, 0x12, 0x11, 0x0a, 0x0d, 0x57, 0x6f, 0x72, 0x6b, 0x66,
+	0x6c, 0x6f, 0x77, 0x46, 0x61, 0x74, 0x61, 0x6c, 0x10, 0x04, 0x12, 0x0d, 0x0a, 0x09, 0x53, 0x68,
+	0x61, 0x72, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x10, 0x05, 0x12, 0x0d, 0x0a, 0x09, 0x53, 0x68, 0x61,
+	0x72, 0x46, 0x61, 0x74, 0x61, 0x6c, 0x10, 0x06, 0x42, 0x25, 0x5a, 0x23, 0x67, 0x69, 0x74, 0x6c,
+	0x61, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x73, 0x68, 0x61, 0x72, 0x2d, 0x77, 0x6f, 0x72, 0x6b,
+	0x66, 0x6c, 0x6f, 0x77, 0x2f, 0x73, 0x68, 0x61, 0x72, 0x2f, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x62,
+	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -3049,90 +3260,100 @@ func file_shar_workflow_models_proto_rawDescGZIP() []byte {
 	return file_shar_workflow_models_proto_rawDescData
 }
 
-var file_shar_workflow_models_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_shar_workflow_models_proto_msgTypes = make([]protoimpl.MessageInfo, 45)
+var file_shar_workflow_models_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_shar_workflow_models_proto_msgTypes = make([]protoimpl.MessageInfo, 49)
 var file_shar_workflow_models_proto_goTypes = []interface{}{
 	(WorkflowTimerType)(0),                   // 0: WorkflowTimerType
 	(CancellationState)(0),                   // 1: CancellationState
-	(*Workflow)(nil),                         // 2: Workflow
-	(*Process)(nil),                          // 3: Process
-	(*WorkflowVersions)(nil),                 // 4: WorkflowVersions
-	(*WorkflowVersion)(nil),                  // 5: WorkflowVersion
-	(*Element)(nil),                          // 6: Element
-	(*Timer)(nil),                            // 7: Timer
-	(*Target)(nil),                           // 8: Target
-	(*Error)(nil),                            // 9: Error
-	(*CatchError)(nil),                       // 10: CatchError
-	(*Targets)(nil),                          // 11: Targets
-	(*Messages)(nil),                         // 12: Messages
-	(*WorkflowState)(nil),                    // 13: WorkflowState
-	(*WorkflowTimerDefinition)(nil),          // 14: WorkflowTimerDefinition
-	(*WorkflowTimer)(nil),                    // 15: WorkflowTimer
-	(*WorkflowInstance)(nil),                 // 16: WorkflowInstance
-	(*MessageInstance)(nil),                  // 17: MessageInstance
-	(*WorkflowInstanceSubscribers)(nil),      // 18: WorkflowInstanceSubscribers
-	(*UserTasks)(nil),                        // 19: UserTasks
-	(*LaunchWorkflowRequest)(nil),            // 20: LaunchWorkflowRequest
-	(*CancelWorkflowInstanceRequest)(nil),    // 21: CancelWorkflowInstanceRequest
-	(*GetWorkflowInstanceStatusRequest)(nil), // 22: GetWorkflowInstanceStatusRequest
-	(*ListWorkflowInstanceRequest)(nil),      // 23: ListWorkflowInstanceRequest
-	(*ListWorkflowInstanceResponse)(nil),     // 24: ListWorkflowInstanceResponse
-	(*ListWorkflowInstanceResult)(nil),       // 25: ListWorkflowInstanceResult
-	(*WorkflowInstanceInfo)(nil),             // 26: WorkflowInstanceInfo
-	(*WorkflowInstanceStatus)(nil),           // 27: WorkflowInstanceStatus
-	(*ListWorkflowsResponse)(nil),            // 28: ListWorkflowsResponse
-	(*ListWorkflowResult)(nil),               // 29: ListWorkflowResult
-	(*SendMessageRequest)(nil),               // 30: SendMessageRequest
-	(*WorkflowInstanceComplete)(nil),         // 31: WorkflowInstanceComplete
-	(*CompleteManualTaskRequest)(nil),        // 32: CompleteManualTaskRequest
-	(*CompleteServiceTaskRequest)(nil),       // 33: CompleteServiceTaskRequest
-	(*CompleteSendMessageRequest)(nil),       // 34: CompleteSendMessageRequest
-	(*CompleteUserTaskRequest)(nil),          // 35: CompleteUserTaskRequest
-	(*ListUserTasksRequest)(nil),             // 36: ListUserTasksRequest
-	(*GetUserTaskRequest)(nil),               // 37: GetUserTaskRequest
-	(*GetMessageSenderRoutingIdRequest)(nil), // 38: GetMessageSenderRoutingIdRequest
-	(*GetUserTaskResponse)(nil),              // 39: GetUserTaskResponse
-	(*HandleWorkflowErrorRequest)(nil),       // 40: HandleWorkflowErrorRequest
-	(*HandleWorkflowErrorResponse)(nil),      // 41: HandleWorkflowErrorResponse
-	(*WorkflowStats)(nil),                    // 42: WorkflowStats
-	nil,                                      // 43: Workflow.ProcessEntry
-	nil,                                      // 44: Element.InputTransformEntry
-	nil,                                      // 45: Element.OutputTransformEntry
-	nil,                                      // 46: WorkflowInstance.InFlightEntry
+	(LogSeverity)(0),                         // 2: LogSeverity
+	(*Workflow)(nil),                         // 3: Workflow
+	(*Process)(nil),                          // 4: Process
+	(*WorkflowVersions)(nil),                 // 5: WorkflowVersions
+	(*WorkflowVersion)(nil),                  // 6: WorkflowVersion
+	(*Element)(nil),                          // 7: Element
+	(*Timer)(nil),                            // 8: Timer
+	(*Target)(nil),                           // 9: Target
+	(*Error)(nil),                            // 10: Error
+	(*CatchError)(nil),                       // 11: CatchError
+	(*Targets)(nil),                          // 12: Targets
+	(*Messages)(nil),                         // 13: Messages
+	(*WorkflowState)(nil),                    // 14: WorkflowState
+	(*WorkflowTimerDefinition)(nil),          // 15: WorkflowTimerDefinition
+	(*WorkflowTimer)(nil),                    // 16: WorkflowTimer
+	(*WorkflowInstance)(nil),                 // 17: WorkflowInstance
+	(*MessageInstance)(nil),                  // 18: MessageInstance
+	(*WorkflowInstanceSubscribers)(nil),      // 19: WorkflowInstanceSubscribers
+	(*UserTasks)(nil),                        // 20: UserTasks
+	(*LaunchWorkflowRequest)(nil),            // 21: LaunchWorkflowRequest
+	(*CancelWorkflowInstanceRequest)(nil),    // 22: CancelWorkflowInstanceRequest
+	(*GetWorkflowInstanceStatusRequest)(nil), // 23: GetWorkflowInstanceStatusRequest
+	(*ListWorkflowInstanceRequest)(nil),      // 24: ListWorkflowInstanceRequest
+	(*ListWorkflowInstanceResponse)(nil),     // 25: ListWorkflowInstanceResponse
+	(*ListWorkflowInstanceResult)(nil),       // 26: ListWorkflowInstanceResult
+	(*WorkflowInstanceInfo)(nil),             // 27: WorkflowInstanceInfo
+	(*WorkflowInstanceStatus)(nil),           // 28: WorkflowInstanceStatus
+	(*ListWorkflowsResponse)(nil),            // 29: ListWorkflowsResponse
+	(*ListWorkflowResult)(nil),               // 30: ListWorkflowResult
+	(*SendMessageRequest)(nil),               // 31: SendMessageRequest
+	(*WorkflowInstanceComplete)(nil),         // 32: WorkflowInstanceComplete
+	(*CompleteManualTaskRequest)(nil),        // 33: CompleteManualTaskRequest
+	(*CompleteServiceTaskRequest)(nil),       // 34: CompleteServiceTaskRequest
+	(*CompleteSendMessageRequest)(nil),       // 35: CompleteSendMessageRequest
+	(*CompleteUserTaskRequest)(nil),          // 36: CompleteUserTaskRequest
+	(*ListUserTasksRequest)(nil),             // 37: ListUserTasksRequest
+	(*GetUserTaskRequest)(nil),               // 38: GetUserTaskRequest
+	(*GetMessageSenderRoutingIdRequest)(nil), // 39: GetMessageSenderRoutingIdRequest
+	(*GetUserTaskResponse)(nil),              // 40: GetUserTaskResponse
+	(*HandleWorkflowErrorRequest)(nil),       // 41: HandleWorkflowErrorRequest
+	(*HandleWorkflowErrorResponse)(nil),      // 42: HandleWorkflowErrorResponse
+	(*WorkflowStats)(nil),                    // 43: WorkflowStats
+	(*TelemetryState)(nil),                   // 44: TelemetryState
+	(*TelemetryLogEntry)(nil),                // 45: TelemetryLogEntry
+	nil,                                      // 46: Workflow.ProcessEntry
+	nil,                                      // 47: Element.InputTransformEntry
+	nil,                                      // 48: Element.OutputTransformEntry
+	nil,                                      // 49: WorkflowInstance.InFlightEntry
+	nil,                                      // 50: TelemetryState.LogEntry
+	nil,                                      // 51: TelemetryLogEntry.AttributesEntry
 }
 var file_shar_workflow_models_proto_depIdxs = []int32{
-	43, // 0: Workflow.Process:type_name -> Workflow.ProcessEntry
-	6,  // 1: Workflow.messages:type_name -> Element
-	9,  // 2: Workflow.errors:type_name -> Error
-	6,  // 3: Process.elements:type_name -> Element
-	5,  // 4: WorkflowVersions.version:type_name -> WorkflowVersion
-	11, // 5: Element.outbound:type_name -> Targets
-	3,  // 6: Element.process:type_name -> Process
-	10, // 7: Element.errors:type_name -> CatchError
-	9,  // 8: Element.error:type_name -> Error
-	44, // 9: Element.inputTransform:type_name -> Element.InputTransformEntry
-	45, // 10: Element.outputTransform:type_name -> Element.OutputTransformEntry
-	14, // 11: Element.timer:type_name -> WorkflowTimerDefinition
-	7,  // 12: Element.boundaryTimer:type_name -> Timer
-	8,  // 13: Targets.target:type_name -> Target
+	46, // 0: Workflow.Process:type_name -> Workflow.ProcessEntry
+	7,  // 1: Workflow.messages:type_name -> Element
+	10, // 2: Workflow.errors:type_name -> Error
+	7,  // 3: Process.elements:type_name -> Element
+	6,  // 4: WorkflowVersions.version:type_name -> WorkflowVersion
+	12, // 5: Element.outbound:type_name -> Targets
+	4,  // 6: Element.process:type_name -> Process
+	11, // 7: Element.errors:type_name -> CatchError
+	10, // 8: Element.error:type_name -> Error
+	47, // 9: Element.inputTransform:type_name -> Element.InputTransformEntry
+	48, // 10: Element.outputTransform:type_name -> Element.OutputTransformEntry
+	15, // 11: Element.timer:type_name -> WorkflowTimerDefinition
+	8,  // 12: Element.boundaryTimer:type_name -> Timer
+	9,  // 13: Targets.target:type_name -> Target
 	1,  // 14: WorkflowState.state:type_name -> CancellationState
-	9,  // 15: WorkflowState.error:type_name -> Error
-	15, // 16: WorkflowState.timer:type_name -> WorkflowTimer
+	10, // 15: WorkflowState.error:type_name -> Error
+	16, // 16: WorkflowState.timer:type_name -> WorkflowTimer
 	0,  // 17: WorkflowTimerDefinition.type:type_name -> WorkflowTimerType
-	46, // 18: WorkflowInstance.inFlight:type_name -> WorkflowInstance.InFlightEntry
+	49, // 18: WorkflowInstance.inFlight:type_name -> WorkflowInstance.InFlightEntry
 	1,  // 19: CancelWorkflowInstanceRequest.state:type_name -> CancellationState
-	9,  // 20: CancelWorkflowInstanceRequest.error:type_name -> Error
-	25, // 21: ListWorkflowInstanceResponse.result:type_name -> ListWorkflowInstanceResult
-	13, // 22: WorkflowInstanceStatus.state:type_name -> WorkflowState
-	29, // 23: ListWorkflowsResponse.result:type_name -> ListWorkflowResult
+	10, // 20: CancelWorkflowInstanceRequest.error:type_name -> Error
+	26, // 21: ListWorkflowInstanceResponse.result:type_name -> ListWorkflowInstanceResult
+	14, // 22: WorkflowInstanceStatus.state:type_name -> WorkflowState
+	30, // 23: ListWorkflowsResponse.result:type_name -> ListWorkflowResult
 	1,  // 24: WorkflowInstanceComplete.workflowState:type_name -> CancellationState
-	9,  // 25: WorkflowInstanceComplete.error:type_name -> Error
-	3,  // 26: Workflow.ProcessEntry.value:type_name -> Process
-	27, // [27:27] is the sub-list for method output_type
-	27, // [27:27] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	10, // 25: WorkflowInstanceComplete.error:type_name -> Error
+	14, // 26: TelemetryState.state:type_name -> WorkflowState
+	50, // 27: TelemetryState.log:type_name -> TelemetryState.LogEntry
+	2,  // 28: TelemetryLogEntry.severity:type_name -> LogSeverity
+	51, // 29: TelemetryLogEntry.attributes:type_name -> TelemetryLogEntry.AttributesEntry
+	4,  // 30: Workflow.ProcessEntry.value:type_name -> Process
+	45, // 31: TelemetryState.LogEntry.value:type_name -> TelemetryLogEntry
+	32, // [32:32] is the sub-list for method output_type
+	32, // [32:32] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_shar_workflow_models_proto_init() }
@@ -3633,6 +3854,30 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
+		file_shar_workflow_models_proto_msgTypes[41].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TelemetryState); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_shar_workflow_models_proto_msgTypes[42].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TelemetryLogEntry); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	file_shar_workflow_models_proto_msgTypes[11].OneofWrappers = []interface{}{}
 	file_shar_workflow_models_proto_msgTypes[14].OneofWrappers = []interface{}{}
@@ -3641,8 +3886,8 @@ func file_shar_workflow_models_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_shar_workflow_models_proto_rawDesc,
-			NumEnums:      2,
-			NumMessages:   45,
+			NumEnums:      3,
+			NumMessages:   49,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

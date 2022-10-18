@@ -40,7 +40,7 @@ func TestRegisterOrphanServiceTask(t *testing.T) {
 	cl.RegisterWorkflowInstanceComplete(complete)
 	err = cl.RegisterServiceTask(ctx, "UndefinedProcess", orphanTask)
 	require.NoError(t, err)
-
+	tst.AssertCleanKV()
 }
 
 func orphanTask(_ context.Context, vars model.Vars) (model.Vars, error) {
