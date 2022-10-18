@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/nats-io/nats.go"
+	"gitlab.com/shar-workflow/shar/common/setup"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"go.uber.org/zap"
@@ -120,7 +121,10 @@ func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names
 	return nil
 }
 
-func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, traceName string, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, msg *nats.Msg) (bool, error)) {
+func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, traceName string, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, msg *nats.Msg) (bool, error)) error {
+	if _, ok := setup.ConsumerDurableNames[durable]; !strings.HasPrefix(durable, "ServiceTask_") && !ok {
+		return fmt.Errorf("durable consumer '%s' is not explicity configured", durable)
+	}
 	for i := 0; i < concurrency; i++ {
 		go func() {
 			sub, err := js.PullSubscribe(subject, durable)
@@ -187,27 +191,6 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, tra
 				}
 			}
 		}()
-	}
-}
-
-func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
-	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); err == nats.ErrConsumerNotFound {
-		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
-			panic(err)
-		}
-	} else if err != nil {
-		return err
-	}
-	return nil
-}
-
-func ensureStream(js nats.JetStreamContext, streamConfig *nats.StreamConfig) error {
-	if _, err := js.StreamInfo(streamConfig.Name); err == nats.ErrStreamNotFound {
-		if _, err := js.AddStream(streamConfig); err != nil {
-			return err
-		}
-	} else if err != nil {
-		return err
 	}
 	return nil
 }

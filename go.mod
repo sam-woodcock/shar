@@ -7,8 +7,9 @@ require (
 	github.com/antonmedv/expr v1.9.0
 	github.com/caarlos0/env/v6 v6.10.1
 	github.com/golang/protobuf v1.5.2
-	github.com/nats-io/nats-server/v2 v2.9.0
-	github.com/nats-io/nats.go v1.17.0
+	github.com/nats-io/nats-server/v2 v2.9.3
+	github.com/nats-io/nats.go v1.18.0
+	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pterm/pterm v0.12.47
 	github.com/relvacode/iso8601 v1.1.0
 	github.com/segmentio/ksuid v1.0.4
@@ -34,7 +35,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/gookit/color v1.5.2 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
-	github.com/klauspost/compress v1.15.9 // indirect
+	github.com/klauspost/compress v1.15.11 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lithammer/fuzzysearch v1.1.5 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
@@ -56,7 +57,7 @@ require (
 	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec // indirect
 	golang.org/x/term v0.0.0-20220919170432-7a66f970e087 // indirect
 	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9 // indirect
+	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
 	google.golang.org/genproto v0.0.0-20220929141241-1ce7b20da813 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

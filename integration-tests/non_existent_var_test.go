@@ -32,5 +32,5 @@ func TestNonExistentVar(t *testing.T) {
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "SimpleWorkflowTest", b)
 	assert.Error(t, err)
-
+	tst.AssertCleanKV()
 }

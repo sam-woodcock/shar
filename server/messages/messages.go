@@ -4,8 +4,8 @@ import "gitlab.com/shar-workflow/shar/common/subj"
 
 const (
 	WorkflowStateAll                  = "WORKFLOW.%s.State.>"
-	WorkflowJobExecuteAll             = "WORKFLOW.%s.State.Job.Execute.*"  //@
-	WorkFlowJobCompleteAll            = "WORKFLOW.%s.State.Job.Complete.*" //@
+	WorkflowJobExecuteAll             = "WORKFLOW.%s.State.Job.Execute.*"
+	WorkFlowJobCompleteAll            = "WORKFLOW.%s.State.Job.Complete.*"
 	WorkflowJobServiceTaskExecute     = "WORKFLOW.%s.State.Job.Execute.ServiceTask"
 	WorkflowJobServiceTaskExecuteWild = "WORKFLOW.%s.State.Job.Execute.ServiceTask.>"
 	WorkflowJobServiceTaskComplete    = "WORKFLOW.%s.State.Job.Complete.ServiceTask"
@@ -86,7 +86,6 @@ var (
 	KvInstance     = "WORKFLOW_INSTANCE"
 	KvMessageName  = "WORKFLOW_MSGNAME"
 	KvMessageID    = "WORKFLOW_MSGID"
-	KvTrace        = "WORKFLOW_TRACKING"
 	KvUserTask     = "WORKFLOW_USERTASK"
 	KvOwnerName    = "WORKFLOW_OWNERNAME"
 	KvOwnerID      = "WORKFLOW_OWNERID"

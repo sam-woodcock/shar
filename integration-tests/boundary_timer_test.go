@@ -32,6 +32,7 @@ func TestBoundaryTimer(t *testing.T) {
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
 	fmt.Println("CheckResult Called:", d.CheckResultCalled)
+	//tst.AssertCleanKV()
 }
 
 func TestBoundaryTimerTimeout(t *testing.T) {
@@ -58,6 +59,7 @@ func TestBoundaryTimerTimeout(t *testing.T) {
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
 	fmt.Println("CheckResult Called:", d.CheckResultCalled)
+	//tst.AssertCleanKV()
 }
 
 func TestExclusiveGateway(t *testing.T) {
@@ -81,6 +83,7 @@ func TestExclusiveGateway(t *testing.T) {
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
 	fmt.Println("CheckResult Called:", d.CheckResultCalled)
+	//tst.AssertCleanKV()
 }
 
 func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanceComplete, d *testBoundaryTimerDef) {

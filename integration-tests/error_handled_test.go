@@ -71,6 +71,7 @@ func TestHandledError(t *testing.T) {
 			break
 		}
 	}
+	// todo: tst.AssertCleanKV()
 }
 
 type errorHandledHandlerDef struct {

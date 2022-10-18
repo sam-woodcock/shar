@@ -59,7 +59,7 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "--remove" {
 		// Attempt both in case one failed last time, and deal with errors after
 		err1 := js.DeleteConsumer("WORKFLOW", "Tracing")
-		err2 := js.DeleteKeyValue(messages.KvTrace)
+		err2 := js.DeleteKeyValue(messages.KvTracking)
 		if err1 != nil {
 			panic(err1)
 		}
@@ -79,12 +79,13 @@ func main() {
 		panic(err)
 	}
 
-	if err := common.EnsureConsumer(js, "WORKFLOW", &nats.ConsumerConfig{
+	if err := EnsureConsumer(js, "WORKFLOW", &nats.ConsumerConfig{
 		Durable:       "Tracing",
 		Description:   "Sequential Trace Consumer",
 		DeliverPolicy: nats.DeliverAllPolicy,
 		FilterSubject: subj.NS(messages.WorkflowStateAll, "*"),
 		AckPolicy:     nats.AckExplicitPolicy,
+		MaxAckPending: 1,
 	}); err != nil {
 		panic(err)
 	}
@@ -94,4 +95,15 @@ func main() {
 		panic(err)
 	}
 	time.Sleep(100 * time.Hour)
+}
+
+func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
+	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); err == nats.ErrConsumerNotFound {
+		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
+			panic(err)
+		}
+	} else if err != nil {
+		return err
+	}
+	return nil
 }

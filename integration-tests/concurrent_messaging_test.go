@@ -77,6 +77,7 @@ func TestConcurrentMessaging(t *testing.T) {
 		}
 	}
 	fmt.Println("Stopwatch:", -time.Until(tm))
+	//TODO: tst.AssertCleanKV()
 }
 
 type testConcurrentMessagingHandlerDef struct {

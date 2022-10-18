@@ -59,6 +59,7 @@ func TestTimedStart(t *testing.T) {
 	defer d.mx.Unlock()
 	assert.Equal(t, 32768, d.tst.finalVars["carried"])
 	assert.Equal(t, 3, d.count)
+	tst.AssertCleanKV()
 }
 
 type timedStartHandlerDef struct {

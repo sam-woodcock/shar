@@ -64,11 +64,11 @@ func run(_ *cobra.Command, args []string) error {
 			panic(err)
 		}
 
-		if err := common.EnsureConsumer(js, "WORKFLOW", &nats.ConsumerConfig{
+		if err := EnsureConsumer(js, "WORKFLOW", &nats.ConsumerConfig{
 			Durable:       "Tracing",
 			Description:   "Sequential Trace Consumer",
 			DeliverPolicy: nats.DeliverAllPolicy,
-			FilterSubject: subj.NS(messages.WorkflowStateAll, "*"),
+			FilterSubject: subj.NS(messages.WorkflowStateAll, "default"),
 			AckPolicy:     nats.AckExplicitPolicy,
 		}); err != nil {
 			panic(err)
@@ -78,10 +78,13 @@ func run(_ *cobra.Command, args []string) error {
 		closer := make(chan struct{})
 		workflowMessages := make(chan *nats.Msg)
 
-		common.Process(ctx, js, log, "trace", closer, subj.NS(messages.WorkflowStateAll, "*"), "Tracing", 1, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+		err = common.Process(ctx, js, log, "trace", closer, subj.NS(messages.WorkflowStateAll, "*"), "Tracing", 1, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 			workflowMessages <- msg
 			return true, nil
 		})
+		if err != nil {
+			return err
+		}
 
 		c := output.Console{}
 		for msg := range workflowMessages {
@@ -110,4 +113,15 @@ func run(_ *cobra.Command, args []string) error {
 func init() {
 	Cmd.PersistentFlags().BoolVarP(&flag.Value.DebugTrace, flag.DebugTrace, flag.DebugTraceShort, false, "enable debug trace for selected workflow")
 	Cmd.PersistentFlags().StringSliceVarP(&flag.Value.Vars, flag.Vars, flag.VarsShort, []string{}, "pass variables to given workflow, eg --vars \"orderId:int(78),serviceId:string(hello)\"")
+}
+
+func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
+	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); err == nats.ErrConsumerNotFound {
+		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
+			panic(err)
+		}
+	} else if err != nil {
+		return err
+	}
+	return nil
 }

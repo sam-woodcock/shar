@@ -60,4 +60,5 @@ func TestEmbargo(t *testing.T) {
 
 	d := time.Duration(time.Now().UnixNano() - sw)
 	assert.Equal(t, 2, int(d.Seconds()))
+	tst.AssertCleanKV()
 }

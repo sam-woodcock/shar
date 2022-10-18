@@ -266,3 +266,24 @@ message WorkflowStats {
   int64 InstancesStarted = 2;
   int64 InstancesComplete = 3;
 }
+
+message TelemetryState {
+  WorkflowState state = 1;
+  map<int64,TelemetryLogEntry> log = 2;
+}
+
+message TelemetryLogEntry {
+  LogSeverity severity = 1;
+  string message = 2;
+  map<string,string> attributes = 3;
+}
+
+enum LogSeverity {
+  Trace = 0;
+  Debug = 1;
+  Warning = 2;
+  WorkflowError = 3;
+  WorkflowFatal = 4;
+  SharError = 5;
+  SharFatal = 6;
+}
