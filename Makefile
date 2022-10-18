@@ -14,7 +14,7 @@ all: proto server tracing
 
 proto: .FORCE
 	@echo "\033[92mBuild proto\033[0m"
-	cd proto; protoc --go_opt=M=gitlab.com --go_out=../model shar-workflow/models.proto;
+	cd proto; protoc --experimental_allow_proto3_optional --go_opt=M=gitlab.com --go_out=../model shar-workflow/models.proto;
 	mv model/gitlab.com/shar-workflow/shar/model/models.pb.go model/
 	rm -rf model/gitlab.com
 server: .FORCE
