@@ -4,10 +4,11 @@ import (
 	"context"
 	errors2 "errors"
 	"fmt"
-	"gitlab.com/shar-workflow/shar/client/parser"
-	"gitlab.com/shar-workflow/shar/server/services"
 	"strconv"
 	"time"
+
+	"gitlab.com/shar-workflow/shar/client/parser"
+	"gitlab.com/shar-workflow/shar/server/services"
 
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
@@ -168,7 +169,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 		errs := make(chan error)
 
 		state := &model.WorkflowState{
-			Id:                 ID.Push(wfi.WorkflowInstanceId),
+			Id:                 ID.Pop().Push(wfi.WorkflowInstanceId),
 			WorkflowInstanceId: wfi.WorkflowInstanceId,
 			WorkflowId:         wfID,
 			Vars:               vrs,
