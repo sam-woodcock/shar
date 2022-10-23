@@ -14,7 +14,7 @@ var Cmd = &cobra.Command{
 	Short: "Lists user tasks",
 	Long:  ``,
 	RunE:  run,
-	Args:  cobra.ExactValidArgs(1),
+	Args:  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 }
 
 func run(_ *cobra.Command, args []string) error {
