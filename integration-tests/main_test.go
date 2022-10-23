@@ -162,6 +162,7 @@ func (s *integration) setup(t *testing.T) {
 }
 
 func (s *integration) AssertCleanKV() {
+	time.Sleep(1 * time.Second)
 	js, err := s.GetJetstream()
 	require.NoError(s.test, err)
 

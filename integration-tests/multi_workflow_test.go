@@ -102,7 +102,7 @@ func TestMultiWorkflow(t *testing.T) {
 		}
 	}()
 	wg.Wait()
-	//TODO: tst.AssertCleanKV()
+	tst.AssertCleanKV()
 }
 
 type testMultiworkflowMessagingHandlerDef struct {

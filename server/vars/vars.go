@@ -63,8 +63,8 @@ func InputVars(log *zap.Logger, oldVarsBin []byte, newVarsBin *[]byte, el *model
 }
 
 // OutputVars merges one variable set into another based upon any expressions contained in an element.
-func OutputVars(log *zap.Logger, newVarsBin []byte, mergeVarsBin *[]byte, el *model.Element) error {
-	if el.OutputTransform != nil {
+func OutputVars(log *zap.Logger, newVarsBin []byte, mergeVarsBin *[]byte, transform map[string]string) error {
+	if transform != nil {
 		localVars, err := Decode(log, newVarsBin)
 		if err != nil {
 			return err
@@ -79,7 +79,7 @@ func OutputVars(log *zap.Logger, newVarsBin []byte, mergeVarsBin *[]byte, el *mo
 		} else {
 			processVars = make(map[string]interface{})
 		}
-		for k, v := range el.OutputTransform {
+		for k, v := range transform {
 			res, err := expression.EvalAny(log, v, localVars)
 			if err != nil {
 				return err

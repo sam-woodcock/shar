@@ -60,9 +60,11 @@ func (c *Engine) Start(ctx context.Context) error {
 	// Set the completed activity processor
 	c.ns.SetCompleteActivity(c.completeActivity)
 
-	c.ns.SetMessageProcessor(c.messageProcessor)
+	c.ns.SetMessageProcessor(c.timedExecuteProcessor)
 
 	c.ns.SetLaunchFunc(c.launchProcessor)
+
+	c.ns.SetAbort(c.abortProcessor)
 
 	return c.ns.StartProcessing(ctx)
 }
@@ -413,11 +415,16 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 	switch el.Type {
 	case "startEvent":
 		initVars := make([]byte, 0)
-		err := vars.OutputVars(c.log, traversal.Vars, &initVars, el)
+		err := vars.OutputVars(c.log, traversal.Vars, &initVars, el.OutputTransform)
 		if err != nil {
 			return err
 		}
 		traversal.Vars = initVars
+		if err := c.completeActivity(ctx, activityID, el, wfi, status, traversal.Vars); err != nil {
+			return err
+		}
+	case "exclusiveGateway":
+		fmt.Println("ExclusiveGateway")
 		if err := c.completeActivity(ctx, activityID, el, wfi, status, traversal.Vars); err != nil {
 			return err
 		}
@@ -578,13 +585,15 @@ func apErrFields(workflowInstanceID, workflowID, elementID, elementName, element
 
 // completeJobProcessor processes completed jobs
 func (c *Engine) completeJobProcessor(ctx context.Context, job *model.WorkflowState) error {
-	if old, err := c.ns.GetOldState(common.TrackingID(job.Id).ParentID()); err == errors.ErrStateNotFound {
+	// Validate if it safe to end this job
+	// Get the saved job state
+	if _, err := c.ns.GetOldState(common.TrackingID(job.Id).ParentID()); err == errors.ErrStateNotFound {
+		// We can't find the job's saved state
 		return nil
 	} else if err != nil {
 		return err
-	} else if old.State == model.CancellationState_Obsolete && job.State == model.CancellationState_Obsolete {
-		return nil
 	}
+
 	// get the relevant workflow instance
 	wfi, err := c.ns.GetWorkflowInstance(ctx, job.WorkflowInstanceId)
 	if err == errors.ErrWorkflowInstanceNotFound {
@@ -620,7 +629,7 @@ func (c *Engine) completeJobProcessor(ctx context.Context, job *model.WorkflowSt
 	if err != nil {
 		return err
 	}
-	if err := vars.OutputVars(c.log, job.Vars, &oldState.Vars, el); err != nil {
+	if err := vars.OutputVars(c.log, job.Vars, &oldState.Vars, el.OutputTransform); err != nil {
 		return err
 	}
 	if err := c.completeActivity(ctx, newId, el, wfi, job.State, oldState.Vars); err != nil {
@@ -814,6 +823,14 @@ func (c *Engine) CompleteServiceTask(ctx context.Context, trackingID string, new
 	if err != nil {
 		return err
 	}
+	if _, err := c.ns.GetOldState(common.TrackingID(job.Id).ParentID()); err == errors.ErrStateNotFound {
+		if err := c.ns.PublishWorkflowState(ctx, subj.NS(messages.WorkflowJobServiceTaskAbort, "default"), job); err != nil {
+			return err
+		}
+		return nil
+	} else if err != nil {
+		return err
+	}
 	el, err := c.ns.GetElement(ctx, job)
 	if err != nil {
 		return &errors.ErrWorkflowFatal{Err: err}
@@ -917,6 +934,9 @@ func (c *Engine) activityCompleteProcessor(ctx context.Context, state *model.Wor
 			if err := c.ns.DeleteJob(ctx, jobID); err != nil {
 				return err
 			}
+			if err := c.ns.DestroyWorkflowInstance(ctx, state.WorkflowInstanceId, state.State, state.Error); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -934,7 +954,7 @@ func (c *Engine) launchProcessor(ctx context.Context, state *model.WorkflowState
 	return nil
 }
 
-func (c *Engine) messageProcessor(ctx context.Context, state *model.WorkflowState) (bool, int, error) {
+func (c *Engine) timedExecuteProcessor(ctx context.Context, state *model.WorkflowState) (bool, int, error) {
 	wf, err := c.ns.GetWorkflow(ctx, state.WorkflowId)
 	if err != nil {
 		c.log.Error("could not get timer proto workflow: %s", zap.Error(err))
@@ -986,7 +1006,7 @@ func (c *Engine) messageProcessor(ctx context.Context, state *model.WorkflowStat
 				c.log.Error("error creating timed workflow instance", zap.Error(err))
 				return false, 0, err
 			}
-			if err := vars.OutputVars(c.log, newTimer.Vars, &newTimer.Vars, el); err != nil {
+			if err := vars.OutputVars(c.log, newTimer.Vars, &newTimer.Vars, el.OutputTransform); err != nil {
 				c.log.Error("error merging variables", zap.Error(err))
 				return false, 0, nil
 			}
@@ -1005,6 +1025,14 @@ func (c *Engine) messageProcessor(ctx context.Context, state *model.WorkflowStat
 	return true, 0, nil
 }
 
-func (c *Engine) PublishError(ctx context.Context, state *model.WorkflowState, err error) {
+func (c *Engine) PublishError(ctx context.Context, state *model.WorkflowState, err error) (bool, error) {
+	return true, err
+}
 
+func (c *Engine) abortProcessor(ctx context.Context, abort services.AbortType, state *model.WorkflowState) (bool, error) {
+	switch abort {
+	case services.AbortTypeActivity:
+	case services.AbortTypeServiceTask:
+	}
+	return true, nil
 }

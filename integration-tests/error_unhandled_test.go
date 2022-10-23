@@ -17,6 +17,9 @@ func TestUnhandledError(t *testing.T) {
 	tst.setup(t)
 	defer tst.teardown()
 
+	//sub := tracer.Trace(natsURL)
+	//defer sub.Drain()
+
 	// Create a starting context
 	ctx := context.Background()
 
@@ -70,7 +73,7 @@ func TestUnhandledError(t *testing.T) {
 			break
 		}
 	}
-	//TODO: tst.AssertCleanKV()
+	tst.AssertCleanKV()
 }
 
 type testErrorUnhandledHandlerDef struct {

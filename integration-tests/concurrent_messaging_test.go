@@ -77,7 +77,7 @@ func TestConcurrentMessaging(t *testing.T) {
 		}
 	}
 	fmt.Println("Stopwatch:", -time.Until(tm))
-	//TODO: tst.AssertCleanKV()
+	tst.AssertCleanKV()
 }
 
 type testConcurrentMessagingHandlerDef struct {
@@ -100,5 +100,6 @@ func (x *testConcurrentMessagingHandlerDef) step2(_ context.Context, vars model.
 func (x *testConcurrentMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
 
 	fmt.Println("Sending Message...")
+	time.Sleep(1 * time.Second)
 	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]})
 }

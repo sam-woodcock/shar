@@ -62,6 +62,7 @@ type NatsService struct {
 	eventActivityCompleteProcessor CompleteActivityProcessorFunc
 	allowOrphanServiceTasks        bool
 	completeActivityFunc           CompleteActivityFunc
+	abortFunc                      AbortFunc
 }
 
 func (s *NatsService) WorkflowStats() *model.WorkflowStats {
@@ -423,14 +424,6 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		return s.expectPossibleMissingKey("could not update message subscriptions", err)
 	}
 
-	if err := s.wfInstance.Delete(workflowInstanceId); err != nil {
-		return s.expectPossibleMissingKey("could not delete workflow instance", err)
-	}
-
-	if err := s.wfMsgSubs.Delete(workflowInstanceId); err != nil {
-		return s.expectPossibleMissingKey("could not delete message subscriptions", err)
-	}
-
 	tState := &model.WorkflowState{
 		WorkflowId:         wf.Name,
 		WorkflowInstanceId: wfi.WorkflowInstanceId,
@@ -443,6 +436,9 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		tState.State = model.CancellationState_Errored
 	}
 
+	if err := s.abortWorkflow(tState); err != nil {
+		return err
+	}
 	if err := s.PublishWorkflowState(ctx, messages.WorkflowInstanceTerminated, tState); err != nil {
 		return err
 	}
@@ -550,6 +546,12 @@ func (s *NatsService) StartProcessing(ctx context.Context) error {
 	if err := s.processTraversals(ctx); err != nil {
 		return err
 	}
+	if err := s.processJobAbort(ctx); err != nil {
+		return err
+	}
+	if err := s.processGeneralAbort(ctx); err != nil {
+		return err
+	}
 	if err := s.processTracking(ctx); err != nil {
 		return err
 	}
@@ -603,6 +605,11 @@ func (s *NatsService) SetTraversalProvider(provider TraversalFunc) {
 func (s *NatsService) SetCompleteActivity(processor CompleteActivityFunc) {
 	s.completeActivityFunc = processor
 }
+
+func (s *NatsService) SetAbort(processor AbortFunc) {
+	s.abortFunc = processor
+}
+
 func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState, opts ...PublishOpt) error {
 	c := &publishOptions{}
 	for _, i := range opts {
@@ -684,7 +691,7 @@ func (s *NatsService) processTraversals(ctx context.Context) error {
 
 		if s.eventProcessor != nil {
 			activityID := ksuid.New().String()
-			if err := common.Save(s.wfVarState, activityID, msg.Data); err != nil {
+			if err := s.SaveState(activityID, &traversal); err != nil {
 				return false, err
 			}
 			if err := s.eventProcessor(ctx, activityID, &traversal, false); errors.IsWorkflowFatal(err) {
@@ -734,13 +741,12 @@ func (s *NatsService) track(ctx context.Context, msg *nats.Msg) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	switch msg.Subject {
-	case subj.NS(messages.WorkflowInstanceExecute, "default"),
-		subj.NS(messages.WorkflowTraversalExecute, "default"),
-		subj.NS(messages.WorkflowActivityExecute, "default"),
-		subj.NS(messages.WorkflowJobServiceTaskExecute, "default"),
-		subj.NS(messages.WorkflowJobManualTaskExecute, "default"),
-		subj.NS(messages.WorkflowJobUserTaskExecute, "default"):
+	sj := msg.Subject
+	switch {
+	case strings.HasSuffix(sj, ".State.Workflow.Execute"),
+		strings.HasSuffix(sj, ".State.Traversal.Execute"),
+		strings.HasSuffix(sj, ".State.Activity.Execute"),
+		strings.Contains(sj, ".State.Job.Execute."):
 		st := &model.WorkflowState{}
 		if err := proto.Unmarshal(msg.Data, st); err != nil {
 			return false, err
@@ -748,7 +754,10 @@ func (s *NatsService) track(ctx context.Context, msg *nats.Msg) (bool, error) {
 		if err := common.SaveObj(ctx, kv, st.WorkflowInstanceId, st); err != nil {
 			return false, err
 		}
-	case subj.NS(messages.WorkflowInstanceComplete, "default"):
+	case strings.HasSuffix(sj, ".State.Workflow.Complete"),
+		strings.HasSuffix(sj, ".State.Traversal.Complete"),
+		strings.HasSuffix(sj, ".State.Activity.Complete"),
+		strings.Contains(sj, ".State.Job.Complete."):
 		st := &model.WorkflowState{}
 		if err := proto.Unmarshal(msg.Data, st); err != nil {
 			return false, err
@@ -756,6 +765,8 @@ func (s *NatsService) track(ctx context.Context, msg *nats.Msg) (bool, error) {
 		if err := kv.Delete(st.WorkflowInstanceId); err != nil {
 			return false, err
 		}
+	default:
+
 	}
 	return true, nil
 }
@@ -821,7 +832,7 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 			return true, &errors.ErrWorkflowFatal{Err: err}
 		}
 
-		err = vars.OutputVars(s.log, instance.Vars, &sub.Vars, el)
+		err = vars.OutputVars(s.log, instance.Vars, &sub.Vars, el.OutputTransform)
 		if err != nil {
 			return false, err
 		}
@@ -888,7 +899,7 @@ func (s *NatsService) processActivities(ctx context.Context) error {
 			if err := s.eventActivityCompleteProcessor(ctx, &activity); err != nil {
 				return false, err
 			}
-			err := s.deleteSavedState(activityID)
+			err := s.DeleteSavedState(activityID)
 			if err != nil {
 				return true, err
 			}
@@ -902,7 +913,7 @@ func (s *NatsService) processActivities(ctx context.Context) error {
 	return nil
 }
 
-func (s *NatsService) deleteSavedState(activityID string) error {
+func (s *NatsService) DeleteSavedState(activityID string) error {
 	if err := common.Delete(s.wfVarState, activityID); err != nil {
 		return err
 	}
@@ -1060,33 +1071,38 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 					if err == errors.ErrWorkflowInstanceNotFound {
 						if err := msg[0].Ack(); err != nil {
 							s.log.Error("failed to ack message after workflow instance not found", zap.Error(err))
+							continue
 						}
 						continue
 					}
 					wf, err := s.GetWorkflow(ctx, wfi.WorkflowId)
 					if err != nil {
 						s.log.Error("failed to get workflow", zap.Error(err))
+						continue
 					}
 					activityID := common.TrackingID(state.Id).ID()
 					_, err = s.GetOldState(activityID)
 					if err == errors.ErrStateNotFound {
 						if err := msg[0].Ack(); err != nil {
 							s.log.Error("failed to ack message after state not found", zap.Error(err))
+							continue
 						}
 					}
 					if err != nil {
 						return
 					}
 					els := common.ElementTable(wf)
-					if err := s.traverslFunc(ctx, wfi, state.Id, &model.Targets{Target: []*model.Target{{Id: "timer-target", Target: *state.Execute}}}, els, state.Vars); err != nil {
+					parent := common.TrackingID(state.Id).Pop()
+					if err := s.traverslFunc(ctx, wfi, parent, &model.Targets{Target: []*model.Target{{Id: "timer-target", Target: *state.Execute}}}, els, state.Vars); err != nil {
 						s.log.Error("failed to traverse", zap.Error(err))
-					}
-					if err := s.completeActivityFunc(ctx, state.Id, els[state.ElementId], wfi, model.CancellationState_Obsolete, state.Vars); err != nil {
 						continue
 					}
-					if err = s.deleteSavedState(activityID); err != nil {
-						s.log.Warn("failed to delete saved state", zap.Error(err))
+					if err := s.PublishWorkflowState(ctx, subj.NS(messages.WorkflowActivityAbort, "default"), state); err != nil {
+						if err != nil {
+							continue
+						}
 					}
+
 					if err = msg[0].Ack(); err != nil {
 						s.log.Warn("failed to ack after timer redirect", zap.Error(err))
 					}
@@ -1155,6 +1171,106 @@ func (s *NatsService) processLaunch(ctx context.Context) error {
 		return true, nil
 	})
 	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *NatsService) processJobAbort(ctx context.Context) error {
+	err := common.Process(ctx, s.js, s.log, "abort", s.closing, subj.NS(messages.WorkFlowJobAbortAll, "*"), "JobAbortConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+		var state model.WorkflowState
+		if err := proto.Unmarshal(msg.Data, &state); err != nil {
+			return false, err
+		}
+
+		//TODO: Make these idempotently work given missing values
+		switch {
+		case strings.Contains(msg.Subject, ".State.Job.Abort.ServiceTask"):
+			if err := s.abortJob(ctx, &state); err != nil {
+				return false, err
+			}
+		default:
+			return true, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *NatsService) processGeneralAbort(ctx context.Context) error {
+	err := common.Process(ctx, s.js, s.log, "abort", s.closing, subj.NS(messages.WorkflowGeneralAbortAll, "*"), "GeneralAbortConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+		var state model.WorkflowState
+		if err := proto.Unmarshal(msg.Data, &state); err != nil {
+			return false, err
+		}
+
+		//TODO: Make these idempotently work given missing values
+		switch {
+		case strings.HasSuffix(msg.Subject, ".State.Activity.Abort"):
+			if err := s.abortActivity(&state); err != nil {
+				return false, err
+			}
+		case strings.HasSuffix(msg.Subject, ".State.Workflow.Abort"):
+			if err := s.abortWorkflow(&state); err != nil {
+				return false, err
+			}
+		default:
+			return true, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *NatsService) abortWorkflow(state *model.WorkflowState) error {
+	if err := s.wfInstance.Delete(state.WorkflowInstanceId); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
+		return fmt.Errorf("could not delete workflow instance: %w", err)
+	}
+	if err := s.wfMsgSubs.Delete(state.WorkflowInstanceId); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
+		return fmt.Errorf("could not delete message subscriptions: %w", err)
+	}
+
+	if err := s.wfTracking.Delete(state.WorkflowInstanceId); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
+		return fmt.Errorf("could not delete workflow tracking: %w", err)
+	}
+	return nil
+}
+
+func (s *NatsService) abortActivity(state *model.WorkflowState) error {
+	if err := s.DeleteSavedState(common.TrackingID(state.Id).ID()); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
+		return fmt.Errorf("could not delete activity: %w", err)
+	}
+	return nil
+}
+
+func (s *NatsService) abortJob(ctx context.Context, state *model.WorkflowState) error {
+	if err := s.DeleteJob(ctx, common.TrackingID(state.Id).ID()); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
+		return fmt.Errorf("could not delete job: %w", err)
+	}
+	if activityState, err := s.GetOldState(common.TrackingID(state.Id).Pop().ID()); err != nil && !errors2.Is(err, errors.ErrStateNotFound) {
+		return err
+	} else if err == nil {
+		if err := s.PublishWorkflowState(ctx, subj.NS(messages.WorkflowActivityAbort, "default"), activityState); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *NatsService) SaveState(id string, state *model.WorkflowState) error {
+	saveState := proto.Clone(state).(*model.WorkflowState)
+	saveState.Id = common.TrackingID(saveState.Id).Pop().Push(id)
+	data, err := proto.Marshal(saveState)
+	if err != nil {
+		return err
+	}
+	if err := common.Save(s.wfVarState, id, data); err != nil {
 		return err
 	}
 	return nil

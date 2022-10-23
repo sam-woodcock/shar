@@ -463,6 +463,11 @@ func (_m *MockNatsService) PublishWorkflowState(ctx context.Context, stateName s
 	return r0
 }
 
+// SetAbort provides a mock function with given fields: processor
+func (_m *MockNatsService) SetAbort(processor services.AbortFunc) {
+	_m.Called(processor)
+}
+
 // SetCompleteActivity provides a mock function with given fields: processor
 func (_m *MockNatsService) SetCompleteActivity(processor services.CompleteActivityFunc) {
 	_m.Called(processor)
