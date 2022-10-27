@@ -2,10 +2,11 @@ package setup
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/server/messages"
-	"time"
 )
 
 var consumerConfig []*nats.ConsumerConfig
@@ -84,6 +85,14 @@ func init() {
 			FilterSubject:   messages.ApiAll,
 			MaxRequestBatch: 1,
 			MaxAckPending:   -1,
+		},
+		{
+			Durable:       "Tracing",
+			Description:   "Sequential Trace Consumer1",
+			DeliverPolicy: nats.DeliverAllPolicy,
+			FilterSubject: subj.NS(messages.WorkflowStateAll, "*"),
+			AckPolicy:     nats.AckExplicitPolicy,
+			MaxAckPending: 1,
 		},
 	}
 
