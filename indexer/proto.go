@@ -18,12 +18,14 @@ func decodeProtoMsg(kvbyte map[string][]byte, msg proto.Message) (map[string]str
 
 	for key, b = range kvbyte {
 
-		if e = proto.Unmarshal(b, msg); e != nil {
-			fmt.Println(e)
-		}
+		if msg != nil {
+			if e = proto.Unmarshal(b, msg); e != nil {
+				fmt.Println(e)
+			}
 
-		if b, e = json.Marshal(msg); e != nil {
-			fmt.Println(e)
+			if b, e = json.Marshal(msg); e != nil {
+				fmt.Println(e)
+			}
 		}
 
 		kvjson[key] = string(b)

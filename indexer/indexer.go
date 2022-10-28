@@ -16,6 +16,10 @@ func newIndex(store string) error {
 
 	mapping := bleve.NewIndexMapping()
 	if index, e = bleve.New(store, mapping); e != nil {
+		if e == bleve.ErrorIndexPathExists {
+			return nil
+		}
+
 		return e
 	}
 
@@ -39,7 +43,7 @@ func addKvJson(store string, kvjson map[string]string) error {
 	}
 
 	for key, json = range kvjson {
-		fmt.Println(key, json)
+		//fmt.Println(store, key, json)
 		if e = index.Index(key, json); e != nil {
 			fmt.Println(e)
 		}
