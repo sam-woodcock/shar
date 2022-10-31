@@ -314,7 +314,6 @@ func (c *Client) completeServiceTask(ctx context.Context, trackingID string, new
 	}
 	res := &emptypb.Empty{}
 	req := &model.CompleteServiceTaskRequest{TrackingId: trackingID, Vars: ev}
-	fmt.Println("completing ", trackingID)
 	if err := callAPI(ctx, c.txCon, messages.ApiCompleteServiceTask, req, res); err != nil {
 		return c.clientErr(ctx, err)
 	}

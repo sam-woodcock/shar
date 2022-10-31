@@ -27,10 +27,12 @@ type integration struct {
 	finalVars      map[string]interface{}
 	test           *testing.T
 	mx             sync.Mutex
+	cooldown       time.Duration
 }
 
 //goland:noinspection GoNilness
 func (s *integration) setup(t *testing.T) {
+	s.cooldown = 2 * time.Second
 	s.test = t
 	s.finalVars = make(map[string]interface{})
 	logger, err := zap.NewDevelopment()
@@ -162,7 +164,7 @@ func (s *integration) setup(t *testing.T) {
 }
 
 func (s *integration) AssertCleanKV() {
-	time.Sleep(1 * time.Second)
+	time.Sleep(s.cooldown)
 	js, err := s.GetJetstream()
 	require.NoError(s.test, err)
 

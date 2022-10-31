@@ -436,7 +436,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		tState.State = model.CancellationState_Errored
 	}
 
-	if err := s.abortWorkflow(tState); err != nil {
+	if err := s.deleteWorkflow(tState); err != nil {
 		return err
 	}
 	if err := s.PublishWorkflowState(ctx, messages.WorkflowInstanceTerminated, tState); err != nil {
@@ -848,6 +848,7 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 		}); err != nil {
 			return false, err
 		}
+		// TODO: Should we close something here?
 	}
 	return true, nil
 }
@@ -1186,7 +1187,7 @@ func (s *NatsService) processJobAbort(ctx context.Context) error {
 		//TODO: Make these idempotently work given missing values
 		switch {
 		case strings.Contains(msg.Subject, ".State.Job.Abort.ServiceTask"):
-			if err := s.abortJob(ctx, &state); err != nil {
+			if err := s.deleteJob(ctx, &state); err != nil {
 				return false, err
 			}
 		default:
@@ -1210,11 +1211,11 @@ func (s *NatsService) processGeneralAbort(ctx context.Context) error {
 		//TODO: Make these idempotently work given missing values
 		switch {
 		case strings.HasSuffix(msg.Subject, ".State.Activity.Abort"):
-			if err := s.abortActivity(&state); err != nil {
+			if err := s.deleteActivity(&state); err != nil {
 				return false, err
 			}
 		case strings.HasSuffix(msg.Subject, ".State.Workflow.Abort"):
-			if err := s.abortWorkflow(&state); err != nil {
+			if err := s.deleteWorkflow(&state); err != nil {
 				return false, err
 			}
 		default:
@@ -1228,7 +1229,7 @@ func (s *NatsService) processGeneralAbort(ctx context.Context) error {
 	return nil
 }
 
-func (s *NatsService) abortWorkflow(state *model.WorkflowState) error {
+func (s *NatsService) deleteWorkflow(state *model.WorkflowState) error {
 	if err := s.wfInstance.Delete(state.WorkflowInstanceId); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
 		return fmt.Errorf("could not delete workflow instance: %w", err)
 	}
@@ -1242,14 +1243,14 @@ func (s *NatsService) abortWorkflow(state *model.WorkflowState) error {
 	return nil
 }
 
-func (s *NatsService) abortActivity(state *model.WorkflowState) error {
+func (s *NatsService) deleteActivity(state *model.WorkflowState) error {
 	if err := s.DeleteSavedState(common.TrackingID(state.Id).ID()); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
 		return fmt.Errorf("could not delete activity: %w", err)
 	}
 	return nil
 }
 
-func (s *NatsService) abortJob(ctx context.Context, state *model.WorkflowState) error {
+func (s *NatsService) deleteJob(ctx context.Context, state *model.WorkflowState) error {
 	if err := s.DeleteJob(ctx, common.TrackingID(state.Id).ID()); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
 		return fmt.Errorf("could not delete job: %w", err)
 	}

@@ -94,15 +94,6 @@ func init() {
 			MaxAckPending:   1,
 			MaxRequestBatch: 1,
 		},
-		{
-			Durable:         "API",
-			Description:     "Api queue",
-			AckPolicy:       nats.AckExplicitPolicy,
-			AckWait:         30 * time.Second,
-			FilterSubject:   messages.ApiAll,
-			MaxRequestBatch: 1,
-			MaxAckPending:   -1,
-		},
 	}
 
 	ConsumerDurableNames = make(map[string]struct{}, len(consumerConfig))
