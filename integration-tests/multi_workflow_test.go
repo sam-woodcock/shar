@@ -10,6 +10,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 )
 
 //goland:noinspection GoNilness
@@ -17,7 +18,7 @@ func TestMultiWorkflow(t *testing.T) {
 	tst := &integration{}
 	tst.setup(t)
 	defer tst.teardown()
-
+	tst.cooldown = 5 * time.Second
 	handlers := &testMultiworkflowMessagingHandlerDef{}
 
 	// Create a starting context
@@ -102,7 +103,7 @@ func TestMultiWorkflow(t *testing.T) {
 		}
 	}()
 	wg.Wait()
-	//TODO: tst.AssertCleanKV()
+	tst.AssertCleanKV()
 }
 
 type testMultiworkflowMessagingHandlerDef struct {

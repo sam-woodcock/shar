@@ -188,9 +188,11 @@ func (c *Client) listen(ctx context.Context) error {
 						var handled bool
 						wfe := &workflow.Error{}
 						if errors.As(err, wfe) {
+							v, err := vars.Encode(c.log, newVars)
 							res := &model.HandleWorkflowErrorResponse{}
-							req := &model.HandleWorkflowErrorRequest{TrackingId: common.TrackingID(ut.Id).ID(), ErrorCode: wfe.Code}
+							req := &model.HandleWorkflowErrorRequest{TrackingId: common.TrackingID(ut.Id).ID(), ErrorCode: wfe.Code, Vars: v}
 							if err2 := callAPI(ctx, c.txCon, messages.ApiHandleWorkflowError, req, res); err2 != nil {
+								// TODO: This isn't right.  If this call fails it assumes it is handled!
 								c.log.Error("failed to handle workflow error", zap.Any("workflowError", wfe), zap.Error(err2))
 								return true, err
 							}

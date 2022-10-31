@@ -18,6 +18,9 @@ func TestSubWorkflow(t *testing.T) {
 	tst.setup(t)
 	defer tst.teardown()
 
+	//sub := tracer.Trace(natsURL)
+	//defer sub.Drain()
+
 	// Create a starting context
 	ctx := context.Background()
 
@@ -63,13 +66,15 @@ func TestSubWorkflow(t *testing.T) {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
-	select {
-	case c := <-complete:
-		fmt.Println("completed " + c.WorkflowInstanceId)
-	case <-time.After(3 * time.Second):
-		assert.Fail(t, "Timed out")
+	for i := 0; i < 2; i++ {
+		select {
+		case c := <-complete:
+			fmt.Println("completed " + c.WorkflowInstanceId)
+		case <-time.After(3 * time.Second):
+			assert.Fail(t, "Timed out")
+		}
 	}
-	//todo:	tst.AssertCleanKV()
+	tst.AssertCleanKV()
 }
 
 type testSubWorkflowHandlerDef struct {

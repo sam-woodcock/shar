@@ -32,6 +32,7 @@ type NatsService interface {
 	SetMessageProcessor(processor services.MessageProcessorFunc)
 	SetCompleteJobProcessor(processor services.CompleteJobProcessorFunc)
 	SetCompleteActivity(processor services.CompleteActivityFunc)
+	SetAbort(processor services.AbortFunc)
 	DeleteJob(ctx context.Context, trackingID string) error
 	SetCompleteActivityProcessor(processor services.CompleteActivityProcessorFunc)
 	SetLaunchFunc(processor services.LaunchFunc)

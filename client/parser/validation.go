@@ -84,6 +84,19 @@ func checkVariables(process *model.Process) error {
 				}
 			}
 		}
+		if len(e.Errors) > 0 {
+			for _, t := range e.Errors {
+				for exp := range t.OutputTransform {
+					v2, err := expression.GetVariables("=" + exp)
+					if err != nil {
+						return err
+					}
+					for k := range v2 {
+						outputVars[k] = struct{}{}
+					}
+				}
+			}
+		}
 	}
 
 	//Test that inputs are all defined

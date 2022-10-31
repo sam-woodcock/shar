@@ -6,13 +6,17 @@ const (
 	WorkflowStateAll                  = "WORKFLOW.%s.State.>"
 	WorkflowJobExecuteAll             = "WORKFLOW.%s.State.Job.Execute.*"
 	WorkFlowJobCompleteAll            = "WORKFLOW.%s.State.Job.Complete.*"
+	WorkFlowJobAbortAll               = "WORKFLOW.%s.State.Job.Abort.*"
 	WorkflowJobServiceTaskExecute     = "WORKFLOW.%s.State.Job.Execute.ServiceTask"
 	WorkflowJobServiceTaskExecuteWild = "WORKFLOW.%s.State.Job.Execute.ServiceTask.>"
 	WorkflowJobServiceTaskComplete    = "WORKFLOW.%s.State.Job.Complete.ServiceTask"
+	WorkflowJobServiceTaskAbort       = "WORKFLOW.%s.State.Job.Abort.ServiceTask"
 	WorkflowJobUserTaskExecute        = "WORKFLOW.%s.State.Job.Execute.UserTask"
 	WorkflowJobUserTaskComplete       = "WORKFLOW.%s.State.Job.Complete.UserTask"
+	WorkflowJobUserTaskAbort          = "WORKFLOW.%s.State.Job.Abort.UserTask"
 	WorkflowJobManualTaskExecute      = "WORKFLOW.%s.State.Job.Execute.ManualTask"
 	WorkflowJobManualTaskComplete     = "WORKFLOW.%s.State.Job.Complete.ManualTask"
+	WorkflowJobManualTaskAbort        = "WORKFLOW.%s.State.Job.Abort.ManualTask"
 	WorkflowJobSendMessageExecute     = "WORKFLOW.%s.State.Job.Execute.SendMessage"
 	WorkflowJobSendMessageExecuteWild = "WORKFLOW.%s.State.Job.Execute.SendMessage.>"
 	WorkflowJobSendMessageComplete    = "WORKFLOW.%s.State.Job.Complete.SendMessage"
@@ -23,20 +27,25 @@ const (
 	WorkflowInstanceExecute           = "WORKFLOW.%s.State.Workflow.Execute"
 	WorkflowInstanceComplete          = "WORKFLOW.%s.State.Workflow.Complete"
 	WorkflowInstanceTerminated        = "WORKFLOW.%s.State.Workflow.Terminated"
+	WorkflowInstanceAbort             = "WORKFLOW.%s.State.Workflow.Abort"
 	WorkflowInstanceAll               = "WORKFLOW.%s.State.Workflow.>"
 	WorkflowActivityExecute           = "WORKFLOW.%s.State.Activity.Execute"
 	WorkflowActivityComplete          = "WORKFLOW.%s.State.Activity.Complete"
+	WorkflowActivityAbort             = "WORKFLOW.%s.State.Activity.Abort"
+	WorkflowGeneralAbortAll           = "WORKFLOW.%s.State.*.Abort"
 	WorkflowActivityAll               = "WORKFLOW.%s.State.Activity.>"
 	WorkflowTraversalExecute          = "WORKFLOW.%s.State.Traversal.Execute"
 	WorkflowTraversalComplete         = "WORKFLOW.%s.State.Traversal.Complete"
 	WorkflowTimedExecute              = "WORKFLOW.%s.Timers.WorkflowExecute"
 	ElementTimedExecute               = "WORKFLOW.%s.Timers.ElementExecute"
 	WorkflowMessages                  = "WORKFLOW.%s.Message.>"
+	WorkflowCommands                  = "WORKFLOW.%s.Command.>"
 )
 
 var AllMessages = []string{
 	subj.NS(WorkflowInstanceAll, "*"),
 	subj.NS(WorkFlowJobCompleteAll, "*"),
+	subj.NS(WorkFlowJobAbortAll, "*"),
 	subj.NS(WorkflowJobServiceTaskExecuteWild, "*"),
 	subj.NS(WorkflowJobSendMessageExecuteWild, "*"),
 	subj.NS(WorkflowJobUserTaskExecute, "*"),
@@ -45,11 +54,14 @@ var AllMessages = []string{
 	subj.NS(WorkflowJobLaunchExecute, "*"),
 	subj.NS(WorkflowActivityExecute, "*"),
 	subj.NS(WorkflowActivityComplete, "*"),
+	subj.NS(WorkflowActivityAbort, "*"),
 	subj.NS(WorkflowTraversalExecute, "*"),
 	subj.NS(WorkflowTraversalComplete, "*"),
 	subj.NS(WorkflowMessages, "*"),
 	subj.NS(WorkflowTimedExecute, "*"),
 	subj.NS(ElementTimedExecute, "*"),
+	subj.NS(WorkflowCommands, "*"),
+	//subj.NS(WorkflowAbortAll, "*"),
 	ApiAll,
 }
 

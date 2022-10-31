@@ -10,6 +10,11 @@
       <bpmn:outgoing>Flow_16598pe</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:boundaryEvent id="Event_0u7ah7z" attachedToRef="Activity_13m95k5">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="= myVar" target="ErrorValue" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_19bx1x7</bpmn:outgoing>
       <bpmn:errorEventDefinition id="ErrorEventDefinition_0dopbp1" errorRef="Error_1n5a6tv" />
     </bpmn:boundaryEvent>
@@ -26,6 +31,7 @@
         <zeebe:taskDefinition type="fixSituation" />
         <zeebe:ioMapping>
           <zeebe:input source="= carried" target="carried" />
+          <zeebe:input source="= ErrorValue" target="testVal" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_19bx1x7</bpmn:incoming>

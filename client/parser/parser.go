@@ -60,7 +60,7 @@ func parseProcess(doc *xmlquery.Node, wf *model.Workflow, prXml *xmlquery.Node, 
 		parseErrors(doc, wf, errXml, errs)
 	}
 	for _, i := range prXml.SelectElements("//bpmn:boundaryEvent") {
-		parseBoundaryEvent(i, pr)
+		parseBoundaryEvent(doc, i, pr)
 	}
 
 	return nil
@@ -184,7 +184,7 @@ func parseElementErrors(doc *xmlquery.Node, i *xmlquery.Node, el *model.Element)
 	}
 }
 
-func parseBoundaryEvent(i *xmlquery.Node, pr *model.Process) {
+func parseBoundaryEvent(doc *xmlquery.Node, i *xmlquery.Node, pr *model.Process) {
 	attach := i.SelectAttr("attachedToRef")
 	var el *model.Element
 	for _, i := range pr.Elements {
@@ -202,11 +202,13 @@ func parseBoundaryEvent(i *xmlquery.Node, pr *model.Process) {
 				target = v.SelectAttr("targetRef")
 			}
 		}
-		el.Errors = append(el.Errors, &model.CatchError{
+		newCatchErr := &model.CatchError{
 			Id:      i.SelectElement("//bpmn:errorEventDefinition/@id").InnerText(),
 			ErrorId: errorRef.InnerText(),
 			Target:  target,
-		})
+		}
+		parseZeebeExtensions(doc, newCatchErr, i)
+		el.Errors = append(el.Errors, newCatchErr)
 	}
 	if timerEvent := i.SelectElement("//bpmn:timerEventDefinition"); timerEvent != nil {
 		fmt.Println(attach, timerEvent.InnerText())
@@ -219,11 +221,13 @@ func parseBoundaryEvent(i *xmlquery.Node, pr *model.Process) {
 			}
 		}
 		durationExpr := i.SelectElement("//bpmn:timeDuration").InnerText()
-		el.BoundaryTimer = append(el.BoundaryTimer, &model.Timer{
+		newTimer := &model.Timer{
 			Id:       i.SelectElement("//bpmn:timerEventDefinition/@id").InnerText(),
 			Duration: durationExpr,
 			Target:   target,
-		})
+		}
+		parseZeebeExtensions(doc, newTimer, i)
+		el.BoundaryTimer = append(el.BoundaryTimer, newTimer)
 	}
 }
 

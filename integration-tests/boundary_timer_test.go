@@ -30,9 +30,10 @@ func TestBoundaryTimer(t *testing.T) {
 		assert.Fail(t, "Timed out")
 	}
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
+	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
 	fmt.Println("CheckResult Called:", d.CheckResultCalled)
-	//tst.AssertCleanKV()
+	tst.AssertCleanKV()
 }
 
 func TestBoundaryTimerTimeout(t *testing.T) {
@@ -57,9 +58,10 @@ func TestBoundaryTimerTimeout(t *testing.T) {
 		assert.Fail(t, "Timed out")
 	}
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
+	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
 	fmt.Println("CheckResult Called:", d.CheckResultCalled)
-	//tst.AssertCleanKV()
+	tst.AssertCleanKV()
 }
 
 func TestExclusiveGateway(t *testing.T) {
@@ -81,9 +83,10 @@ func TestExclusiveGateway(t *testing.T) {
 
 	}
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
+	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
 	fmt.Println("CheckResult Called:", d.CheckResultCalled)
-	//tst.AssertCleanKV()
+	tst.AssertCleanKV()
 }
 
 func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanceComplete, d *testBoundaryTimerDef) {
@@ -114,6 +117,8 @@ func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanc
 	require.NoError(t, err)
 	err = cl.RegisterServiceTask(ctx, "CheckResult", d.checkResult)
 	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "NoTimeout", d.noTimeout)
+	require.NoError(t, err)
 
 	// Launch the workflow
 	if _, err := cl.LaunchWorkflow(ctx, "PossibleTimeout", model.Vars{}); err != nil {
@@ -132,8 +137,10 @@ type testBoundaryTimerDef struct {
 	CheckResultCalled int
 	CanTimeOutCalled  int
 	TimedOutCalled    int
+	NoTimeoutCalled   int
 	CanTimeOutPause   time.Duration
 	CheckResultPause  time.Duration
+	NoTimeoutPause    time.Duration
 }
 
 func (d *testBoundaryTimerDef) canTimeout(ctx context.Context, vars model.Vars) (model.Vars, error) {
@@ -142,6 +149,15 @@ func (d *testBoundaryTimerDef) canTimeout(ctx context.Context, vars model.Vars) 
 	d.CanTimeOutCalled++
 	d.mx.Unlock()
 	time.Sleep(d.CanTimeOutPause)
+	return vars, nil
+}
+
+func (d *testBoundaryTimerDef) noTimeout(ctx context.Context, vars model.Vars) (model.Vars, error) {
+	fmt.Println("No Timeout")
+	d.mx.Lock()
+	d.NoTimeoutCalled++
+	d.mx.Unlock()
+	time.Sleep(d.NoTimeoutPause)
 	return vars, nil
 }
 

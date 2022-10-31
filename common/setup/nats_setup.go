@@ -14,6 +14,24 @@ var ConsumerDurableNames map[string]struct{}
 func init() {
 	consumerConfig = []*nats.ConsumerConfig{
 		{
+			Durable:         "JobAbortConsumer",
+			Description:     "Abort job message queue",
+			AckPolicy:       nats.AckExplicitPolicy,
+			AckWait:         30 * time.Second,
+			MaxAckPending:   65535,
+			FilterSubject:   subj.NS(messages.WorkFlowJobAbortAll, "*"),
+			MaxRequestBatch: 1,
+		},
+		{
+			Durable:         "GeneralAbortConsumer",
+			Description:     "Abort workflo instance and activity message queue",
+			AckPolicy:       nats.AckExplicitPolicy,
+			AckWait:         30 * time.Second,
+			MaxAckPending:   65535,
+			FilterSubject:   subj.NS(messages.WorkflowGeneralAbortAll, "*"),
+			MaxRequestBatch: 1,
+		},
+		{
 			Durable:         "LaunchConsumer",
 			Description:     "Sub workflow launch message queue",
 			AckPolicy:       nats.AckExplicitPolicy,
@@ -75,15 +93,6 @@ func init() {
 			FilterSubject:   "WORKFLOW.>",
 			MaxAckPending:   1,
 			MaxRequestBatch: 1,
-		},
-		{
-			Durable:         "API",
-			Description:     "Api queue",
-			AckPolicy:       nats.AckExplicitPolicy,
-			AckWait:         30 * time.Second,
-			FilterSubject:   messages.ApiAll,
-			MaxRequestBatch: 1,
-			MaxAckPending:   -1,
 		},
 	}
 
