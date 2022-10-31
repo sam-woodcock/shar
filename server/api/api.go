@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/shar-workflow/shar/common/subj"
+	"gitlab.com/shar-workflow/shar/server/vars"
 	"sync"
 
 	"github.com/nats-io/nats.go"
@@ -289,11 +291,16 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		wfErrs[v.Id] = v
 	}
 	if !found {
-		_, err := s.cancelWorkflowInstance(ctx, &model.CancelWorkflowInstanceRequest{Id: job.WorkflowInstanceId, State: model.CancellationState_Errored})
-		if err != nil {
-			return nil, fmt.Errorf("workflow-fatal: can't handle error code %s as the workflow doesn't support it, and failed to cancel the workflow: %w", req.ErrorCode, err)
+		werr := &errors2.ErrWorkflowFatal{Err: fmt.Errorf("workflow-fatal: can't handle error code %s as the workflow doesn't support it: %w", req.ErrorCode, err)}
+		if _, err := s.cancelWorkflowInstance(ctx, &model.CancelWorkflowInstanceRequest{Id: job.WorkflowInstanceId, State: model.CancellationState_Errored}); err != nil {
+			return nil, fmt.Errorf("failed to cancel workflow instance: %w", werr)
 		}
-		return nil, fmt.Errorf("workflow-fatal: can't handle error code %s as the workflow doesn't support it", req.ErrorCode)
+		// TODO: This always assumes service task.  Wrong!
+		if err := s.ns.PublishWorkflowState(ctx, subj.NS(messages.WorkflowJobServiceTaskAbort, "default"), job); err != nil {
+			return nil, fmt.Errorf("failed to cencel job: %w", werr)
+		}
+
+		return nil, fmt.Errorf("workflow halted: %w", werr)
 	}
 
 	// Get the errors associated with this element
@@ -315,7 +322,26 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 	// Get the target workflow activity
 	target := els[caughtError.Target]
 
+	oldState, err := s.ns.GetOldState(common.TrackingID(job.Id).Pop().ID())
+	if err != nil {
+		return nil, err
+	}
+	if err := vars.OutputVars(s.log, req.Vars, &oldState.Vars, caughtError.OutputTransform); err != nil {
+		return nil, &errors2.ErrWorkflowFatal{Err: err}
+	}
 	if err := s.ns.PublishWorkflowState(ctx, messages.WorkflowTraversalExecute, &model.WorkflowState{
+		ElementType:        target.Type,
+		ElementId:          target.Id,
+		WorkflowId:         job.WorkflowId,
+		WorkflowInstanceId: job.WorkflowInstanceId,
+		Id:                 common.TrackingID(job.Id).Pop().Pop(),
+		Vars:               oldState.Vars,
+	}); err != nil {
+		s.log.Error("failed to publish workflow state", zap.Error(err))
+		return nil, err
+	}
+	// TODO: This always assumes service task.  Wrong!
+	if err := s.ns.PublishWorkflowState(ctx, messages.WorkflowJobServiceTaskAbort, &model.WorkflowState{
 		ElementType:        target.Type,
 		ElementId:          target.Id,
 		WorkflowId:         job.WorkflowId,
@@ -324,7 +350,10 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		Vars:               job.Vars,
 	}); err != nil {
 		s.log.Error("failed to publish workflow state", zap.Error(err))
-		return nil, err
+		// We have already traversed so retunring an error here would be incorrect.
+		// It would force reprocessing and possibly double traversing
+		// TODO: develop an idempotent behaviour based upon hash nats message ids + deduplication
+		return nil, nil
 	}
 	return &model.HandleWorkflowErrorResponse{Handled: true}, nil
 }

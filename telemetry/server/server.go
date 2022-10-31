@@ -99,7 +99,8 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 			return false, nil
 		}
 	case strings.HasSuffix(msg.Subject, ".State.Traversal.Complete"):
-	case strings.HasSuffix(msg.Subject, ".State.Activity.Complete"):
+	case strings.HasSuffix(msg.Subject, ".State.Activity.Complete"),
+		strings.HasSuffix(msg.Subject, ".State.Activity.Abort"):
 		if err := s.spanEnd(ctx, "Activity: "+state.ElementId, &state); err != nil {
 			var escape *AbandonOpError
 			if errors.As(err, &escape) {
@@ -113,6 +114,7 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 			return false, nil
 		}
 	case strings.Contains(msg.Subject, ".State.Job.Complete.ServiceTask"),
+		strings.Contains(msg.Subject, ".State.Job.Abort.ServiceTask"),
 		strings.Contains(msg.Subject, ".State.Job.Complete.UserTask"),
 		strings.Contains(msg.Subject, ".State.Job.Complete.ManualTask"),
 		strings.Contains(msg.Subject, ".State.Job.Complete.SendMessage"):

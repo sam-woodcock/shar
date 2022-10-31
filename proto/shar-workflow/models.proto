@@ -51,6 +51,7 @@ message Timer {
   string id = 1;
   string duration = 2;
   string target = 3;
+  map<string, string> outputTransform = 4;
 }
 
 
@@ -70,6 +71,7 @@ message CatchError {
   string id      = 1;
   string errorId = 2;
   string target  = 3;
+  map<string, string> outputTransform = 4;
 }
 
 message Targets {
@@ -255,6 +257,7 @@ message HandleWorkflowErrorRequest {
   string trackingId = 1;
   string errorCode = 2;
   string message = 3;
+  bytes vars = 4;
 }
 
 message HandleWorkflowErrorResponse {

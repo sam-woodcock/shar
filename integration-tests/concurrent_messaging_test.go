@@ -3,11 +3,13 @@ package intTests
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
 	"go.uber.org/zap"
 	"os"
+	"sync"
 	"testing"
 	"time"
 )
@@ -17,9 +19,12 @@ func TestConcurrentMessaging(t *testing.T) {
 	tst := &integration{}
 	tst.setup(t)
 	defer tst.teardown()
+	tst.cooldown = 5 * time.Second
+	//tracer.Trace("127.0.0.1:4459")
+	//defer tracer.Close()
 
 	handlers := &testConcurrentMessagingHandlerDef{}
-
+	handlers.tst = tst
 	// Create a starting context
 	ctx := context.Background()
 
@@ -72,33 +77,35 @@ func TestConcurrentMessaging(t *testing.T) {
 	for inst := 0; inst < n; inst++ {
 		select {
 		case c := <-complete:
-			fmt.Println("completed " + c.WorkflowInstanceId)
-		case <-time.After(20 * time.Second):
+			fmt.Println(c.WorkflowInstanceId)
+		case <-time.After(40 * time.Second):
 		}
 	}
+	assert.Equal(t, handlers.received, n)
 	fmt.Println("Stopwatch:", -time.Until(tm))
-	//TODO: tst.AssertCleanKV()
+	// TODO: Add kill workflow activities upon completion, then add this back in.
+	tst.AssertCleanKV()
 }
 
 type testConcurrentMessagingHandlerDef struct {
+	mx       sync.Mutex
+	tst      *integration
+	received int
 }
 
 func (x *testConcurrentMessagingHandlerDef) step1(_ context.Context, _ model.Vars) (model.Vars, error) {
-	fmt.Println("Step 1")
-	time.Sleep(1 * time.Second)
 	return model.Vars{}, nil
 }
 
 func (x *testConcurrentMessagingHandlerDef) step2(_ context.Context, vars model.Vars) (model.Vars, error) {
-	fmt.Println("carried", vars["carried"])
-	fmt.Println("carried2", vars["carried2"])
-	fmt.Println("Step 2")
-	time.Sleep(1 * time.Second)
+	assert.Equal(x.tst.test, "carried1value", vars["carried"])
+	assert.Equal(x.tst.test, "carried2value", vars["carried2"])
+	x.mx.Lock()
+	defer x.mx.Unlock()
+	x.received++
 	return model.Vars{}, nil
 }
 
 func (x *testConcurrentMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
-
-	fmt.Println("Sending Message...")
 	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]})
 }

@@ -14,3 +14,11 @@ type TraversalFunc func(ctx context.Context, wfi *model.WorkflowInstance, tracki
 type LaunchFunc func(ctx context.Context, state *model.WorkflowState) error
 type MessageProcessorFunc func(ctx context.Context, state *model.WorkflowState) (bool, int, error)
 type CompleteActivityFunc func(ctx context.Context, trackingId common.TrackingID, el *model.Element, wfi *model.WorkflowInstance, cancellationState model.CancellationState, vrs []byte) error
+type AbortFunc func(ctx context.Context, abort AbortType, state *model.WorkflowState) (bool, error)
+
+type AbortType int
+
+const (
+	AbortTypeActivity    = iota
+	AbortTypeServiceTask = iota
+)
