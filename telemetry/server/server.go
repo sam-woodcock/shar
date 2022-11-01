@@ -200,8 +200,8 @@ func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.Work
 	}
 
 	for k, v := range kv {
-		val := fmt.Sprintf("var.%+v", v)
-		at[k] = &val
+		val := fmt.Sprintf("%+v", v)
+		at["var."+k] = &val
 	}
 
 	attrs := buildAttrs(at)
