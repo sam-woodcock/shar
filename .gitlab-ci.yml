@@ -99,11 +99,20 @@ package_stage:
     --destination $CI_REGISTRY_IMAGE/server:${VER}.$CI_VERSION"
   - "/kaniko/executor --context build/telemetry --dockerfile build/telemetry/Dockerfile
     --destination $CI_REGISTRY_IMAGE/telemetry:${VER}.$CI_VERSION"
-  - |
-    curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file build/cli/shar ${PACKAGE_REGISTRY_URL}/${VER}.$CI_VERSION/shar-cli-linux-amd64
-  - |
-    curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file build/zen-shar/zen-shar ${PACKAGE_REGISTRY_URL}/${VER}.$CI_VERSION/zen-shar-linux-amd64
-  - |
-    curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file build/server/shar ${PACKAGE_REGISTRY_URL}/${VER}.$CI_VERSION/shar-server-linux-amd64
-  - |
-    curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file build/telemetry/shar-telemetry ${PACKAGE_REGISTRY_URL}/${VER}.$CI_VERSION/shar-telemetry-linux-amd64
+package2_stage:
+  stage: package
+  rules:
+    - if: "$CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH"
+      when: never
+    - if: "$CI_COMMIT_TAG"
+      when: never
+    - if: "$CI_PIPELINE_IID"
+  script:
+    - |
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file build/cli/shar ${PACKAGE_REGISTRY_URL}/${VER}.$CI_VERSION/shar-cli-linux-amd64
+    - |
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file build/zen-shar/zen-shar ${PACKAGE_REGISTRY_URL}/${VER}.$CI_VERSION/zen-shar-linux-amd64
+    - |
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file build/server/shar ${PACKAGE_REGISTRY_URL}/${VER}.$CI_VERSION/shar-server-linux-amd64
+    - |
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file build/telemetry/shar-telemetry ${PACKAGE_REGISTRY_URL}/${VER}.$CI_VERSION/shar-telemetry-linux-amd64
