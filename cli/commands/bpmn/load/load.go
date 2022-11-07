@@ -2,7 +2,6 @@ package load
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/spf13/cobra"
 	"gitlab.com/shar-workflow/shar/cli/flag"
@@ -17,14 +16,14 @@ var Cmd = &cobra.Command{
 	Long: `shar bpmn load "WorkflowName" ./path-to-workflow.bpmn 
 	`,
 	RunE: run,
-	Args: cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+	Args: cobra.MatchAll(cobra.ExactArgs(2), cobra.OnlyValidArgs),
 }
 
-func run(_ *cobra.Command, args []string) error {
-	ctx := context.Background()
-	if len(args) == 0 {
-		return errors.New("no file provided")
+func run(cmd *cobra.Command, args []string) error {
+	if err := cmd.ValidateArgs(args); err != nil {
+		return err
 	}
+	ctx := context.Background()
 	b, err := os.ReadFile(args[1])
 	if err != nil {
 		return fmt.Errorf("error reading file: %w", err)

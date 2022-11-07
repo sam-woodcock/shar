@@ -17,7 +17,10 @@ var Cmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 }
 
-func run(_ *cobra.Command, _ []string) error {
+func run(cmd *cobra.Command, args []string) error {
+	if err := cmd.ValidateArgs(args); err != nil {
+		return err
+	}
 	ctx := context.Background()
 	shar := client.New(output.Logger)
 	if err := shar.Dial(flag.Value.Server); err != nil {
