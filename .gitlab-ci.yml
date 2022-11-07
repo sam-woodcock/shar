@@ -10,7 +10,9 @@ variables:
   PROJECT_NAME: shar
   CI_VERSION: "${CI_PIPELINE_IID}"
   TAG_KEY: "${TAG_KEY}"
-  PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/shar/"
+  CI_JOB_TOKEN: "${CI_JOB_TOKEN}"
+  CI_API_V4_URL: "${CI_API_V4_URL}"
+  CI_PROJECT_ID: "${CI_PROJECT_ID}"
 stages:
 - test
 - build
@@ -108,11 +110,7 @@ package2_stage:
       when: never
     - if: "$CI_PIPELINE_IID"
   script:
-    - |
-      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file build/cli/shar ${PACKAGE_REGISTRY_URL}/${VER}.$CI_VERSION/shar-cli-linux-amd64
-    - |
-      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file build/zen-shar/zen-shar ${PACKAGE_REGISTRY_URL}/${VER}.$CI_VERSION/zen-shar-linux-amd64
-    - |
-      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file build/server/shar ${PACKAGE_REGISTRY_URL}/${VER}.$CI_VERSION/shar-server-linux-amd64
-    - |
-      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file build/telemetry/shar-telemetry ${PACKAGE_REGISTRY_URL}/${VER}.$CI_VERSION/shar-telemetry-linux-amd64
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file build/cli/shar "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/shar/${VER}.$CI_VERSION/shar-cli-linux-amd64"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file build/zen-shar/zen-shar "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/shar/${VER}.$CI_VERSION/zen-shar-linux-amd64"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file build/server/shar "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/shar/${VER}.$CI_VERSION/shar-server-linux-amd64"'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file build/telemetry/shar-telemetry "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/shar/${VER}.$CI_VERSION/shar-telemetry-linux-amd64"'
