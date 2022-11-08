@@ -49,5 +49,5 @@ clean: .FORCE
 test: proto server tracing .FORCE
 	go test --short --race ./...
 	golangci-lint cache clean
-	golangci-lint run -v -E gosec -E ireturn --timeout 5m0s
+	golangci-lint run -v -E gosec -E revive -E ireturn --timeout 5m0s
 .FORCE:

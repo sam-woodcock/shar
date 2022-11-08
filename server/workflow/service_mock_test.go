@@ -387,7 +387,7 @@ func (_m *MockNatsService) ListWorkflows(ctx context.Context) (chan *model.ListW
 }
 
 // OwnerId provides a mock function with given fields: name
-func (_m *MockNatsService) OwnerId(name string) (string, error) {
+func (_m *MockNatsService) OwnerID(name string) (string, error) {
 	ret := _m.Called(name)
 
 	var r0 string

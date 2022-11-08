@@ -161,58 +161,58 @@ func (s *SharServer) Shutdown() {
 
 func (s *SharServer) Listen() error {
 	con := s.ns.Conn()
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
 		return err
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiCancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance); err != nil {
 		return err
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiLaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APILaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow); err != nil {
 		return err
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
 		return err
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus); err != nil {
 		return err
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
 		return err
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiSendMessage, &model.SendMessageRequest{}, s.sendMessage); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APISendMessage, &model.SendMessageRequest{}, s.sendMessage); err != nil {
 		return err
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiCompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiCompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiCompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs); err != nil {
 		return err
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask); err != nil {
 		return err
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiHandleWorkflowError, &model.HandleWorkflowErrorRequest{}, s.handleWorkflowError); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIHandleWorkflowError, &model.HandleWorkflowErrorRequest{}, s.handleWorkflowError); err != nil {
 		return err
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
-		return err
-	}
-
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiGetServiceTaskRoutingID, &wrapperspb.StringValue{}, s.getServiceTaskRoutingID); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
 		return err
 	}
 
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiGetMessageSenderRoutingID, &model.GetMessageSenderRoutingIdRequest{}, s.getMessageSenderRoutingID); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetServiceTaskRoutingID, &wrapperspb.StringValue{}, s.getServiceTaskRoutingID); err != nil {
 		return err
 	}
 
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.ApiCompleteSendMessageTask, &model.CompleteSendMessageRequest{}, s.completeSendMessageTask); err != nil {
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetMessageSenderRoutingID, &model.GetMessageSenderRoutingIdRequest{}, s.getMessageSenderRoutingID); err != nil {
+		return err
+	}
+
+	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICompleteSendMessageTask, &model.CompleteSendMessageRequest{}, s.completeSendMessageTask); err != nil {
 		return err
 	}
 
@@ -221,7 +221,7 @@ func (s *SharServer) Listen() error {
 }
 
 func (s *SharServer) listUserTaskIDs(ctx context.Context, req *model.ListUserTasksRequest) (*model.UserTasks, error) {
-	oid, err := s.ns.OwnerId(req.Owner)
+	oid, err := s.ns.OwnerID(req.Owner)
 	if err != nil {
 		return nil, err
 	}

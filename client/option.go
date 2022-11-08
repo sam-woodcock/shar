@@ -2,12 +2,12 @@ package client
 
 import "github.com/nats-io/nats.go"
 
-func WithEphemeralStorage() ephemeralStorage {
-	return ephemeralStorage{}
+func WithEphemeralStorage() EphemeralStorage {
+	return EphemeralStorage{}
 }
 
-type ephemeralStorage struct{}
+type EphemeralStorage struct{}
 
-func (o ephemeralStorage) configure(client *Client) {
+func (o EphemeralStorage) configure(client *Client) {
 	client.storageType = nats.MemoryStorage
 }

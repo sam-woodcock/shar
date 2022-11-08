@@ -51,7 +51,7 @@ type NatsService struct {
 	wfTracking                     nats.KeyValue
 	job                            nats.KeyValue
 	ownerName                      nats.KeyValue
-	ownerId                        nats.KeyValue
+	ownerID                        nats.KeyValue
 	wfClientTask                   nats.KeyValue
 	conn                           common.NatsConn
 	txConn                         common.NatsConn
@@ -160,7 +160,7 @@ func NewNatsService(log *zap.Logger, conn common.NatsConn, txConn common.NatsCon
 	kvs[messages.KvMessageName] = &ms.wfMessageName
 	kvs[messages.KvMessageID] = &ms.wfMessageID
 	kvs[messages.KvUserTask] = &ms.wfUserTasks
-	kvs[messages.KvOwnerID] = &ms.ownerId
+	kvs[messages.KvOwnerID] = &ms.ownerID
 	kvs[messages.KvOwnerName] = &ms.ownerName
 	kvs[messages.KvClientTaskID] = &ms.wfClientTask
 	kvs[messages.KvVarState] = &ms.wfVarState
@@ -173,11 +173,11 @@ func NewNatsService(log *zap.Logger, conn common.NatsConn, txConn common.NatsCon
 	}
 
 	for k, v := range kvs {
-		if kv, err := js.KeyValue(k); err != nil {
+		kv, err := js.KeyValue(k)
+		if err != nil {
 			return nil, fmt.Errorf("failed to open %s KV: %w", k, err)
-		} else {
-			*v = kv
 		}
+		*v = kv
 	}
 
 	return ms, nil
@@ -296,9 +296,9 @@ func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig 
 	return nil
 }
 
-func (s *NatsService) GetWorkflow(_ context.Context, workflowId string) (*model.Workflow, error) {
+func (s *NatsService) GetWorkflow(_ context.Context, workflowID string) (*model.Workflow, error) {
 	wf := &model.Workflow{}
-	if err := common.LoadObj(s.wf, workflowId, wf); err == nats.ErrKeyNotFound {
+	if err := common.LoadObj(s.wf, workflowID, wf); err == nats.ErrKeyNotFound {
 		return nil, errors.ErrWorkflowNotFound
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to load workflow from KV: %w", err)
@@ -321,9 +321,9 @@ func (s *NatsService) CreateWorkflowInstance(ctx context.Context, wfInstance *mo
 	return wfInstance, nil
 }
 
-func (s *NatsService) GetWorkflowInstance(_ context.Context, workflowInstanceId string) (*model.WorkflowInstance, error) {
+func (s *NatsService) GetWorkflowInstance(_ context.Context, workflowInstanceID string) (*model.WorkflowInstance, error) {
 	wfi := &model.WorkflowInstance{}
-	if err := common.LoadObj(s.wfInstance, workflowInstanceId, wfi); errors2.Is(err, nats.ErrKeyNotFound) {
+	if err := common.LoadObj(s.wfInstance, workflowInstanceID, wfi); errors2.Is(err, nats.ErrKeyNotFound) {
 		return nil, errors.ErrWorkflowInstanceNotFound
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to load workflow instance from KV: %w", err)
@@ -377,12 +377,12 @@ func (s *NatsService) SetInFlight(ctx context.Context, wfiID string, activityID 
 	})
 }
 
-func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string, state model.CancellationState, wfError *model.Error) error {
+func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceID string, state model.CancellationState, wfError *model.Error) error {
 	// Get the workflow instance
 	wfi := &model.WorkflowInstance{}
-	if err := common.LoadObj(s.wfInstance, workflowInstanceId, wfi); err != nil {
+	if err := common.LoadObj(s.wfInstance, workflowInstanceID, wfi); err != nil {
 		s.log.Warn("Could not fetch workflow instance",
-			zap.String(keys.WorkflowInstanceID, workflowInstanceId),
+			zap.String(keys.WorkflowInstanceID, workflowInstanceID),
 		)
 		return s.expectPossibleMissingKey("error fetching workflow instance", err)
 	}
@@ -410,7 +410,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		)
 	}
 
-	if err := common.UpdateObj(ctx, s.wfMsgSubs, workflowInstanceId, &model.WorkflowInstanceSubscribers{}, func(subs *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
+	if err := common.UpdateObj(ctx, s.wfMsgSubs, workflowInstanceID, &model.WorkflowInstanceSubscribers{}, func(subs *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
 		for i := 0; i < len(subs.List); i++ {
 			err := s.wfMsgSub.Delete(subs.List[i])
 			if err != nil {
@@ -618,11 +618,11 @@ func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string
 	state.UnixTimeNano = time.Now().UnixNano()
 	msg := nats.NewMsg(subj.NS(stateName, "default"))
 	msg.Header.Set("embargo", strconv.Itoa(c.Embargo))
-	if b, err := proto.Marshal(state); err != nil {
+	b, err := proto.Marshal(state)
+	if err != nil {
 		return err
-	} else {
-		msg.Data = b
 	}
+	msg.Data = b
 	pubCtx, cancel := context.WithTimeout(ctx, s.publishTimeout)
 	defer cancel()
 	if c.ID == "" {
@@ -655,11 +655,12 @@ func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID str
 		Vars:           vars,
 	}
 	msg := nats.NewMsg(fmt.Sprintf(messages.WorkflowMessageFormat, "default", workflowInstanceID, messageID))
-	if b, err := proto.Marshal(sharMsg); err != nil {
+	b, err := proto.Marshal(sharMsg)
+	if err != nil {
 		return err
-	} else {
-		msg.Data = b
 	}
+	msg.Data = b
+
 	pubCtx, cancel := context.WithTimeout(ctx, s.publishTimeout)
 	defer cancel()
 	id := ksuid.New().String()
@@ -798,9 +799,9 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 	if len(sj) < 4 {
 		return true, nil
 	}
-	workflowInstanceId := sj[3]
+	workflowInstanceID := sj[3]
 	subs := &model.WorkflowInstanceSubscribers{}
-	if err := common.LoadObj(s.wfMsgSubs, workflowInstanceId, subs); err != nil {
+	if err := common.LoadObj(s.wfMsgSubs, workflowInstanceID, subs); err != nil {
 		return true, nil
 	}
 	for _, i := range subs.List {
@@ -842,7 +843,7 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 				return false, err
 			}
 		}
-		if err := common.UpdateObj(ctx, s.wfMsgSubs, workflowInstanceId, &model.WorkflowInstanceSubscribers{}, func(v *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
+		if err := common.UpdateObj(ctx, s.wfMsgSubs, workflowInstanceID, &model.WorkflowInstanceSubscribers{}, func(v *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
 			remove(v.List, i)
 			return v, nil
 		}); err != nil {
@@ -956,17 +957,17 @@ func (s *NatsService) GetUserTaskIDs(owner string) (*model.UserTasks, error) {
 	return ut, nil
 }
 
-func (s *NatsService) OwnerId(name string) (string, error) {
+func (s *NatsService) OwnerID(name string) (string, error) {
 	if name == "" {
 		name = "AnyUser"
 	}
-	nm, err := s.ownerId.Get(name)
+	nm, err := s.ownerID.Get(name)
 	if err != nil && err != nats.ErrKeyNotFound {
 		return "", err
 	}
 	if nm == nil {
 		id := ksuid.New().String()
-		if _, err := s.ownerId.Put(name, []byte(id)); err != nil {
+		if _, err := s.ownerID.Put(name, []byte(id)); err != nil {
 			return "", err
 		}
 		if _, err = s.ownerName.Put(id, []byte(name)); err != nil {

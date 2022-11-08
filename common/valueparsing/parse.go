@@ -58,7 +58,7 @@ func extract(text string) (string, string, string, error) {
 			return "", "", "", errors.New("identifier " + text + " not correctly quoted")
 		}
 		return strings.Trim(key, "\""), varType, value, nil
-	} else {
-		return "", "", "", errors.New("could not extract var from " + text)
 	}
+	return "", "", "", errors.New("could not extract var from " + text)
+
 }

@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-func Trace(natsUrl string) *nats.Subscription {
-	nc, _ := nats.Connect(natsUrl)
+func Trace(natsURL string) *nats.Subscription {
+	nc, _ := nats.Connect(natsURL)
 	sub, err := nc.Subscribe("WORKFLOW.>", func(msg *nats.Msg) {
 		if strings.HasPrefix(msg.Subject, "WORKFLOW.default.State.") {
 			d := &model.WorkflowState{}

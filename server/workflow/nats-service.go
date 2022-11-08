@@ -14,10 +14,10 @@ type NatsService interface {
 	SetTraversalProvider(provider services.TraversalFunc)
 	ListWorkflows(ctx context.Context) (chan *model.ListWorkflowResult, chan error)
 	StoreWorkflow(ctx context.Context, wf *model.Workflow) (string, error)
-	GetWorkflow(ctx context.Context, workflowId string) (*model.Workflow, error)
+	GetWorkflow(ctx context.Context, workflowID string) (*model.Workflow, error)
 	CreateWorkflowInstance(ctx context.Context, wfInstance *model.WorkflowInstance) (*model.WorkflowInstance, error)
-	GetWorkflowInstance(ctx context.Context, workflowInstanceId string) (*model.WorkflowInstance, error)
-	DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string, state model.CancellationState, wfError *model.Error) error
+	GetWorkflowInstance(ctx context.Context, workflowInstanceID string) (*model.WorkflowInstance, error)
+	DestroyWorkflowInstance(ctx context.Context, workflowInstanceID string, state model.CancellationState, wfError *model.Error) error
 	GetServiceTaskRoutingKey(taskName string) (string, error)
 	GetMessageSenderRoutingKey(workflowName string, messageName string) (string, error)
 	GetLatestVersion(ctx context.Context, workflowName string) (string, error)
@@ -41,7 +41,7 @@ type NatsService interface {
 	Conn() common.NatsConn
 	Shutdown()
 	CloseUserTask(ctx context.Context, trackingID string) error
-	OwnerId(name string) (string, error)
+	OwnerID(name string) (string, error)
 	OwnerName(id string) (string, error)
 	GetOldState(id string) (*model.WorkflowState, error)
 }

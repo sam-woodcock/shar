@@ -27,14 +27,14 @@ func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 		Name:    name,
 		Process: make(map[string]*model.Process, len(prXmls)),
 	}
-	for _, prXml := range prXmls {
+	for _, prXML := range prXmls {
 		pr := &model.Process{
 			Elements: make([]*model.Element, 0),
 		}
-		msgXml := doc.SelectElements("//bpmn:message")
-		errXml := doc.SelectElements("//bpmn:error")
-		pr.Name = prXml.SelectAttr("id")
-		if err := parseProcess(doc, wf, prXml, pr, msgXml, errXml, msgs, errs); err != nil {
+		msgXML := doc.SelectElements("//bpmn:message")
+		errXML := doc.SelectElements("//bpmn:error")
+		pr.Name = prXML.SelectAttr("id")
+		if err := parseProcess(doc, wf, prXML, pr, msgXML, errXML, msgs, errs); err != nil {
 			return nil, err
 		}
 		wf.Process[pr.Name] = pr
@@ -47,19 +47,19 @@ func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 	return wf, nil
 }
 
-func parseProcess(doc *xmlquery.Node, wf *model.Workflow, prXml *xmlquery.Node, pr *model.Process, msgXml []*xmlquery.Node, errXml []*xmlquery.Node, msgs map[string]string, errs map[string]string) error {
-	for _, i := range prXml.SelectElements("*") {
+func parseProcess(doc *xmlquery.Node, wf *model.Workflow, prXML *xmlquery.Node, pr *model.Process, msgXML []*xmlquery.Node, errXML []*xmlquery.Node, msgs map[string]string, errs map[string]string) error {
+	for _, i := range prXML.SelectElements("*") {
 		if err := parseElements(doc, wf, pr, i, msgs, errs); err != nil {
 			return err
 		}
 	}
-	if msgXml != nil {
-		parseMessages(doc, wf, msgXml, msgs)
+	if msgXML != nil {
+		parseMessages(doc, wf, msgXML, msgs)
 	}
-	if errXml != nil {
-		parseErrors(doc, wf, errXml, errs)
+	if errXML != nil {
+		parseErrors(doc, wf, errXML, errs)
 	}
-	for _, i := range prXml.SelectElements("//bpmn:boundaryEvent") {
+	for _, i := range prXML.SelectElements("//bpmn:boundaryEvent") {
 		parseBoundaryEvent(doc, i, pr)
 	}
 
@@ -320,9 +320,8 @@ func parseConditions(i *xmlquery.Node) []string {
 	}
 	if len(cds) > 0 {
 		return cds
-	} else {
-		return nil
 	}
+	return nil
 }
 
 func parseCoreValues(i *xmlquery.Node, el *model.Element) {
