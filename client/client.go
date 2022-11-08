@@ -5,6 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client/parser"
@@ -22,9 +26,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type Command struct {
@@ -36,17 +37,17 @@ func (c *Command) SendMessage(ctx context.Context, name string, key any, vars mo
 	return c.cl.SendMessage(ctx, c.wfiID, name, key, vars)
 }
 
-type serviceFn func(ctx context.Context, vars model.Vars) (model.Vars, error)
-type senderFn func(ctx context.Context, client *Command, vars model.Vars) error
+type ServiceFn func(ctx context.Context, vars model.Vars) (model.Vars, error)
+type SenderFn func(ctx context.Context, client *Command, vars model.Vars) error
 
 type Client struct {
 	js             nats.JetStreamContext
-	SvcTasks       map[string]serviceFn
+	SvcTasks       map[string]ServiceFn
 	storage        services.Storage
 	log            *zap.Logger
 	con            *nats.Conn
 	complete       chan *model.WorkflowInstanceComplete
-	MsgSender      map[string]senderFn
+	MsgSender      map[string]SenderFn
 	storageType    nats.StorageType
 	ns             string
 	listenTasks    map[string]struct{}
@@ -62,8 +63,8 @@ type Option interface {
 func New(log *zap.Logger, option ...Option) *Client {
 	client := &Client{
 		storageType:    nats.FileStorage,
-		SvcTasks:       make(map[string]serviceFn),
-		MsgSender:      make(map[string]senderFn),
+		SvcTasks:       make(map[string]ServiceFn),
+		MsgSender:      make(map[string]SenderFn),
 		listenTasks:    make(map[string]struct{}),
 		msgListenTasks: make(map[string]struct{}),
 		log:            log,
@@ -103,7 +104,7 @@ func (c *Client) Dial(natsURL string, opts ...nats.Option) error {
 	return nil
 }
 
-func (c *Client) RegisterServiceTask(ctx context.Context, taskName string, fn serviceFn) error {
+func (c *Client) RegisterServiceTask(ctx context.Context, taskName string, fn ServiceFn) error {
 	id, err := c.getServiceTaskRoutingID(ctx, taskName)
 	if err != nil {
 		return err
@@ -116,7 +117,7 @@ func (c *Client) RegisterServiceTask(ctx context.Context, taskName string, fn se
 	return nil
 }
 
-func (c *Client) RegisterMessageSender(ctx context.Context, workflowName string, messageName string, sender senderFn) error {
+func (c *Client) RegisterMessageSender(ctx context.Context, workflowName string, messageName string, sender SenderFn) error {
 	id, err := c.getMessageSenderRoutingID(ctx, workflowName, messageName)
 	if err != nil {
 		return err
