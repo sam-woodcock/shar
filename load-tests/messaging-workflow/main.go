@@ -82,17 +82,17 @@ func main() {
 	fmt.Println(-time.Until(sw))
 }
 
-func step1(_ context.Context, _ model.Vars) (model.Vars, error) {
+func step1(_ context.Context, _ *client.JobClient, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Step 1")
 	return model.Vars{}, nil
 }
 
-func step2(_ context.Context, _ model.Vars) (model.Vars, error) {
+func step2(_ context.Context, _ *client.JobClient, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Step 2")
 	return model.Vars{}, nil
 }
 
-func sendMessage(ctx context.Context, cmd *client.Command, _ model.Vars) error {
+func sendMessage(ctx context.Context, cmd *client.MessageClient, _ model.Vars) error {
 	fmt.Println("Sending Message...")
 	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{})
 }

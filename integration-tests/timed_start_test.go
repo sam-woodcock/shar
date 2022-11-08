@@ -68,7 +68,7 @@ type timedStartHandlerDef struct {
 	tst   *integration
 }
 
-func (d *timedStartHandlerDef) integrationSimple(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *timedStartHandlerDef) integrationSimple(_ context.Context, _ *client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Hi")
 	fmt.Println("carried", vars["carried"])
 	d.mx.Lock()

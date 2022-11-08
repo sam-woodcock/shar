@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/messages"
 	"go.uber.org/zap"
 	"os"
 	"sync"
@@ -81,20 +82,26 @@ type testMessagingHandlerDef struct {
 	tst *integration
 }
 
-func (x *testMessagingHandlerDef) step1(_ context.Context, vars model.Vars) (model.Vars, error) {
-	x.log.Info("Step 1")
+func (x *testMessagingHandlerDef) step1(ctx context.Context, client *client.JobClient, vars model.Vars) (model.Vars, error) {
+	if err := client.Log(ctx, messages.LogInfo, -1, "Step 1", nil); err != nil {
+		return nil, err
+	}
 	return model.Vars{}, nil
 }
 
-func (x *testMessagingHandlerDef) step2(_ context.Context, vars model.Vars) (model.Vars, error) {
-	x.log.Info("Step 2")
+func (x *testMessagingHandlerDef) step2(ctx context.Context, client *client.JobClient, vars model.Vars) (model.Vars, error) {
+	if err := client.Log(ctx, messages.LogInfo, -1, "Step 2", nil); err != nil {
+		return nil, err
+	}
 	x.tst.mx.Lock()
 	x.tst.finalVars = vars
 	x.tst.mx.Unlock()
 	return model.Vars{}, nil
 }
 
-func (x *testMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
-	x.log.Info("Sending Message...")
-	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]})
+func (x *testMessagingHandlerDef) sendMessage(ctx context.Context, client *client.MessageClient, vars model.Vars) error {
+	if err := client.Log(ctx, messages.LogDebug, -1, "Sending Message...", nil); err != nil {
+		return err
+	}
+	return client.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]})
 }

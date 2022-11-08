@@ -146,11 +146,11 @@ message LaunchWorkflowRequest {
 }
 
 enum CancellationState {
-  Executing = 0;  // The state machine is executing
-  Completed = 1;  // The state machine has completed successfully
-  Terminated = 2; // The state machine instance was terminated
-  Errored = 3;    // An error occured during state machine execution
-  Obsolete = 4;   // This state is obsolete due to an alternate flow
+  executing = 0;  // The state machine is executing
+  completed = 1;  // The state machine has completed successfully
+  terminated = 2; // The state machine instance was terminated
+  errored = 3;    // An error occured during state machine execution
+  obsolete = 4;   // This state is obsolete due to an alternate flow
 }
 
 message CancelWorkflowInstanceRequest {
@@ -276,17 +276,16 @@ message TelemetryState {
 }
 
 message TelemetryLogEntry {
-  LogSeverity severity = 1;
-  string message = 2;
-  map<string,string> attributes = 3;
+  string trackingID = 1;
+  LogSource source = 2;
+  string message = 3;
+  int32 code = 4;
+  map<string,string> attributes = 5;
 }
 
-enum LogSeverity {
-  Trace = 0;
-  Debug = 1;
-  Warning = 2;
-  WorkflowError = 3;
-  WorkflowFatal = 4;
-  SharError = 5;
-  SharFatal = 6;
+enum LogSource {
+  logSourceEngine = 0;
+  logSourceWorkflow = 2;
+  logSourceClient = 3;
+  logSourceJob = 4;
 }

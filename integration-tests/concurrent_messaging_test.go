@@ -93,11 +93,11 @@ type testConcurrentMessagingHandlerDef struct {
 	received int
 }
 
-func (x *testConcurrentMessagingHandlerDef) step1(_ context.Context, _ model.Vars) (model.Vars, error) {
+func (x *testConcurrentMessagingHandlerDef) step1(_ context.Context, _ *client.JobClient, _ model.Vars) (model.Vars, error) {
 	return model.Vars{}, nil
 }
 
-func (x *testConcurrentMessagingHandlerDef) step2(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (x *testConcurrentMessagingHandlerDef) step2(_ context.Context, _ *client.JobClient, vars model.Vars) (model.Vars, error) {
 	assert.Equal(x.tst.test, "carried1value", vars["carried"])
 	assert.Equal(x.tst.test, "carried2value", vars["carried2"])
 	x.mx.Lock()
@@ -106,6 +106,6 @@ func (x *testConcurrentMessagingHandlerDef) step2(_ context.Context, vars model.
 	return model.Vars{}, nil
 }
 
-func (x *testConcurrentMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
+func (x *testConcurrentMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.MessageClient, vars model.Vars) error {
 	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]})
 }

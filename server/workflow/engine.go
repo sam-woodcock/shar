@@ -313,7 +313,7 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, trac
 // activityStartProcessor handles the behaviour of each BPMN element
 func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID string, traversal *model.WorkflowState, traverseOnly bool) error {
 	// set the default status to be 'executing'
-	status := model.CancellationState_Executing
+	status := model.CancellationState_executing
 
 	// get the corresponding workflow instance
 	wfi, err := c.ns.GetWorkflowInstance(ctx, traversal.WorkflowInstanceId)
@@ -404,7 +404,7 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 				}
 				ut = dur.Shift(ut)
 			}
-			err = c.ns.PublishWorkflowState(ctx, subj.NS(messages.ElementTimedExecute, "default"), timer, services.WithEmbargo(int(ut.UnixNano())))
+			err = c.ns.PublishWorkflowState(ctx, subj.NS(messages.WorkflowElementTimedExecute, "default"), timer, services.WithEmbargo(int(ut.UnixNano())))
 			if err != nil {
 				return err
 			}
@@ -511,9 +511,9 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 	case "endEvent":
 		if wfi.ParentWorkflowInstanceId == nil || *wfi.ParentWorkflowInstanceId == "" {
 			if len(el.Errors) == 0 {
-				status = model.CancellationState_Completed
+				status = model.CancellationState_completed
 			} else {
-				status = model.CancellationState_Errored
+				status = model.CancellationState_errored
 			}
 		}
 		if err := c.completeActivity(ctx, activityID, el, wfi, status, traversal.Vars); err != nil {
@@ -533,7 +533,7 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 	}
 
 	// if the workflow is complete, send an instance complete message to trigger tidy up
-	if status == model.CancellationState_Completed || status == model.CancellationState_Errored || status == model.CancellationState_Terminated {
+	if status == model.CancellationState_completed || status == model.CancellationState_errored || status == model.CancellationState_terminated {
 		if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowInstanceComplete, &model.WorkflowState{
 			Id:                 []string{wfi.WorkflowInstanceId},
 			WorkflowId:         wfi.WorkflowId,
@@ -742,7 +742,7 @@ func (c *Engine) Shutdown() {
 
 // CancelWorkflowInstance will cancel a workflow instance with a reason
 func (c *Engine) CancelWorkflowInstance(ctx context.Context, id string, state model.CancellationState, wfError *model.Error) error {
-	if state == model.CancellationState_Executing {
+	if state == model.CancellationState_executing {
 		return errors2.New("executing is an invalid cancellation state")
 	}
 	return c.ns.DestroyWorkflowInstance(ctx, id, state, wfError)
@@ -892,7 +892,7 @@ func (c *Engine) activityCompleteProcessor(ctx context.Context, state *model.Wor
 		return nil
 	} else if err != nil {
 		return err
-	} else if old.State == model.CancellationState_Obsolete && state.State == model.CancellationState_Obsolete {
+	} else if old.State == model.CancellationState_obsolete && state.State == model.CancellationState_obsolete {
 		return nil
 	}
 	wfi, err := c.ns.GetWorkflowInstance(ctx, state.WorkflowInstanceId)
