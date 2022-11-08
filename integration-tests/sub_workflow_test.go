@@ -80,17 +80,17 @@ func TestSubWorkflow(t *testing.T) {
 type testSubWorkflowHandlerDef struct {
 }
 
-func (d *testSubWorkflowHandlerDef) afterCallingSubProcess(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *testSubWorkflowHandlerDef) afterCallingSubProcess(_ context.Context, _ *client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println(vars["x"])
 	fmt.Println("carried", vars["carried"])
 	return model.Vars{}, nil
 }
 
-func (d *testSubWorkflowHandlerDef) duringSubProcess(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *testSubWorkflowHandlerDef) duringSubProcess(_ context.Context, _ *client.JobClient, vars model.Vars) (model.Vars, error) {
 	x := vars["z"].(int)
 	return model.Vars{"z": x + 41}, nil
 }
 
-func (d *testSubWorkflowHandlerDef) beforeCallingSubProcess(_ context.Context, _ model.Vars) (model.Vars, error) {
+func (d *testSubWorkflowHandlerDef) beforeCallingSubProcess(_ context.Context, _ *client.JobClient, _ model.Vars) (model.Vars, error) {
 	return model.Vars{"x": 1}, nil
 }

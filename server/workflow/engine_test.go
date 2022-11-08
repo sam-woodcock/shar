@@ -194,7 +194,7 @@ func TestCompleteJobProcessor(t *testing.T) {
 			ElementType:        "serviceTask",
 			Id:                 []string{trackingID},
 			Execute:            nil,
-			State:              model.CancellationState_Executing,
+			State:              model.CancellationState_executing,
 			Condition:          nil,
 			UnixTimeNano:       0,
 			Vars:               []byte{},

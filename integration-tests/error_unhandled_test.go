@@ -80,13 +80,13 @@ type testErrorUnhandledHandlerDef struct {
 }
 
 // A "Hello World" service task
-func (d *testErrorUnhandledHandlerDef) mayFail(_ context.Context, _ model.Vars) (model.Vars, error) {
+func (d *testErrorUnhandledHandlerDef) mayFail(_ context.Context, _ *client.JobClient, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Throw unhandled error")
 	return model.Vars{"success": false}, workflow.Error{Code: "102"}
 }
 
 // A "Hello World" service task
-func (d *testErrorUnhandledHandlerDef) fixSituation(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *testErrorUnhandledHandlerDef) fixSituation(_ context.Context, _ *client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Fixing")
 	fmt.Println("carried", vars["carried"])
 	return model.Vars{}, nil

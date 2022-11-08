@@ -68,40 +68,32 @@ var empty8 = [8]byte{}
 
 func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error) {
 
-	state := model.WorkflowState{}
-	err := proto.Unmarshal(msg.Data, &state)
-	if err != nil {
-		s.log.Error("unable to unmarshal span", zap.Error(err))
-		return true, abandon(err)
-	}
-
-	tid := common.KSuidTo64bit(common.TrackingID(state.Id).ID())
-
-	if bytes.Equal(tid[:], empty8[:]) {
-		return true, nil
+	state, done, err2 := s.decodeState(msg)
+	if done {
+		return done, err2
 	}
 
 	switch {
 	case strings.HasSuffix(msg.Subject, ".State.Workflow.Execute"):
-		if err := s.saveSpan(ctx, "Workflow Execute", &state, &state); err != nil {
+		if err := s.saveSpan(ctx, "Workflow Execute", state, state); err != nil {
 			return false, nil
 		}
 	case strings.HasSuffix(msg.Subject, ".State.Traversal.Execute"):
 	case strings.HasSuffix(msg.Subject, ".State.Activity.Execute"):
-		if err := s.spanStart(ctx, &state); err != nil {
+		if err := s.spanStart(ctx, state); err != nil {
 			return false, nil
 		}
 	case strings.Contains(msg.Subject, ".State.Job.Execute.ServiceTask"),
 		strings.HasSuffix(msg.Subject, ".State.Job.Execute.UserTask"),
 		strings.HasSuffix(msg.Subject, ".State.Job.Execute.ManualTask"),
 		strings.Contains(msg.Subject, ".State.Job.Execute.SendMessage"):
-		if err := s.spanStart(ctx, &state); err != nil {
+		if err := s.spanStart(ctx, state); err != nil {
 			return false, nil
 		}
 	case strings.HasSuffix(msg.Subject, ".State.Traversal.Complete"):
 	case strings.HasSuffix(msg.Subject, ".State.Activity.Complete"),
 		strings.HasSuffix(msg.Subject, ".State.Activity.Abort"):
-		if err := s.spanEnd(ctx, "Activity: "+state.ElementId, &state); err != nil {
+		if err := s.spanEnd(ctx, "Activity: "+state.ElementId, state); err != nil {
 			var escape *AbandonOpError
 			if errors.As(err, &escape) {
 				s.log.Error("saving Activity.Complete operation abandoned", zap.Error(err),
@@ -118,7 +110,7 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 		strings.Contains(msg.Subject, ".State.Job.Complete.UserTask"),
 		strings.Contains(msg.Subject, ".State.Job.Complete.ManualTask"),
 		strings.Contains(msg.Subject, ".State.Job.Complete.SendMessage"):
-		if err := s.spanEnd(ctx, "Job: "+state.ElementType, &state); err != nil {
+		if err := s.spanEnd(ctx, "Job: "+state.ElementType, state); err != nil {
 			var escape *AbandonOpError
 			if errors.As(err, &escape) {
 				s.log.Error("saving Job.Complete operation abandoned", zap.Error(err),
@@ -131,12 +123,30 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 			return false, nil
 		}
 	case strings.Contains(msg.Subject, ".State.Job.Complete.SendMessage"):
+	case strings.Contains(msg.Subject, ".State.Log."):
+
 	//case strings.HasSuffix(msg.Subject, ".State.Workflow.Complete"):
 	//case strings.HasSuffix(msg.Subject, ".State.Workflow.Terminated"):
 	default:
 
 	}
 	return true, nil
+}
+
+func (s *Server) decodeState(msg *nats.Msg) (*model.WorkflowState, bool, error) {
+	state := &model.WorkflowState{}
+	err := proto.Unmarshal(msg.Data, state)
+	if err != nil {
+		s.log.Error("unable to unmarshal span", zap.Error(err))
+		return &model.WorkflowState{}, true, abandon(err)
+	}
+
+	tid := common.KSuidTo64bit(common.TrackingID(state.Id).ID())
+
+	if bytes.Equal(tid[:], empty8[:]) {
+		return &model.WorkflowState{}, true, nil
+	}
+	return state, false, nil
 }
 
 func (s *Server) spanStart(ctx context.Context, state *model.WorkflowState) error {

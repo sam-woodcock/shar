@@ -37,10 +37,30 @@ const (
 	WorkflowTraversalExecute          = "WORKFLOW.%s.State.Traversal.Execute"
 	WorkflowTraversalComplete         = "WORKFLOW.%s.State.Traversal.Complete"
 	WorkflowTimedExecute              = "WORKFLOW.%s.Timers.WorkflowExecute"
-	ElementTimedExecute               = "WORKFLOW.%s.Timers.ElementExecute"
+	WorkflowElementTimedExecute       = "WORKFLOW.%s.Timers.ElementExecute"
+	WorkflowLog                       = "WORKFLOW.%s.State.Log"
+	WorkflowLogAll                    = "WORKFLOW.%s.State.Log.*"
 	WorkflowMessages                  = "WORKFLOW.%s.Message.>"
 	WorkflowCommands                  = "WORKFLOW.%s.Command.>"
 )
+
+type WorkflowLogLevel string
+
+const (
+	LogFatal WorkflowLogLevel = ".Fatal"
+	LogError WorkflowLogLevel = ".Error"
+	LogWarn  WorkflowLogLevel = ".Warning"
+	LogInfo  WorkflowLogLevel = ".Info"
+	LogDebug WorkflowLogLevel = ".Debug"
+)
+
+var LogLevels = []WorkflowLogLevel{
+	LogFatal,
+	LogError,
+	LogWarn,
+	LogInfo,
+	LogDebug,
+}
 
 var AllMessages = []string{
 	subj.NS(WorkflowInstanceAll, "*"),
@@ -59,8 +79,9 @@ var AllMessages = []string{
 	subj.NS(WorkflowTraversalComplete, "*"),
 	subj.NS(WorkflowMessages, "*"),
 	subj.NS(WorkflowTimedExecute, "*"),
-	subj.NS(ElementTimedExecute, "*"),
+	subj.NS(WorkflowElementTimedExecute, "*"),
 	subj.NS(WorkflowCommands, "*"),
+	subj.NS(WorkflowLogAll, "*"),
 	//subj.NS(WorkflowAbortAll, "*"),
 	ApiAll,
 }
