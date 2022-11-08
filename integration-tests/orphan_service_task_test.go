@@ -43,7 +43,7 @@ func TestRegisterOrphanServiceTask(t *testing.T) {
 	tst.AssertCleanKV()
 }
 
-func orphanTask(_ context.Context, _ *client.JobClient, vars model.Vars) (model.Vars, error) {
+func orphanTask(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Hi")
 	fmt.Println("carried", vars["carried"])
 	return vars, nil

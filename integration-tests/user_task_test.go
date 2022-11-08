@@ -110,14 +110,14 @@ type testUserTaskHandlerDef struct {
 }
 
 // A "Hello World" service task
-func (d *testUserTaskHandlerDef) prepare(_ context.Context, _ *client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testUserTaskHandlerDef) prepare(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Preparing")
 	oid := vars["OrderId"].(int)
 	return model.Vars{"OrderId": oid + 1}, nil
 }
 
 // A "Hello World" service task
-func (d *testUserTaskHandlerDef) complete(_ context.Context, _ *client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testUserTaskHandlerDef) complete(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Completed")
 	fmt.Println("OrderId", vars["OrderId"])
 	fmt.Println("Forename", vars["Forename"])

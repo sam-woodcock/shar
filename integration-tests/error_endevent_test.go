@@ -82,7 +82,7 @@ type testErrorEndEventHandlerDef struct {
 }
 
 // A "Hello World" service task
-func (d *testErrorEndEventHandlerDef) mayFail3(ctx context.Context, client *client.JobClient, _ model.Vars) (model.Vars, error) {
+func (d *testErrorEndEventHandlerDef) mayFail3(ctx context.Context, client client.JobClient, _ model.Vars) (model.Vars, error) {
 	if err := client.Log(ctx, messages.LogInfo, -1, "service task completed successfully", nil); err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (d *testErrorEndEventHandlerDef) mayFail3(ctx context.Context, client *clie
 }
 
 // A "Hello World" service task
-func (d *testErrorEndEventHandlerDef) fixSituation(_ context.Context, _ *client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testErrorEndEventHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("carried", vars["carried"])
 	panic("this event should not fire")
 }

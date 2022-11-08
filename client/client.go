@@ -27,31 +27,44 @@ import (
 	"time"
 )
 
-type JobClient struct {
+type LogClient interface {
+	Log(ctx context.Context, severity messages.WorkflowLogLevel, code int32, message string, attrs map[string]string) error
+}
+
+type JobClient interface {
+	LogClient
+}
+
+type jobClient struct {
 	cl         *Client
 	trackingID string
 }
 
-func (c *JobClient) Log(ctx context.Context, severity messages.WorkflowLogLevel, code int32, message string, attrs map[string]string) error {
+func (c *jobClient) Log(ctx context.Context, severity messages.WorkflowLogLevel, code int32, message string, attrs map[string]string) error {
 	return c.cl.clientLog(ctx, c.trackingID, severity, code, message, attrs)
 }
 
-type MessageClient struct {
+type MessageClient interface {
+	LogClient
+	SendMessage(ctx context.Context, name string, key any, vars model.Vars) error
+}
+
+type messageClient struct {
 	cl         *Client
 	wfiID      string
 	trackingID string
 }
 
-func (c *MessageClient) SendMessage(ctx context.Context, name string, key any, vars model.Vars) error {
+func (c *messageClient) SendMessage(ctx context.Context, name string, key any, vars model.Vars) error {
 	return c.cl.SendMessage(ctx, c.wfiID, name, key, vars)
 }
 
-func (c *MessageClient) Log(ctx context.Context, severity messages.WorkflowLogLevel, code int32, message string, attrs map[string]string) error {
+func (c *messageClient) Log(ctx context.Context, severity messages.WorkflowLogLevel, code int32, message string, attrs map[string]string) error {
 	return c.cl.clientLog(ctx, c.trackingID, severity, code, message, attrs)
 }
 
-type ServiceFn func(ctx context.Context, client *JobClient, vars model.Vars) (model.Vars, error)
-type SenderFn func(ctx context.Context, client *MessageClient, vars model.Vars) error
+type ServiceFn func(ctx context.Context, client JobClient, vars model.Vars) (model.Vars, error)
+type SenderFn func(ctx context.Context, client MessageClient, vars model.Vars) error
 
 type Client struct {
 	js             nats.JetStreamContext
@@ -197,7 +210,7 @@ func (c *Client) listen(ctx context.Context) error {
 							e = &errors2.ErrWorkflowFatal{Err: fmt.Errorf("call to service task \"%s\" terminated in panic: %w", *ut.Execute, r.(error))}
 						}
 					}()
-					v, e = svcFn(xctx, &JobClient{cl: c, trackingID: trackingID}, dv)
+					v, e = svcFn(xctx, &jobClient{cl: c, trackingID: trackingID}, dv)
 					return
 				}()
 				if err != nil {
@@ -261,7 +274,7 @@ func (c *Client) listen(ctx context.Context) error {
 					return false, err
 				}
 				xctx = context.WithValue(xctx, ctxkey.TrackingID, trackingID)
-				if err := sendFn(xctx, &MessageClient{cl: c, trackingID: trackingID, wfiID: job.WorkflowInstanceId}, dv); err != nil {
+				if err := sendFn(xctx, &messageClient{cl: c, trackingID: trackingID, wfiID: job.WorkflowInstanceId}, dv); err != nil {
 					c.log.Warn("nats listener", zap.Error(err))
 					return false, err
 				}

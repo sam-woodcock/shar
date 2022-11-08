@@ -109,13 +109,13 @@ func TestMultiWorkflow(t *testing.T) {
 type testMultiworkflowMessagingHandlerDef struct {
 }
 
-func (x *testMultiworkflowMessagingHandlerDef) step1(_ context.Context, _ *client.JobClient, _ model.Vars) (model.Vars, error) {
+func (x *testMultiworkflowMessagingHandlerDef) step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Step 1")
 
 	return model.Vars{}, nil
 }
 
-func (x *testMultiworkflowMessagingHandlerDef) step2(_ context.Context, _ *client.JobClient, vars model.Vars) (model.Vars, error) {
+func (x *testMultiworkflowMessagingHandlerDef) step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Step 2")
 	fmt.Println("carried", vars["carried"])
 	fmt.Println("carried2", vars["carried2"])
@@ -123,13 +123,13 @@ func (x *testMultiworkflowMessagingHandlerDef) step2(_ context.Context, _ *clien
 	return model.Vars{}, nil
 }
 
-func (x *testMultiworkflowMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.MessageClient, vars model.Vars) error {
+func (x *testMultiworkflowMessagingHandlerDef) sendMessage(ctx context.Context, cmd client.MessageClient, vars model.Vars) error {
 	fmt.Println("Sending Message...")
 	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]})
 }
 
 // A "Hello World" service task
-func (x *testMultiworkflowMessagingHandlerDef) simpleProcess(_ context.Context, _ *client.JobClient, vars model.Vars) (model.Vars, error) {
+func (x *testMultiworkflowMessagingHandlerDef) simpleProcess(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Hello World")
 	fmt.Println("carried", vars["carried"])
 	fmt.Println("carried2", vars["carried2"])

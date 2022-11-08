@@ -82,14 +82,14 @@ type testMessagingHandlerDef struct {
 	tst *integration
 }
 
-func (x *testMessagingHandlerDef) step1(ctx context.Context, client *client.JobClient, vars model.Vars) (model.Vars, error) {
+func (x *testMessagingHandlerDef) step1(ctx context.Context, client client.JobClient, vars model.Vars) (model.Vars, error) {
 	if err := client.Log(ctx, messages.LogInfo, -1, "Step 1", nil); err != nil {
 		return nil, err
 	}
 	return model.Vars{}, nil
 }
 
-func (x *testMessagingHandlerDef) step2(ctx context.Context, client *client.JobClient, vars model.Vars) (model.Vars, error) {
+func (x *testMessagingHandlerDef) step2(ctx context.Context, client client.JobClient, vars model.Vars) (model.Vars, error) {
 	if err := client.Log(ctx, messages.LogInfo, -1, "Step 2", nil); err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (x *testMessagingHandlerDef) step2(ctx context.Context, client *client.JobC
 	return model.Vars{}, nil
 }
 
-func (x *testMessagingHandlerDef) sendMessage(ctx context.Context, client *client.MessageClient, vars model.Vars) error {
+func (x *testMessagingHandlerDef) sendMessage(ctx context.Context, client client.MessageClient, vars model.Vars) error {
 	if err := client.Log(ctx, messages.LogDebug, -1, "Sending Message...", nil); err != nil {
 		return err
 	}
