@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	errMissingId                    = errors.New("missing id")
+	errMissingID                    = errors.New("missing id")
 	errMissingServiceTaskDefinition = errors.New("missing service task definition")
 )
 
@@ -23,7 +23,7 @@ func validModel(workflow *model.Workflow) error {
 		// Iterate through the elements
 		for _, j := range i.Elements {
 			if j.Id == "" {
-				return &valError{Err: errMissingId, Context: j.Name}
+				return &valError{Err: errMissingID, Context: j.Name}
 			}
 			switch j.Type {
 			case "serviceTask":
@@ -102,12 +102,12 @@ func checkVariables(process *model.Process) error {
 	//Test that inputs are all defined
 	for i := range inputVars {
 		if _, ok := outputVars[i]; !ok {
-			return fmt.Errorf("the undefined variable \"%s\" is referred to as input\n", i)
+			return fmt.Errorf("the undefined variable \"%s\" is referred to as input", i)
 		}
 	}
 	for i := range condVars {
 		if _, ok := outputVars[i]; !ok {
-			return fmt.Errorf("the undefined variable \"%s\" is referred to in a condition\n", i)
+			return fmt.Errorf("the undefined variable \"%s\" is referred to in a condition", i)
 		}
 	}
 	return nil

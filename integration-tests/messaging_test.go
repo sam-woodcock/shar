@@ -52,12 +52,12 @@ func TestMessaging(t *testing.T) {
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	if wfid, err := cl.LaunchWorkflow(ctx, "TestMessaging", model.Vars{"orderId": 57}); err != nil {
+	wfid, err := cl.LaunchWorkflow(ctx, "TestMessaging", model.Vars{"orderId": 57})
+	if err != nil {
 		t.Fatal(err)
 		return
-	} else {
-		fmt.Println("Started", wfid)
 	}
+	fmt.Println("Started", wfid)
 
 	// Listen for service tasks
 	go func() {

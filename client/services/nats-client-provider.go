@@ -25,23 +25,23 @@ func NewNatsClientProvider(log *zap.Logger, js nats.JetStreamContext, storageTyp
 		js:  js,
 		log: log,
 	}
-	if kv, err := js.KeyValue("WORKFLOW_INSTANCE"); err != nil {
+	kv, err := js.KeyValue("WORKFLOW_INSTANCE")
+	if err != nil {
 		return nil, err
-	} else {
-		ms.wfInstance = kv
 	}
+	ms.wfInstance = kv
 
-	if kv, err := js.KeyValue("WORKFLOW_DEF"); err != nil {
+	kv, err = js.KeyValue("WORKFLOW_DEF")
+	if err != nil {
 		return nil, err
-	} else {
-		ms.wf = kv
 	}
+	ms.wf = kv
 
-	if kv, err := js.KeyValue("WORKFLOW_JOB"); err != nil {
+	kv, err = js.KeyValue("WORKFLOW_JOB")
+	if err != nil {
 		return nil, err
-	} else {
-		ms.job = kv
 	}
+	ms.job = kv
 	return ms, nil
 }
 func ensureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names []string) error {

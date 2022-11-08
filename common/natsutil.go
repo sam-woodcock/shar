@@ -59,27 +59,27 @@ func Save(wf nats.KeyValue, k string, v []byte) error {
 }
 
 func Load(wf nats.KeyValue, k string) ([]byte, error) {
-	if b, err := wf.Get(k); err == nil {
+	b, err := wf.Get(k)
+	if err == nil {
 		return b.Value(), nil
-	} else {
-		return nil, fmt.Errorf("failed to load value from KV: %w", err)
 	}
+	return nil, fmt.Errorf("failed to load value from KV: %w", err)
 }
 
 func SaveObj(_ context.Context, wf nats.KeyValue, k string, v proto.Message) error {
-	if b, err := proto.Marshal(v); err == nil {
+	b, err := proto.Marshal(v)
+	if err == nil {
 		return Save(wf, k, b)
-	} else {
-		return fmt.Errorf("failed to save object into KV: %w", err)
 	}
+	return fmt.Errorf("failed to save object into KV: %w", err)
 }
 
 func LoadObj(wf nats.KeyValue, k string, v proto.Message) error {
-	if kv, err := Load(wf, k); err == nil {
+	kv, err := Load(wf, k)
+	if err == nil {
 		return proto.Unmarshal(kv, v)
-	} else {
-		return fmt.Errorf("failed to load object from KV %s(%s): %w", wf.Bucket(), k, err)
 	}
+	return fmt.Errorf("failed to load object from KV %s(%s): %w", wf.Bucket(), k, err)
 }
 
 func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) error {

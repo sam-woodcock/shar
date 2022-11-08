@@ -193,13 +193,13 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 
 		// for each start element, launch a workflow thread
 		startErr := forEachStartElement(wf, func(el *model.Element) error {
-			trackingId := ID.Push(wfi.WorkflowInstanceId).Push(ksuid.New().String())
+			trackingID := ID.Push(wfi.WorkflowInstanceId).Push(ksuid.New().String())
 			if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowTraversalExecute, &model.WorkflowState{
 				ElementType:        el.Type,
 				ElementId:          el.Id,
 				WorkflowId:         wfi.WorkflowId,
 				WorkflowInstanceId: wfi.WorkflowInstanceId,
-				Id:                 trackingId,
+				Id:                 trackingID,
 				Vars:               vrs,
 			}); err != nil {
 				c.log.Error("failed to publish initial traversal", zap.Error(err))
@@ -258,7 +258,7 @@ func forEachTimedStartElement(wf *model.Workflow, fn func(element *model.Element
 }
 
 // traverse traverses all outbound connections provided the conditions passed if available.
-func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, trackingId common.TrackingID, outbound *model.Targets, el map[string]*model.Element, v []byte) error {
+func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, trackingID common.TrackingID, outbound *model.Targets, el map[string]*model.Element, v []byte) error {
 	if outbound == nil {
 		return nil
 	}
@@ -289,13 +289,13 @@ func (c *Engine) traverse(ctx context.Context, wfi *model.WorkflowInstance, trac
 
 		// If the conditions passed commit a traversal
 		if ok {
-			tId := trackingId.Push(ksuid.New().String())
+			tID := trackingID.Push(ksuid.New().String())
 			if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowTraversalExecute, &model.WorkflowState{
 				ElementType:        target.Type,
 				ElementId:          target.Id,
 				WorkflowId:         wfi.WorkflowId,
 				WorkflowInstanceId: wfi.WorkflowInstanceId,
-				Id:                 tId,
+				Id:                 tID,
 				Vars:               v,
 			}); err != nil {
 				c.log.Error("failed to publish workflow state", zap.Error(err))
@@ -460,11 +460,11 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 			// TODO: Fatal workflow error - we shouldn't allow to send unknown messages in parser
 			return fmt.Errorf("unknown workflow message name: %s", el.Execute)
 		}
-		sendMsgId, err := c.ns.GetMessageSenderRoutingKey(wf.Name, wf.Messages[ix].Name)
+		sendMsgID, err := c.ns.GetMessageSenderRoutingKey(wf.Name, wf.Messages[ix].Name)
 		if err != nil {
 			return err
 		}
-		if err := c.startJob(ctx, messages.WorkflowJobSendMessageExecute+"."+sendMsgId, wfi.WorkflowId, traversal.WorkflowInstanceId, activityID, el, wf.Messages[ix].Execute, traversal.Vars); err != nil {
+		if err := c.startJob(ctx, messages.WorkflowJobSendMessageExecute+"."+sendMsgID, wfi.WorkflowId, traversal.WorkflowInstanceId, activityID, el, wf.Messages[ix].Execute, traversal.Vars); err != nil {
 			return c.engineErr("failed to start message job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case "callActivity":
@@ -549,10 +549,10 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 	return nil
 }
 
-func (c *Engine) completeActivity(ctx context.Context, trackingId common.TrackingID, el *model.Element, wfi *model.WorkflowInstance, cancellationState model.CancellationState, vrs []byte) error {
+func (c *Engine) completeActivity(ctx context.Context, trackingID common.TrackingID, el *model.Element, wfi *model.WorkflowInstance, cancellationState model.CancellationState, vrs []byte) error {
 	// tell the world that we processed the activity
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowActivityComplete, &model.WorkflowState{
-		Id:                 trackingId,
+		Id:                 trackingID,
 		ElementType:        el.Type,
 		ElementId:          el.Id,
 		WorkflowId:         wfi.WorkflowId,
@@ -621,8 +621,8 @@ func (c *Engine) completeJobProcessor(ctx context.Context, job *model.WorkflowSt
 	// build element table
 	els := common.ElementTable(wf)
 	el := els[job.ElementId]
-	newId := common.TrackingID(job.Id).Pop()
-	oldState, err := c.ns.GetOldState(newId.ID())
+	newID := common.TrackingID(job.Id).Pop()
+	oldState, err := c.ns.GetOldState(newID.ID())
 	if err == errors.ErrStateNotFound {
 		return nil
 	}
@@ -632,7 +632,7 @@ func (c *Engine) completeJobProcessor(ctx context.Context, job *model.WorkflowSt
 	if err := vars.OutputVars(c.log, job.Vars, &oldState.Vars, el.OutputTransform); err != nil {
 		return err
 	}
-	if err := c.completeActivity(ctx, newId, el, wfi, job.State, oldState.Vars); err != nil {
+	if err := c.completeActivity(ctx, newID, el, wfi, job.State, oldState.Vars); err != nil {
 		return err
 	}
 	if err := c.ns.DeleteJob(ctx, common.TrackingID(job.Id).ID()); err != nil {
@@ -708,7 +708,7 @@ func (c *Engine) evaluateOwners(owners string, vars model.Vars) ([]string, error
 		jobGroups = append(jobGroups, groups...)
 	}
 	for i, v := range jobGroups {
-		id, err := c.ns.OwnerId(v)
+		id, err := c.ns.OwnerID(v)
 		if err != nil {
 			return nil, err
 		}
@@ -750,14 +750,14 @@ func (c *Engine) CancelWorkflowInstance(ctx context.Context, id string, state mo
 
 // awaitMessage signals that the workflow instance will resume after a message is received
 func (c *Engine) awaitMessage(ctx context.Context, wfID string, wfiID string, parentTrackingID common.TrackingID, el *model.Element, vars []byte) error {
-	trackingId := parentTrackingID.Push(ksuid.New().String())
+	trackingID := parentTrackingID.Push(ksuid.New().String())
 	awaitMsg := &model.WorkflowState{
 		WorkflowId:         wfID,
 		WorkflowInstanceId: wfiID,
 		ElementId:          el.Id,
 		ElementType:        el.Type,
 		Error:              el.Error,
-		Id:                 trackingId,
+		Id:                 trackingID,
 		Execute:            &el.Execute,
 		Condition:          &el.Msg,
 		Vars:               vars,
@@ -908,8 +908,8 @@ func (c *Engine) activityCompleteProcessor(ctx context.Context, state *model.Wor
 		return err
 	}
 	els := common.ElementTable(wf)
-	newId := common.TrackingID(state.Id).Pop()
-	if err = c.traverse(ctx, wfi, newId, els[state.ElementId].Outbound, els, state.Vars); errors.IsWorkflowFatal(err) {
+	newID := common.TrackingID(state.Id).Pop()
+	if err = c.traverse(ctx, wfi, newID, els[state.ElementId].Outbound, els, state.Vars); errors.IsWorkflowFatal(err) {
 		c.log.Error("workflow fatally terminated whilst traversing", zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), zap.String(keys.WorkflowID, wfi.WorkflowId), zap.Error(err), zap.String(keys.ElementID, state.ElementId))
 		return nil
 	} else if err != nil {

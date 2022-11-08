@@ -83,30 +83,30 @@ var AllMessages = []string{
 	subj.NS(WorkflowCommands, "*"),
 	subj.NS(WorkflowLogAll, "*"),
 	//subj.NS(WorkflowAbortAll, "*"),
-	ApiAll,
+	APIAll,
 }
 
 var WorkflowMessageFormat = "WORKFLOW.%s.Message.%s.%s"
 
 const (
-	ApiAll                       = "Workflow.Api.*"
-	ApiStoreWorkflow             = "WORKFLOW.Api.StoreWorkflow"
-	ApiLaunchWorkflow            = "WORKFLOW.Api.LaunchWorkflow"
-	ApiListWorkflows             = "WORKFLOW.Api.ListWorkflows"
-	ApiListWorkflowInstance      = "WORKFLOW.Api.ListWorkflowInstance"
-	ApiGetWorkflowStatus         = "WORKFLOW.Api.GetWorkflowInstanceStatus"
-	ApiCancelWorkflowInstance    = "WORKFLOW.Api.CancelWorkflowInstance"
-	ApiSendMessage               = "WORKFLOW.Api.SendMessage"
-	ApiCompleteManualTask        = "WORKFLOW.Api.CompleteManualTask"
-	ApiCompleteServiceTask       = "WORKFLOW.Api.CompleteServiceTask"
-	ApiCompleteUserTask          = "WORKFLOW.Api.CompleteUserTask"
-	ApiCompleteSendMessageTask   = "WORKFLOW.Api.CompleteSendMessageTask"
-	ApiListUserTaskIDs           = "WORKFLOW.Api.ListUserTaskIDs"
-	ApiGetUserTask               = "WORKFLOW.Api.GetUserTask"
-	ApiHandleWorkflowError       = "WORKFLOW.Api.HandleWorkflowError"
-	ApiGetServerInstanceStats    = "WORKFLOW.Api.GetServerInstanceStats"
-	ApiGetServiceTaskRoutingID   = "WORKFLOW.Api.GetServiceTaskRoutingID"
-	ApiGetMessageSenderRoutingID = "WORKFLOW.Api.GetMessageSenderRoutingID"
+	APIAll                       = "Workflow.Api.*"
+	APIStoreWorkflow             = "WORKFLOW.Api.StoreWorkflow"
+	APILaunchWorkflow            = "WORKFLOW.Api.LaunchWorkflow"
+	APIListWorkflows             = "WORKFLOW.Api.ListWorkflows"
+	APIListWorkflowInstance      = "WORKFLOW.Api.ListWorkflowInstance"
+	APIGetWorkflowStatus         = "WORKFLOW.Api.GetWorkflowInstanceStatus"
+	APICancelWorkflowInstance    = "WORKFLOW.Api.CancelWorkflowInstance"
+	APISendMessage               = "WORKFLOW.Api.SendMessage"
+	APICompleteManualTask        = "WORKFLOW.Api.CompleteManualTask"
+	APICompleteServiceTask       = "WORKFLOW.Api.CompleteServiceTask"
+	APICompleteUserTask          = "WORKFLOW.Api.CompleteUserTask"
+	APICompleteSendMessageTask   = "WORKFLOW.Api.CompleteSendMessageTask"
+	APIListUserTaskIDs           = "WORKFLOW.Api.ListUserTaskIDs"
+	APIGetUserTask               = "WORKFLOW.Api.GetUserTask"
+	APIHandleWorkflowError       = "WORKFLOW.Api.HandleWorkflowError"
+	APIGetServerInstanceStats    = "WORKFLOW.Api.GetServerInstanceStats"
+	APIGetServiceTaskRoutingID   = "WORKFLOW.Api.GetServiceTaskRoutingID"
+	APIGetMessageSenderRoutingID = "WORKFLOW.Api.GetMessageSenderRoutingID"
 )
 
 var (

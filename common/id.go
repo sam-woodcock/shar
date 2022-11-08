@@ -6,9 +6,8 @@ func (t TrackingID) ID() string {
 	gen := len(t)
 	if gen > 0 {
 		return t[gen-1]
-	} else {
-		return ""
 	}
+	return ""
 }
 
 func (t TrackingID) ParentID() string {
@@ -18,9 +17,8 @@ func (t TrackingID) ParentID() string {
 func (t TrackingID) Ancestor(gen int) string {
 	if len(t) > 0 && len(t)-1-gen >= 0 {
 		return t[len(t)-1-gen]
-	} else {
-		return ""
 	}
+	return ""
 }
 
 func (t TrackingID) Pop() TrackingID {
