@@ -5,10 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
-	"time"
-
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client/parser"
@@ -26,19 +22,36 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	"strconv"
+	"strings"
+	"time"
 )
 
-type Command struct {
-	cl    *Client
-	wfiID string
+type JobClient struct {
+	cl         *Client
+	trackingID string
 }
 
-func (c *Command) SendMessage(ctx context.Context, name string, key any, vars model.Vars) error {
+func (c *JobClient) Log(ctx context.Context, severity messages.WorkflowLogLevel, code int32, message string, attrs map[string]string) error {
+	return c.cl.clientLog(ctx, c.trackingID, severity, code, message, attrs)
+}
+
+type MessageClient struct {
+	cl         *Client
+	wfiID      string
+	trackingID string
+}
+
+func (c *MessageClient) SendMessage(ctx context.Context, name string, key any, vars model.Vars) error {
 	return c.cl.SendMessage(ctx, c.wfiID, name, key, vars)
 }
 
-type ServiceFn func(ctx context.Context, vars model.Vars) (model.Vars, error)
-type SenderFn func(ctx context.Context, client *Command, vars model.Vars) error
+func (c *MessageClient) Log(ctx context.Context, severity messages.WorkflowLogLevel, code int32, message string, attrs map[string]string) error {
+	return c.cl.clientLog(ctx, c.trackingID, severity, code, message, attrs)
+}
+
+type ServiceFn func(ctx context.Context, client *JobClient, vars model.Vars) (model.Vars, error)
+type SenderFn func(ctx context.Context, client *MessageClient, vars model.Vars) error
 
 type Client struct {
 	js             nats.JetStreamContext
@@ -161,9 +174,10 @@ func (c *Client) listen(ctx context.Context) error {
 			xctx = context.WithValue(xctx, ctxkey.WorkflowInstanceID, ut.WorkflowInstanceId)
 			switch ut.ElementType {
 			case "serviceTask":
-				job, err := c.storage.GetJob(xctx, common.TrackingID(ut.Id).ID())
+				trackingID := common.TrackingID(ut.Id).ID()
+				job, err := c.storage.GetJob(xctx, trackingID)
 				if err != nil {
-					c.log.Error("failed to get job", zap.Error(err), zap.String("JobId", common.TrackingID(ut.Id).ID()))
+					c.log.Error("failed to get job", zap.Error(err), zap.String("JobId", trackingID))
 					return false, err
 				}
 				if svcFn, ok := c.SvcTasks[*job.Execute]; !ok {
@@ -182,7 +196,7 @@ func (c *Client) listen(ctx context.Context) error {
 								e = &errors2.ErrWorkflowFatal{Err: fmt.Errorf("call to service task \"%s\" terminated in panic: %w", *ut.Execute, r.(error))}
 							}
 						}()
-						v, e = svcFn(xctx, dv)
+						v, e = svcFn(xctx, &JobClient{cl: c, trackingID: trackingID}, dv)
 						return
 					}()
 					if err != nil {
@@ -191,7 +205,7 @@ func (c *Client) listen(ctx context.Context) error {
 						if errors.As(err, wfe) {
 							v, err := vars.Encode(c.log, newVars)
 							res := &model.HandleWorkflowErrorResponse{}
-							req := &model.HandleWorkflowErrorRequest{TrackingId: common.TrackingID(ut.Id).ID(), ErrorCode: wfe.Code, Vars: v}
+							req := &model.HandleWorkflowErrorRequest{TrackingId: trackingID, ErrorCode: wfe.Code, Vars: v}
 							if err2 := callAPI(ctx, c.txCon, messages.ApiHandleWorkflowError, req, res); err2 != nil {
 								// TODO: This isn't right.  If this call fails it assumes it is handled!
 								c.log.Error("failed to handle workflow error", zap.Any("workflowError", wfe), zap.Error(err2))
@@ -204,7 +218,7 @@ func (c *Client) listen(ctx context.Context) error {
 						}
 						return wfe.Code != "", err
 					}
-					err = c.completeServiceTask(xctx, common.TrackingID(ut.Id).ID(), newVars)
+					err = c.completeServiceTask(xctx, trackingID, newVars)
 					ae := &apiError{}
 					if errors.As(err, &ae) {
 						if codes.Code(ae.Code) == codes.Internal {
@@ -229,7 +243,8 @@ func (c *Client) listen(ctx context.Context) error {
 					return true, nil
 				}
 			case "intermediateThrowEvent":
-				job, err := c.storage.GetJob(xctx, common.TrackingID(ut.Id).ID())
+				trackingID := common.TrackingID(ut.Id).ID()
+				job, err := c.storage.GetJob(xctx, trackingID)
 				if err != nil {
 					c.log.Error("failed to get send message task", zap.Error(err), zap.String("JobId", common.TrackingID(ut.Id).ID()))
 					return false, err
@@ -242,11 +257,12 @@ func (c *Client) listen(ctx context.Context) error {
 						c.log.Error("failed to decode vars", zap.Error(err), zap.String("fn", *job.Execute))
 						return false, err
 					}
-					if err := sendFn(xctx, &Command{cl: c, wfiID: job.WorkflowInstanceId}, dv); err != nil {
+					xctx = context.WithValue(xctx, ctxkey.TrackingID, trackingID)
+					if err := sendFn(xctx, &MessageClient{cl: c, trackingID: trackingID, wfiID: job.WorkflowInstanceId}, dv); err != nil {
 						c.log.Warn("nats listener", zap.Error(err))
 						return false, err
 					}
-					if err := c.completeSendMessage(xctx, common.TrackingID(ut.Id).ID(), make(map[string]any)); errors2.IsWorkflowFatal(err) {
+					if err := c.completeSendMessage(xctx, trackingID, make(map[string]any)); errors2.IsWorkflowFatal(err) {
 						c.log.Error("a fatal error occurred in message sender "+*job.Execute, zap.Error(err))
 					} else if err != nil {
 						c.log.Error("API error", zap.Error(err))
@@ -356,7 +372,7 @@ func (c *Client) cancelWorkflowInstanceWithError(ctx context.Context, instanceID
 	res := &emptypb.Empty{}
 	req := &model.CancelWorkflowInstanceRequest{
 		Id:    instanceID,
-		State: model.CancellationState_Errored,
+		State: model.CancellationState_errored,
 		Error: wfe,
 	}
 	if err := callAPI(ctx, c.txCon, messages.ApiCancelWorkflowInstance, req, res); err != nil {
@@ -474,6 +490,10 @@ func (c *Client) GetServerInstanceStats(ctx context.Context) (*model.WorkflowSta
 		return nil, c.clientErr(ctx, err)
 	}
 	return res, nil
+}
+
+func (c *Client) clientLog(ctx context.Context, trackingID string, severity messages.WorkflowLogLevel, code int32, message string, attrs map[string]string) error {
+	return common.Log(ctx, c.txJS, trackingID, model.LogSource_logSourceJob, severity, code, message, attrs)
 }
 
 func callAPI[T proto.Message, U proto.Message](_ context.Context, con *nats.Conn, subject string, command T, ret U) error {

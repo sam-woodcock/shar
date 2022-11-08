@@ -85,14 +85,14 @@ func main() {
 }
 
 // A "Hello World" service task
-func prepare(_ context.Context, vars model.Vars) (model.Vars, error) {
+func prepare(_ context.Context, _ *client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Preparing")
 	oid := vars["OrderId"].(int)
 	return model.Vars{"OrderId": oid + 1}, nil
 }
 
 // A "Hello World" service task
-func complete(_ context.Context, vars model.Vars) (model.Vars, error) {
+func complete(_ context.Context, _ *client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("OrderId", vars["OrderId"])
 	fmt.Println("Forename", vars["Forename"])
 	fmt.Println("Surname", vars["Surname"])

@@ -292,7 +292,7 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 	}
 	if !found {
 		werr := &errors2.ErrWorkflowFatal{Err: fmt.Errorf("workflow-fatal: can't handle error code %s as the workflow doesn't support it: %w", req.ErrorCode, err)}
-		if _, err := s.cancelWorkflowInstance(ctx, &model.CancelWorkflowInstanceRequest{Id: job.WorkflowInstanceId, State: model.CancellationState_Errored}); err != nil {
+		if _, err := s.cancelWorkflowInstance(ctx, &model.CancelWorkflowInstanceRequest{Id: job.WorkflowInstanceId, State: model.CancellationState_errored}); err != nil {
 			return nil, fmt.Errorf("failed to cancel workflow instance: %w", werr)
 		}
 		// TODO: This always assumes service task.  Wrong!

@@ -433,7 +433,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 	}
 
 	if tState.Error != nil {
-		tState.State = model.CancellationState_Errored
+		tState.State = model.CancellationState_errored
 	}
 
 	if err := s.deleteWorkflow(tState); err != nil {
