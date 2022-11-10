@@ -9,6 +9,7 @@ import (
 	"gitlab.com/shar-workflow/shar/server/services"
 )
 
+// NatsService is the shar type responsible for interacting with NATS.
 type NatsService interface {
 	AwaitMsg(ctx context.Context, state *model.WorkflowState) error
 	SetTraversalProvider(provider services.TraversalFunc)

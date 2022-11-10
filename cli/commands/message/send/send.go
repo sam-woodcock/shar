@@ -10,6 +10,7 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 )
 
+// Cmd is the cobra command object
 var Cmd = &cobra.Command{
 	Use:   "send",
 	Short: "Sends a workflow message",

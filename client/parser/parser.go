@@ -15,6 +15,7 @@ import (
 //goland:noinspection HttpUrlsUsage
 const bpmnNS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 
+// Parse parses BPMN, and turns it into a SHAR state machine
 func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 	msgs := make(map[string]string)
 	errs := make(map[string]string)

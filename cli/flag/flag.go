@@ -23,6 +23,7 @@ const (
 	DebugTraceShort = "d"
 )
 
+// Set is the set of flags associated with the CLI.
 type Set struct {
 	Server         string
 	LogLevel       string
@@ -31,4 +32,5 @@ type Set struct {
 	Vars           []string
 }
 
+// Value contains the values of the SHAR CLI flags.
 var Value Set

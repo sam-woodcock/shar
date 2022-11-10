@@ -8,7 +8,6 @@ import (
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client/parser"
-	"gitlab.com/shar-workflow/shar/client/services"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/ctxkey"
 	"gitlab.com/shar-workflow/shar/common/subj"
@@ -27,10 +26,13 @@ import (
 	"time"
 )
 
+// LogClient represents a client which is capable of logging to the SHAR infrastructure.
 type LogClient interface {
+	// Log logs to the underlying SHAR infrastructure.
 	Log(ctx context.Context, severity messages.WorkflowLogLevel, code int32, message string, attrs map[string]string) error
 }
 
+// JobClient represents a client that is sent to all service tasks to facilitate logging.
 type JobClient interface {
 	LogClient
 }
@@ -40,12 +42,15 @@ type jobClient struct {
 	trackingID string
 }
 
+// Log logs to the span related to this jobClient instance.
 func (c *jobClient) Log(ctx context.Context, severity messages.WorkflowLogLevel, code int32, message string, attrs map[string]string) error {
 	return c.cl.clientLog(ctx, c.trackingID, severity, code, message, attrs)
 }
 
+// MessageClient represents a client which supports logging and sending Workflow Messages to the underlying SHAR instrastructure.
 type MessageClient interface {
 	LogClient
+	// SendMessage sends a Workflow Message
 	SendMessage(ctx context.Context, name string, key any, vars model.Vars) error
 }
 
@@ -55,21 +60,26 @@ type messageClient struct {
 	trackingID string
 }
 
+// SendMessage sends a Workflow Message into the SHAR engine
 func (c *messageClient) SendMessage(ctx context.Context, name string, key any, vars model.Vars) error {
 	return c.cl.SendMessage(ctx, c.wfiID, name, key, vars)
 }
 
+// Log logs to the span related to this jobClient instance.
 func (c *messageClient) Log(ctx context.Context, severity messages.WorkflowLogLevel, code int32, message string, attrs map[string]string) error {
 	return c.cl.clientLog(ctx, c.trackingID, severity, code, message, attrs)
 }
 
+// ServiceFn provides the signature for service task functions.
 type ServiceFn func(ctx context.Context, client JobClient, vars model.Vars) (model.Vars, error)
+
+// SenderFn provides the signature for functions that can act as Workflow Message senders.
 type SenderFn func(ctx context.Context, client MessageClient, vars model.Vars) error
 
+// Client implements a SHAR client capable of listening for service task activations, listening for Workflow Messages, and interating with the API
 type Client struct {
 	js             nats.JetStreamContext
 	SvcTasks       map[string]ServiceFn
-	storage        services.Storage
 	log            *zap.Logger
 	con            *nats.Conn
 	complete       chan *model.WorkflowInstanceComplete
@@ -80,12 +90,17 @@ type Client struct {
 	msgListenTasks map[string]struct{}
 	txJS           nats.JetStreamContext
 	txCon          *nats.Conn
+	wfInstance     nats.KeyValue
+	wf             nats.KeyValue
+	job            nats.KeyValue
 }
 
+// Option represents a configuration changer for the client.
 type Option interface {
 	configure(client *Client)
 }
 
+// New creates a new SHAR client instance
 func New(log *zap.Logger, option ...Option) *Client {
 	client := &Client{
 		storageType:    nats.FileStorage,
@@ -102,6 +117,7 @@ func New(log *zap.Logger, option ...Option) *Client {
 	return client
 }
 
+// Dial instructs the client to connect to a NATS server.
 func (c *Client) Dial(natsURL string, opts ...nats.Option) error {
 	n, err := nats.Connect(natsURL, opts...)
 	if err != nil {
@@ -123,13 +139,23 @@ func (c *Client) Dial(natsURL string, opts ...nats.Option) error {
 	c.txJS = txJS
 	c.con = n
 	c.txCon = txnc
-	c.storage, err = services.NewNatsClientProvider(c.log, js, c.storageType)
 	if err != nil {
+		return err
+	}
+
+	if c.wfInstance, err = js.KeyValue("WORKFLOW_INSTANCE"); err != nil {
+		return err
+	}
+	if c.wf, err = js.KeyValue("WORKFLOW_DEF"); err != nil {
+		return err
+	}
+	if c.job, err = js.KeyValue("WORKFLOW_JOB"); err != nil {
 		return err
 	}
 	return nil
 }
 
+// RegisterServiceTask adds a new service task to listen for to the client.
 func (c *Client) RegisterServiceTask(ctx context.Context, taskName string, fn ServiceFn) error {
 	id, err := c.getServiceTaskRoutingID(ctx, taskName)
 	if err != nil {
@@ -143,6 +169,7 @@ func (c *Client) RegisterServiceTask(ctx context.Context, taskName string, fn Se
 	return nil
 }
 
+// RegisterMessageSender registers a function that requires support for sending Workflow Messages
 func (c *Client) RegisterMessageSender(ctx context.Context, workflowName string, messageName string, sender SenderFn) error {
 	id, err := c.getMessageSenderRoutingID(ctx, workflowName, messageName)
 	if err != nil {
@@ -156,6 +183,7 @@ func (c *Client) RegisterMessageSender(ctx context.Context, workflowName string,
 	return nil
 }
 
+// Listen starts processing the client message queues.
 func (c *Client) Listen(ctx context.Context) error {
 	if err := c.listen(ctx); err != nil {
 		return c.clientErr(ctx, err)
@@ -188,7 +216,7 @@ func (c *Client) listen(ctx context.Context) error {
 			switch ut.ElementType {
 			case "serviceTask":
 				trackingID := common.TrackingID(ut.Id).ID()
-				job, err := c.storage.GetJob(xctx, trackingID)
+				job, err := c.GetJob(xctx, trackingID)
 				if err != nil {
 					c.log.Error("failed to get job", zap.Error(err), zap.String("JobId", trackingID))
 					return false, err
@@ -258,7 +286,7 @@ func (c *Client) listen(ctx context.Context) error {
 
 			case "intermediateThrowEvent":
 				trackingID := common.TrackingID(ut.Id).ID()
-				job, err := c.storage.GetJob(xctx, trackingID)
+				job, err := c.GetJob(xctx, trackingID)
 				if err != nil {
 					c.log.Error("failed to get send message task", zap.Error(err), zap.String("JobId", common.TrackingID(ut.Id).ID()))
 					return false, err
@@ -317,6 +345,7 @@ func (c *Client) listenWorkflowComplete(_ context.Context) error {
 	return nil
 }
 
+// ListUserTaskIDs returns a list of user tasks for a particular owner
 func (c *Client) ListUserTaskIDs(ctx context.Context, owner string) (*model.UserTasks, error) {
 	res := &model.UserTasks{}
 	req := &model.ListUserTasksRequest{Owner: owner}
@@ -326,6 +355,7 @@ func (c *Client) ListUserTaskIDs(ctx context.Context, owner string) (*model.User
 	return res, nil
 }
 
+// CompleteUserTask completes a task and sends the variables back to the workflow
 func (c *Client) CompleteUserTask(ctx context.Context, owner string, trackingID string, newVars model.Vars) error {
 	ev, err := vars.Encode(c.log, newVars)
 	if err != nil {
@@ -365,6 +395,7 @@ func (c *Client) completeSendMessage(ctx context.Context, trackingID string, new
 	return nil
 }
 
+// LoadBPMNWorkflowFromBytes loads, parses, and stores a BPMN workflow in SHAR.
 func (c *Client) LoadBPMNWorkflowFromBytes(ctx context.Context, name string, b []byte) (string, error) {
 	rdr := bytes.NewReader(b)
 	wf, err := parser.Parse(name, rdr)
@@ -378,6 +409,7 @@ func (c *Client) LoadBPMNWorkflowFromBytes(ctx context.Context, name string, b [
 	return "", c.clientErr(ctx, err)
 }
 
+// CancelWorkflowInstance cancels a running workflow instance.
 func (c *Client) CancelWorkflowInstance(ctx context.Context, instanceID string) error {
 	return c.cancelWorkflowInstanceWithError(ctx, instanceID, nil)
 }
@@ -395,6 +427,7 @@ func (c *Client) cancelWorkflowInstanceWithError(ctx context.Context, instanceID
 	return nil
 }
 
+// LaunchWorkflow launches a new workflow instance.
 func (c *Client) LaunchWorkflow(ctx context.Context, workflowName string, mvars model.Vars) (string, error) {
 	ev, err := vars.Encode(c.log, mvars)
 	if err != nil {
@@ -408,6 +441,7 @@ func (c *Client) LaunchWorkflow(ctx context.Context, workflowName string, mvars 
 	return res.Value, nil
 }
 
+// ListWorkflowInstance gets a list of running workflow instances by workflow name.
 func (c *Client) ListWorkflowInstance(ctx context.Context, name string) ([]*model.ListWorkflowInstanceResult, error) {
 	req := &model.ListWorkflowInstanceRequest{WorkflowName: name}
 	res := &model.ListWorkflowInstanceResponse{}
@@ -417,6 +451,7 @@ func (c *Client) ListWorkflowInstance(ctx context.Context, name string) ([]*mode
 	return res.Result, nil
 }
 
+// ListWorkflows gets a list of launchable workflow in SHAR.
 func (c *Client) ListWorkflows(ctx context.Context) ([]*model.ListWorkflowResult, error) {
 	req := &emptypb.Empty{}
 	res := &model.ListWorkflowsResponse{}
@@ -426,6 +461,7 @@ func (c *Client) ListWorkflows(ctx context.Context) ([]*model.ListWorkflowResult
 	return res.Result, nil
 }
 
+// GetWorkflowInstanceStatus get the current execution state for a workflow instance.
 func (c *Client) GetWorkflowInstanceStatus(ctx context.Context, id string) ([]*model.WorkflowState, error) {
 	req := &model.GetWorkflowInstanceStatusRequest{Id: id}
 	res := &model.WorkflowInstanceStatus{}
@@ -453,6 +489,7 @@ func (c *Client) getMessageSenderRoutingID(ctx context.Context, workflowName str
 	return res.Value, nil
 }
 
+// GetUserTask fetches details for a user task based upon an ID obtained from, ListUserTasks
 func (c *Client) GetUserTask(ctx context.Context, owner string, trackingID string) (*model.GetUserTaskResponse, model.Vars, error) {
 	req := &model.GetUserTaskRequest{Owner: owner, TrackingId: trackingID}
 	res := &model.GetUserTaskResponse{}
@@ -466,6 +503,7 @@ func (c *Client) GetUserTask(ctx context.Context, owner string, trackingID strin
 	return res, v, nil
 }
 
+// SendMessage sends a Workflow Message to a specific workflow instance
 func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, name string, key any, mvars model.Vars) error {
 	if workflowInstanceID == "" {
 		workflowInstanceID = ctx.Value(ctxkey.WorkflowInstanceID).(string)
@@ -493,10 +531,12 @@ func (c *Client) clientErr(_ context.Context, err error) error {
 	return err
 }
 
+// RegisterWorkflowInstanceComplete registers a function to run when workflow instances complete.
 func (c *Client) RegisterWorkflowInstanceComplete(fn chan *model.WorkflowInstanceComplete) {
 	c.complete = fn
 }
 
+// GetServerInstanceStats is an unsupported function to obtain server metrics
 func (c *Client) GetServerInstanceStats(ctx context.Context) (*model.WorkflowStats, error) {
 	req := &emptypb.Empty{}
 	res := &model.WorkflowStats{}
@@ -508,6 +548,14 @@ func (c *Client) GetServerInstanceStats(ctx context.Context) (*model.WorkflowSta
 
 func (c *Client) clientLog(ctx context.Context, trackingID string, severity messages.WorkflowLogLevel, code int32, message string, attrs map[string]string) error {
 	return common.Log(ctx, c.txJS, trackingID, model.LogSource_logSourceJob, severity, code, message, attrs)
+}
+
+func (c *Client) GetJob(_ context.Context, id string) (*model.WorkflowState, error) {
+	job := &model.WorkflowState{}
+	if err := common.LoadObj(c.job, id, job); err != nil {
+		return nil, err
+	}
+	return job, nil
 }
 
 func callAPI[T proto.Message, U proto.Message](_ context.Context, con *nats.Conn, subject string, command T, ret U) error {

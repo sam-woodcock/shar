@@ -22,6 +22,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
+// SharServer provides API endpoints for SHAR
 type SharServer struct {
 	log           *zap.Logger
 	ns            *services.NatsService
@@ -30,6 +31,7 @@ type SharServer struct {
 	panicRecovery bool
 }
 
+// New creates a new instance of the SHAR API server
 func New(log *zap.Logger, ns *services.NatsService, panicRecovery bool) (*SharServer, error) {
 	engine, err := workflow.NewEngine(log, ns)
 	if err != nil {
@@ -146,6 +148,7 @@ func (s *SharServer) completeUserTask(ctx context.Context, req *model.CompleteUs
 
 var shutdownOnce sync.Once
 
+// Shutdown gracefully shuts down the SHAR API server and Engine
 func (s *SharServer) Shutdown() {
 	s.log.Info("stopping shar api listener")
 	shutdownOnce.Do(func() {
@@ -159,6 +162,7 @@ func (s *SharServer) Shutdown() {
 	})
 }
 
+// Listen starts the SHAR API server listening to incoming requests
 func (s *SharServer) Listen() error {
 	con := s.ns.Conn()
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
