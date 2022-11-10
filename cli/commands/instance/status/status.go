@@ -9,6 +9,7 @@ import (
 	"gitlab.com/shar-workflow/shar/client"
 )
 
+// Cmd is the cobra command object
 var Cmd = &cobra.Command{
 	Use:   "status",
 	Short: "Gets the status of a running workflow instance",

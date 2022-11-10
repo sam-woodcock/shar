@@ -798,6 +798,7 @@ func (c *Engine) messageCompleteProcessor(ctx context.Context, state *model.Work
 	return nil
 }
 
+// CompleteManualTask completes a manual workflow task
 func (c *Engine) CompleteManualTask(ctx context.Context, trackingID string, newvars []byte) error {
 	job, err := c.ns.GetJob(ctx, trackingID)
 	if err != nil {
@@ -818,6 +819,7 @@ func (c *Engine) CompleteManualTask(ctx context.Context, trackingID string, newv
 	return nil
 }
 
+// CompleteServiceTask completes a workflow service task
 func (c *Engine) CompleteServiceTask(ctx context.Context, trackingID string, newvars []byte) error {
 	job, err := c.ns.GetJob(ctx, trackingID)
 	if err != nil {
@@ -846,6 +848,7 @@ func (c *Engine) CompleteServiceTask(ctx context.Context, trackingID string, new
 	return nil
 }
 
+// CompleteSendMessageTask completes a send message task
 func (c *Engine) CompleteSendMessageTask(ctx context.Context, trackingID string, newvars []byte) error {
 	job, err := c.ns.GetJob(ctx, trackingID)
 	if err != nil {
@@ -864,6 +867,7 @@ func (c *Engine) CompleteSendMessageTask(ctx context.Context, trackingID string,
 	return nil
 }
 
+// CompleteUserTask completes and closes a user task with variables
 func (c *Engine) CompleteUserTask(ctx context.Context, trackingID string, newvars []byte) error {
 	job, err := c.ns.GetJob(ctx, trackingID)
 	if err != nil {
@@ -1023,10 +1027,6 @@ func (c *Engine) timedExecuteProcessor(ctx context.Context, state *model.Workflo
 		}
 	}
 	return true, 0, nil
-}
-
-func (c *Engine) PublishError(ctx context.Context, state *model.WorkflowState, err error) (bool, error) {
-	return true, err
 }
 
 func (c *Engine) abortProcessor(ctx context.Context, abort services.AbortType, state *model.WorkflowState) (bool, error) {

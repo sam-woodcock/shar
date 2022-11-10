@@ -207,10 +207,35 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 		return "", fmt.Errorf("could not marshal workflow: %s", wf.Name)
 	}
 	hash := h.Sum(nil)
-	err = common.SaveObj(ctx, s.wf, wfID, wf)
-	if err != nil {
-		return "", fmt.Errorf("could not save workflow: %s", wf.Name)
+
+	var newWf bool
+	if err := common.UpdateObj(ctx, s.wfVersion, wf.Name, &model.WorkflowVersions{}, func(v *model.WorkflowVersions) (*model.WorkflowVersions, error) {
+		n := len(v.Version)
+		if v.Version == nil || n == 0 {
+			v.Version = make([]*model.WorkflowVersion, 0, 1)
+		} else {
+			if bytes.Equal(hash, v.Version[0].Sha256) {
+				wfID = v.Version[0].Id
+				return v, nil
+			}
+		}
+		newWf = true
+		err = common.SaveObj(ctx, s.wf, wfID, wf)
+		if err != nil {
+			return nil, fmt.Errorf("could not save workflow: %s", wf.Name)
+		}
+		v.Version = append([]*model.WorkflowVersion{
+			{Id: wfID, Sha256: hash, Number: int32(n) + 1},
+		}, v.Version...)
+		return v, nil
+	}); err != nil {
+		return "", fmt.Errorf("could not update workflow version for: %s", wf.Name)
 	}
+
+	if !newWf {
+		return wfID, nil
+	}
+
 	for _, m := range wf.Messages {
 		ks := ksuid.New()
 		if _, err := common.Load(s.wfMessageID, m.Name); err == nil {
@@ -262,22 +287,6 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 				}
 			}
 		}
-
-	}
-	if err := common.UpdateObj(ctx, s.wfVersion, wf.Name, &model.WorkflowVersions{}, func(v *model.WorkflowVersions) (*model.WorkflowVersions, error) {
-		if v.Version == nil || len(v.Version) == 0 {
-			v.Version = make([]*model.WorkflowVersion, 0, 1)
-		} else {
-			if bytes.Equal(hash, v.Version[0].Sha256) {
-				return v, nil
-			}
-		}
-		v.Version = append([]*model.WorkflowVersion{
-			{Id: wfID, Sha256: hash, Number: int32(len(v.Version)) + 1},
-		}, v.Version...)
-		return v, nil
-	}); err != nil {
-		return "", fmt.Errorf("could not update workflow version for: %s", wf.Name)
 	}
 
 	go s.incrementWorkflowCount()

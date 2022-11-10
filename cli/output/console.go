@@ -9,9 +9,11 @@ import (
 	"time"
 )
 
+// Console provides a client output implementation for console
 type Console struct {
 }
 
+// OutputWorkflowInstanceStatus outputs a workflow instance status to console
 func (c *Console) OutputWorkflowInstanceStatus(status []*model.WorkflowState) error {
 	st := status[0]
 	fmt.Println("Instance: " + st.WorkflowInstanceId)

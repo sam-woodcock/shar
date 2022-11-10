@@ -9,6 +9,7 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 )
 
+// Parse parses a set, and turns an array of typed parameters into a corresponding map of shar workflow variables.
 func Parse(arr []string) (*model.Vars, error) {
 	vars := model.Vars{}
 	for _, elem := range arr {

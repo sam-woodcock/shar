@@ -97,6 +97,7 @@ func main() {
 	time.Sleep(100 * time.Hour)
 }
 
+// EnsureConsumer sets up a new NATS consumer if one does not already exist.
 func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
 	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); err == nats.ErrConsumerNotFound {
 		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {

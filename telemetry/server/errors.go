@@ -2,6 +2,7 @@ package server
 
 import "fmt"
 
+// AbandonOpError signifies an operation should trigger abandoning the active task.
 type AbandonOpError struct {
 	Err error
 }

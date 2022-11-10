@@ -2,12 +2,13 @@ package client
 
 import "github.com/nats-io/nats.go"
 
-func WithEphemeralStorage() EphemeralStorage {
-	return EphemeralStorage{}
+// WithEphemeralStorage specifies a client store the result of all operations in memory.
+func WithEphemeralStorage() ephemeralStorage { //nolint
+	return ephemeralStorage{}
 }
 
-type EphemeralStorage struct{}
+type ephemeralStorage struct{}
 
-func (o EphemeralStorage) configure(client *Client) {
+func (o ephemeralStorage) configure(client *Client) {
 	client.storageType = nats.MemoryStorage
 }

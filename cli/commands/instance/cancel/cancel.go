@@ -9,6 +9,7 @@ import (
 	"gitlab.com/shar-workflow/shar/client"
 )
 
+// Cmd is the cobra command object
 var Cmd = &cobra.Command{
 	Use:   "cancel",
 	Short: "Cancel a running workflow instance",

@@ -5,36 +5,37 @@ import (
 	"go.uber.org/zap"
 )
 
+// NatsLogger provides a simple logger that logs to console
 type NatsLogger struct {
 	l *zap.Logger
 }
 
-// Log a notice statement
+// Noticef logs a notice statement
 func (n *NatsLogger) Noticef(format string, v ...interface{}) {
 	n.l.Info(fmt.Sprintf(format, v...))
 }
 
-// Log a warning statement
+// Warnf logs a warning statement
 func (n *NatsLogger) Warnf(format string, v ...interface{}) {
 	n.l.Warn(fmt.Sprintf(format, v...))
 }
 
-// Log a fatal error
+// Fatalf logs a fatal error
 func (n *NatsLogger) Fatalf(format string, v ...interface{}) {
 	n.l.Fatal(fmt.Sprintf(format, v...))
 }
 
-// Log an error
+// Errorf logs an error
 func (n *NatsLogger) Errorf(format string, v ...interface{}) {
 	n.l.Error(fmt.Sprintf(format, v...))
 }
 
-// Log a debug statement
+// Debugf logs a debug statement
 func (n *NatsLogger) Debugf(format string, v ...interface{}) {
 	n.l.Debug(fmt.Sprintf(format, v...))
 }
 
-// Log a trace statement
+// Tracef logs a trace statement
 func (n *NatsLogger) Tracef(format string, v ...interface{}) {
 	n.l.Info("trace: " + fmt.Sprintf(format, v...))
 }

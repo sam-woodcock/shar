@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// Cmd is the cobra command object
 var Cmd = &cobra.Command{
 	Use:   "start",
 	Short: "Starts a new workflow instance",
@@ -118,6 +119,7 @@ func init() {
 	Cmd.PersistentFlags().StringSliceVarP(&flag.Value.Vars, flag.Vars, flag.VarsShort, []string{}, "pass variables to given workflow, eg --vars \"orderId:int(78),serviceId:string(hello)\"")
 }
 
+// EnsureConsumer sets up the consumer in NATS if one doesn't exist already
 func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
 	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); err == nats.ErrConsumerNotFound {
 		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
