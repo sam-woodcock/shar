@@ -15,6 +15,6 @@ type publishEmbargoOption struct {
 
 func (o *publishEmbargoOption) Apply(n *publishOptions) { n.Embargo = o.value }
 
-func WithEmbargo(embargo int) *publishEmbargoOption {
+func WithEmbargo(embargo int) *publishEmbargoOption { //nolint
 	return &publishEmbargoOption{value: embargo}
 }
