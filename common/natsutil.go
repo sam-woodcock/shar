@@ -5,16 +5,17 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"math/big"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common/setup"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
-	"math/big"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type NatsConn interface {
@@ -150,6 +151,13 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, tra
 					cancel()
 					continue
 				}
+
+				// Check if messages empty;
+				if len(msg) < 1 {
+					log.Error("msg fetched from sub returned empty")
+					continue
+				}
+
 				m := msg[0]
 				//				log.Debug("Process:"+traceName, zap.String("subject", msg[0].Subject))
 				cancel()
