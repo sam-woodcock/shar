@@ -5,6 +5,7 @@ import (
 	"gitlab.com/shar-workflow/shar/cli/commands/bpmn/load"
 )
 
+// Cmd is the cobra command object
 var Cmd = &cobra.Command{
 	Use:   "bpmn",
 	Short: "Actions for manipulating bpmn",

@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// GetServers returns a test NATS and SHAR server.
 func GetServers(natsHost string, natsPort int, logger *zap.Logger) (*sharsvr.Server, *server.Server, error) {
 	nsvr, err := server.NewServer(&server.Options{
 		ConfigFile:            "",

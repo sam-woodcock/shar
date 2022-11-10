@@ -25,6 +25,7 @@ import (
 	"time"
 )
 
+// Server is the shar server type responsible for hosting the telemetry server.
 type Server struct {
 	log    *zap.Logger
 	js     nats.JetStreamContext
@@ -34,6 +35,7 @@ type Server struct {
 	wfi    nats.KeyValue
 }
 
+// New creates a new telemetry server.
 func New(js nats.JetStreamContext, logger *zap.Logger, res *resource.Resource, exp *jaeger.Exporter) *Server {
 	return &Server{
 		js:  js,
@@ -43,6 +45,7 @@ func New(js nats.JetStreamContext, logger *zap.Logger, res *resource.Resource, e
 	}
 }
 
+// Listen starts the telemtry server.
 func (s *Server) Listen() error {
 	ctx := context.Background()
 	closer := make(chan struct{})

@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// Trace sets a consumer onto the workflow messages and outputs them to the console
 func Trace(natsURL string) *nats.Subscription {
 	nc, _ := nats.Connect(natsURL)
 	sub, err := nc.Subscribe("WORKFLOW.>", func(msg *nats.Msg) {
@@ -18,7 +19,7 @@ func Trace(natsURL string) *nats.Subscription {
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println(msg.Subject, d.State, Last4(d.WorkflowInstanceId), "T:"+Last4(common.TrackingID(d.Id).ID()), "P:"+Last4(common.TrackingID(d.Id).ParentID()), d.ElementType, d.ElementId)
+			fmt.Println(msg.Subject, d.State, last4(d.WorkflowInstanceId), "T:"+last4(common.TrackingID(d.Id).ID()), "P:"+last4(common.TrackingID(d.Id).ParentID()), d.ElementType, d.ElementId)
 		} else {
 			fmt.Println(msg.Subject)
 		}
@@ -29,7 +30,7 @@ func Trace(natsURL string) *nats.Subscription {
 	return sub
 }
 
-func Last4(s string) string {
+func last4(s string) string {
 	if len(s) < 4 {
 		return ""
 	}

@@ -18,6 +18,7 @@ import (
 	"syscall"
 )
 
+// Server is the shar server type responsible for hosting the SHAR API.
 type Server struct {
 	sig                     chan os.Signal
 	healthService           *health.Checker
@@ -133,6 +134,7 @@ func (s *Server) createServices(natsURL string, log *zap.Logger, ephemeral bool,
 	return ns
 }
 
+// Ready returns true if the SHAR server is servicing API calls.
 func (s *Server) Ready() bool {
 	return s.healthService.GetStatus() == grpcHealth.HealthCheckResponse_SERVING
 }

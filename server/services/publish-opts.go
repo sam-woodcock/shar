@@ -9,12 +9,12 @@ type PublishOpt interface {
 	Apply(n *publishOptions)
 }
 
-type PublishEmbargoOption struct {
+type publishEmbargoOption struct {
 	value int
 }
 
-func (o *PublishEmbargoOption) Apply(n *publishOptions) { n.Embargo = o.value }
+func (o *publishEmbargoOption) Apply(n *publishOptions) { n.Embargo = o.value }
 
-func WithEmbargo(embargo int) *PublishEmbargoOption {
-	return &PublishEmbargoOption{value: embargo}
+func WithEmbargo(embargo int) *publishEmbargoOption { //nolint
+	return &publishEmbargoOption{value: embargo}
 }

@@ -10,6 +10,7 @@ import (
 	"os"
 )
 
+// Cmd is the cobra command object
 var Cmd = &cobra.Command{
 	Use:   "load",
 	Short: "Loads a BPMN XML file into shar",
