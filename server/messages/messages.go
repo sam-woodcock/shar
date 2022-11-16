@@ -3,57 +3,58 @@ package messages
 import "gitlab.com/shar-workflow/shar/common/subj"
 
 const (
-	WorkflowStateAll                  = "WORKFLOW.%s.State.>"
-	WorkflowJobExecuteAll             = "WORKFLOW.%s.State.Job.Execute.*"
-	WorkFlowJobCompleteAll            = "WORKFLOW.%s.State.Job.Complete.*"
-	WorkFlowJobAbortAll               = "WORKFLOW.%s.State.Job.Abort.*"
-	WorkflowJobServiceTaskExecute     = "WORKFLOW.%s.State.Job.Execute.ServiceTask"
-	WorkflowJobServiceTaskExecuteWild = "WORKFLOW.%s.State.Job.Execute.ServiceTask.>"
-	WorkflowJobServiceTaskComplete    = "WORKFLOW.%s.State.Job.Complete.ServiceTask"
-	WorkflowJobServiceTaskAbort       = "WORKFLOW.%s.State.Job.Abort.ServiceTask"
-	WorkflowJobUserTaskExecute        = "WORKFLOW.%s.State.Job.Execute.UserTask"
-	WorkflowJobUserTaskComplete       = "WORKFLOW.%s.State.Job.Complete.UserTask"
-	WorkflowJobUserTaskAbort          = "WORKFLOW.%s.State.Job.Abort.UserTask"
-	WorkflowJobManualTaskExecute      = "WORKFLOW.%s.State.Job.Execute.ManualTask"
-	WorkflowJobManualTaskComplete     = "WORKFLOW.%s.State.Job.Complete.ManualTask"
-	WorkflowJobManualTaskAbort        = "WORKFLOW.%s.State.Job.Abort.ManualTask"
-	WorkflowJobSendMessageExecute     = "WORKFLOW.%s.State.Job.Execute.SendMessage"
-	WorkflowJobSendMessageExecuteWild = "WORKFLOW.%s.State.Job.Execute.SendMessage.>"
-	WorkflowJobSendMessageComplete    = "WORKFLOW.%s.State.Job.Complete.SendMessage"
-	WorkflowJobTimerTaskExecute       = "WORKFLOW.%s.State.Job.Execute.Timer"
-	WorkflowJobTimerTaskComplete      = "WORKFLOW.%s.State.Job.Complete.Timer"
-	WorkflowJobLaunchExecute          = "WORKFLOW.%s.State.Job.Execute.Launch"
-	WorkflowJobLaunchComplete         = "WORKFLOW.%s.State.Job.Complete.Launch"
-	WorkflowInstanceExecute           = "WORKFLOW.%s.State.Workflow.Execute"
-	WorkflowInstanceComplete          = "WORKFLOW.%s.State.Workflow.Complete"
-	WorkflowInstanceTerminated        = "WORKFLOW.%s.State.Workflow.Terminated"
-	WorkflowInstanceAbort             = "WORKFLOW.%s.State.Workflow.Abort"
-	WorkflowInstanceAll               = "WORKFLOW.%s.State.Workflow.>"
-	WorkflowActivityExecute           = "WORKFLOW.%s.State.Activity.Execute"
-	WorkflowActivityComplete          = "WORKFLOW.%s.State.Activity.Complete"
-	WorkflowActivityAbort             = "WORKFLOW.%s.State.Activity.Abort"
-	WorkflowGeneralAbortAll           = "WORKFLOW.%s.State.*.Abort"
-	WorkflowActivityAll               = "WORKFLOW.%s.State.Activity.>"
-	WorkflowTraversalExecute          = "WORKFLOW.%s.State.Traversal.Execute"
-	WorkflowTraversalComplete         = "WORKFLOW.%s.State.Traversal.Complete"
-	WorkflowTimedExecute              = "WORKFLOW.%s.Timers.WorkflowExecute"
-	WorkflowElementTimedExecute       = "WORKFLOW.%s.Timers.ElementExecute"
-	WorkflowLog                       = "WORKFLOW.%s.State.Log"
-	WorkflowLogAll                    = "WORKFLOW.%s.State.Log.*"
-	WorkflowMessages                  = "WORKFLOW.%s.Message.>"
-	WorkflowCommands                  = "WORKFLOW.%s.Command.>"
+	WorkflowStateAll                  = "WORKFLOW.%s.State.>"                         // WorkflowStateAll is the wildcard subject for catching all state messages.
+	WorkFlowJobCompleteAll            = "WORKFLOW.%s.State.Job.Complete.*"            // WorkFlowJobCompleteAll is the wildcard state message subject for all job completion messages.
+	WorkFlowJobAbortAll               = "WORKFLOW.%s.State.Job.Abort.*"               // WorkFlowJobAbortAll is the wildcard state message subject for all job abort messages.
+	WorkflowJobServiceTaskExecute     = "WORKFLOW.%s.State.Job.Execute.ServiceTask"   // WorkflowJobServiceTaskExecute is the raw state message subject for executing a service task.  An identifier is added to the end to route messages to the clients.
+	WorkflowJobServiceTaskExecuteWild = "WORKFLOW.%s.State.Job.Execute.ServiceTask.>" // WorkflowJobServiceTaskExecuteWild is the wildcard state message subject for all execute service task messages.
+	WorkflowJobServiceTaskComplete    = "WORKFLOW.%s.State.Job.Complete.ServiceTask"  // WorkflowJobServiceTaskComplete is the state message subject for a completed service task,
+	WorkflowJobServiceTaskAbort       = "WORKFLOW.%s.State.Job.Abort.ServiceTask"     // WorkflowJobServiceTaskAbort is the state message subject for aborting an in progress service task.
+	WorkflowJobUserTaskExecute        = "WORKFLOW.%s.State.Job.Execute.UserTask"      // WorkflowJobUserTaskExecute is the state message subject for executing a user task.
+	WorkflowJobUserTaskComplete       = "WORKFLOW.%s.State.Job.Complete.UserTask"     // WorkflowJobUserTaskComplete is the state message subject for completing a user task.
+	WorkflowJobUserTaskAbort          = "WORKFLOW.%s.State.Job.Abort.UserTask"        // WorkflowJobUserTaskAbort is the state message subject for aborting a user task.
+	WorkflowJobManualTaskExecute      = "WORKFLOW.%s.State.Job.Execute.ManualTask"    // WorkflowJobManualTaskExecute is the state message subject for executing a manual task.
+	WorkflowJobManualTaskComplete     = "WORKFLOW.%s.State.Job.Complete.ManualTask"   // WorkflowJobManualTaskComplete is the state message subject for completing a manual task.
+	WorkflowJobManualTaskAbort        = "WORKFLOW.%s.State.Job.Abort.ManualTask"      // WorkflowJobManualTaskAbort is the state message subject for sborting a manual task.
+	WorkflowJobSendMessageExecute     = "WORKFLOW.%s.State.Job.Execute.SendMessage"   // WorkflowJobSendMessageExecute is the state message subject for executing a send workfloe message task.
+	WorkflowJobSendMessageExecuteWild = "WORKFLOW.%s.State.Job.Execute.SendMessage.>" // WorkflowJobSendMessageExecuteWild is the wildcard state message subject for executing a send workfloe message task.
+	WorkflowJobSendMessageComplete    = "WORKFLOW.%s.State.Job.Complete.SendMessage"  // WorkflowJobSendMessageComplete is the state message subject for completing a send message task.
+	WorkflowJobTimerTaskExecute       = "WORKFLOW.%s.State.Job.Execute.Timer"         // WorkflowJobTimerTaskExecute is the state message subject for executing a timed task.
+	WorkflowJobTimerTaskComplete      = "WORKFLOW.%s.State.Job.Complete.Timer"        // WorkflowJobTimerTaskComplete is the state message subject for completing a timed task.
+	WorkflowJobLaunchExecute          = "WORKFLOW.%s.State.Job.Execute.Launch"        // WorkflowJobLaunchExecute is the state message subject for executing a launch subworkflow task.
+	WorkflowJobLaunchComplete         = "WORKFLOW.%s.State.Job.Complete.Launch"       // WorkflowJobLaunchComplete is the state message subject for completing a launch subworkflow task.
+	WorkflowInstanceExecute           = "WORKFLOW.%s.State.Workflow.Execute"          // WorkflowInstanceExecute is the state message subject for executing a workflow instance.
+	WorkflowInstanceComplete          = "WORKFLOW.%s.State.Workflow.Complete"         // WorkflowInstanceComplete is the state message subject for completing a workfloe instance.
+	WorkflowInstanceTerminated        = "WORKFLOW.%s.State.Workflow.Terminated"       // WorkflowInstanceTerminated is the state message subject for a workflow instance terminating.
+	WorkflowInstanceAbort             = "WORKFLOW.%s.State.Workflow.Abort"            // WorkflowInstanceAbort is the state message subject for a workflow instace being aborted.
+	WorkflowInstanceAll               = "WORKFLOW.%s.State.Workflow.>"                // WorkflowInstanceAll is the wildcard state message subject for all workflow state messages.
+	WorkflowActivityExecute           = "WORKFLOW.%s.State.Activity.Execute"          // WorkflowActivityExecute is the state message subject for executing an activity.
+	WorkflowActivityComplete          = "WORKFLOW.%s.State.Activity.Complete"         // WorkflowActivityComplete is the state message subject for completing an activity.
+	WorkflowActivityAbort             = "WORKFLOW.%s.State.Activity.Abort"            // WorkflowActivityAbort is the state message subject for aborting an activity.
+	WorkflowGeneralAbortAll           = "WORKFLOW.%s.State.*.Abort"                   // WorkflowGeneralAbortAll is the wildcard state message subject for all abort messages/.
+	WorkflowActivityAll               = "WORKFLOW.%s.State.Activity.>"                // WorkflowActivityAll is the wildcard state message subject for all activity messages.
+	WorkflowTraversalExecute          = "WORKFLOW.%s.State.Traversal.Execute"         // WorkflowTraversalExecute is the state message subject for executing a new traversal.
+	WorkflowTraversalComplete         = "WORKFLOW.%s.State.Traversal.Complete"        // WorkflowTraversalComplete is the state message subject for completing a traversal.
+	WorkflowTimedExecute              = "WORKFLOW.%s.Timers.WorkflowExecute"          // WorkflowTimedExecute is the state message subject for timed workflow execute operation.
+	WorkflowElementTimedExecute       = "WORKFLOW.%s.Timers.ElementExecute"           // WorkflowElementTimedExecute is the state message subject for a timed element execute operation.
+	WorkflowLog                       = "WORKFLOW.%s.State.Log"                       // WorkflowLog is the state message subject for logging messages to a workflow activity.
+	WorkflowLogAll                    = "WORKFLOW.%s.State.Log.*"                     // WorkflowLogAll is the wildcard state message subject for all logging messages.
+	WorkflowMessages                  = "WORKFLOW.%s.Message.>"                       // WorkflowMessages is the wildcard state message subject for all workflow messages.
+	WorkflowCommands                  = "WORKFLOW.%s.Command.>"                       // WorkflowCommands is the wildcard state message subject for all workflow commands.
 )
 
+// WorkflowLogLevel represents a subject suffox for logging levels
 type WorkflowLogLevel string
 
 const (
-	LogFatal WorkflowLogLevel = ".Fatal"
-	LogError WorkflowLogLevel = ".Error"
-	LogWarn  WorkflowLogLevel = ".Warning"
-	LogInfo  WorkflowLogLevel = ".Info"
-	LogDebug WorkflowLogLevel = ".Debug"
+	LogFatal WorkflowLogLevel = ".Fatal"   // LogFatal is the suffix for a fatal error.
+	LogError WorkflowLogLevel = ".Error"   // LogError is the suffix for an error.
+	LogWarn  WorkflowLogLevel = ".Warning" // LogWarn is the suffix for a warning.
+	LogInfo  WorkflowLogLevel = ".Info"    // LogInfo is the suffix for an information message.
+	LogDebug WorkflowLogLevel = ".Debug"   // LogDebug is the suffix for a debug message.
 )
 
+// LogLevels provides a way of using an index to select a log level.
 var LogLevels = []WorkflowLogLevel{
 	LogFatal,
 	LogError,
@@ -62,6 +63,7 @@ var LogLevels = []WorkflowLogLevel{
 	LogDebug,
 }
 
+// AllMessages provides the list of subscriptions for the WORKFLOW stream.
 var AllMessages = []string{
 	subj.NS(WorkflowInstanceAll, "*"),
 	subj.NS(WorkFlowJobCompleteAll, "*"),
@@ -86,43 +88,44 @@ var AllMessages = []string{
 	APIAll,
 }
 
+// WorkflowMessageFormat provides the template for sending workflow messages.
 var WorkflowMessageFormat = "WORKFLOW.%s.Message.%s.%s"
 
 const (
-	APIAll                       = "Workflow.Api.*"
-	APIStoreWorkflow             = "WORKFLOW.Api.StoreWorkflow"
-	APILaunchWorkflow            = "WORKFLOW.Api.LaunchWorkflow"
-	APIListWorkflows             = "WORKFLOW.Api.ListWorkflows"
-	APIListWorkflowInstance      = "WORKFLOW.Api.ListWorkflowInstance"
-	APIGetWorkflowStatus         = "WORKFLOW.Api.GetWorkflowInstanceStatus"
-	APICancelWorkflowInstance    = "WORKFLOW.Api.CancelWorkflowInstance"
-	APISendMessage               = "WORKFLOW.Api.SendMessage"
-	APICompleteManualTask        = "WORKFLOW.Api.CompleteManualTask"
-	APICompleteServiceTask       = "WORKFLOW.Api.CompleteServiceTask"
-	APICompleteUserTask          = "WORKFLOW.Api.CompleteUserTask"
-	APICompleteSendMessageTask   = "WORKFLOW.Api.CompleteSendMessageTask"
-	APIListUserTaskIDs           = "WORKFLOW.Api.ListUserTaskIDs"
-	APIGetUserTask               = "WORKFLOW.Api.GetUserTask"
-	APIHandleWorkflowError       = "WORKFLOW.Api.HandleWorkflowError"
-	APIGetServerInstanceStats    = "WORKFLOW.Api.GetServerInstanceStats"
-	APIGetServiceTaskRoutingID   = "WORKFLOW.Api.GetServiceTaskRoutingID"
-	APIGetMessageSenderRoutingID = "WORKFLOW.Api.GetMessageSenderRoutingID"
+	APIAll                       = "Workflow.Api.*"                         // APIAll is all API message subjects.
+	APIStoreWorkflow             = "WORKFLOW.Api.StoreWorkflow"             // APIStoreWorkflow is the store Workflow API subject.
+	APILaunchWorkflow            = "WORKFLOW.Api.LaunchWorkflow"            // APILaunchWorkflow is the launch workflow API subject.
+	APIListWorkflows             = "WORKFLOW.Api.ListWorkflows"             // APIListWorkflows is the list workflows API subject.
+	APIListWorkflowInstance      = "WORKFLOW.Api.ListWorkflowInstance"      // APIListWorkflowInstance is the list workflow instances API subject.
+	APIGetWorkflowStatus         = "WORKFLOW.Api.GetWorkflowInstanceStatus" // APIGetWorkflowStatus is the get status of a running workflow instance API subject.
+	APICancelWorkflowInstance    = "WORKFLOW.Api.CancelWorkflowInstance"    // APICancelWorkflowInstance is the cancel a workflow instance API subject.
+	APISendMessage               = "WORKFLOW.Api.SendMessage"               // APISendMessage is the send workflow message API subject.
+	APICompleteManualTask        = "WORKFLOW.Api.CompleteManualTask"        // APICompleteManualTask is the complete manual task API subject.
+	APICompleteServiceTask       = "WORKFLOW.Api.CompleteServiceTask"       // APICompleteServiceTask is the complete service task API subject.
+	APICompleteUserTask          = "WORKFLOW.Api.CompleteUserTask"          // APICompleteUserTask is the omplete user task API subject.
+	APICompleteSendMessageTask   = "WORKFLOW.Api.CompleteSendMessageTask"   // APICompleteSendMessageTask is the complete send message task API subject.
+	APIListUserTaskIDs           = "WORKFLOW.Api.ListUserTaskIDs"           // APIListUserTaskIDs is the list user task IDs API subject.
+	APIGetUserTask               = "WORKFLOW.Api.GetUserTask"               // APIGetUserTask is the get user task API subject.
+	APIHandleWorkflowError       = "WORKFLOW.Api.HandleWorkflowError"       // APIHandleWorkflowError is the handle workflow error API subject.
+	APIGetServerInstanceStats    = "WORKFLOW.Api.GetServerInstanceStats"    // APIGetServerInstanceStats is the get server instance status API subject.
+	APIGetServiceTaskRoutingID   = "WORKFLOW.Api.GetServiceTaskRoutingID"   // APIGetServiceTaskRoutingID is the get client routing ID for a service task API subject.
+	APIGetMessageSenderRoutingID = "WORKFLOW.Api.GetMessageSenderRoutingID" // APIGetMessageSenderRoutingID is the get message sender routing ID API subject.
 )
 
 var (
-	KvMessageSubs  = "WORKFLOW_MSGSUBS"
-	KvMessageSub   = "WORKFLOW_MSGSUB"
-	KvJob          = "WORKFLOW_JOB"
-	KvVersion      = "WORKFLOW_VERSION"
-	KvDefinition   = "WORKFLOW_DEF"
-	KvTracking     = "WORKFLOW_TRACKING"
-	KvInstance     = "WORKFLOW_INSTANCE"
-	KvMessageName  = "WORKFLOW_MSGNAME"
-	KvMessageID    = "WORKFLOW_MSGID"
-	KvUserTask     = "WORKFLOW_USERTASK"
-	KvOwnerName    = "WORKFLOW_OWNERNAME"
-	KvOwnerID      = "WORKFLOW_OWNERID"
-	KvClientTaskID = "WORKFLOW_CLIENTTASK"
-	KvWfName       = "WORKFLOW_NAME"
-	KvVarState     = "WORKFLOW_VARSTATE"
+	KvMessageSubs  = "WORKFLOW_MSGSUBS"    // KvMessageSubs is the name of the key value store that holds the list of message subscriber IDs for a workflow message.
+	KvMessageSub   = "WORKFLOW_MSGSUB"     // KvMessageSub is the name of the key value store that holds each message subscriber.
+	KvJob          = "WORKFLOW_JOB"        // KvJob is the name of the key value store that holds workflow jobs.
+	KvVersion      = "WORKFLOW_VERSION"    // KvVersion is the name of the key value store that holds an ordered list of workflow version IDs for a given workflow
+	KvDefinition   = "WORKFLOW_DEF"        // KvDefinition is the name of the key value store that holds the state machine definition for workflows
+	KvTracking     = "WORKFLOW_TRACKING"   // KvTracking is the name of the key value store that holds the state of a workflow task.
+	KvInstance     = "WORKFLOW_INSTANCE"   // KvInstance is the name of the key value store that holds workflow instance information.
+	KvMessageName  = "WORKFLOW_MSGNAME"    // KvMessageName is the name of the key value store that holds message IDs for message names.
+	KvMessageID    = "WORKFLOW_MSGID"      // KvMessageID is the name of the key value store that holds message names for message IDs
+	KvUserTask     = "WORKFLOW_USERTASK"   // KvUserTask is the name of the key value store that holds active user tasks.
+	KvOwnerName    = "WORKFLOW_OWNERNAME"  // KvOwnerName is the name of the key value store that holds owner names for owner IDs
+	KvOwnerID      = "WORKFLOW_OWNERID"    // KvOwnerID is the name of the key value store that holds owner IDs for owner names.
+	KvClientTaskID = "WORKFLOW_CLIENTTASK" // KvClientTaskID is the name of the key value store that holds the unique ID used by clients to subscribe to service task messages.
+	KvWfName       = "WORKFLOW_NAME"       // KvWfName is the name of the key value store that holds workflow IDs for workflow names.
+	KvVarState     = "WORKFLOW_VARSTATE"   // KvVarState is the name of the key value store that holds the state of variables upon entering a task.
 )

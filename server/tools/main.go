@@ -32,16 +32,16 @@ func main() {
 
 	con, _ := nats.Connect("nats://localhost:4459")
 	js, _ := con.JetStream()
-	i := js.StreamsInfo()
+	i := js.Streams()
 	for s := range i {
 		fmt.Println(s.Config.Name)
 		j, _ := json.Marshal(s.Config)
 		fmt.Println(string(j))
 	}
-	c := js.ConsumersInfo("WORKFLOW")
+	c := js.ConsumerNames("WORKFLOW")
 	for s := range c {
-		fmt.Println(s.Name)
-		j, _ := json.Marshal(s.Config)
+		fmt.Println(s)
+		j, _ := json.Marshal(s)
 		fmt.Println(string(j))
 	}
 	time.Sleep(2 * time.Minute)

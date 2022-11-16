@@ -26,6 +26,7 @@ import (
 	"time"
 )
 
+// NatsService contains the engine functions that communicate with NATS.
 type NatsService struct {
 	js                             nats.JetStreamContext
 	txJS                           nats.JetStreamContext
@@ -65,12 +66,14 @@ type NatsService struct {
 	abortFunc                      AbortFunc
 }
 
+// WorkflowStats obtains the running counts for the engine
 func (s *NatsService) WorkflowStats() *model.WorkflowStats {
 	s.statsMx.Lock()
 	defer s.statsMx.Unlock()
 	return s.workflowStats
 }
 
+// AwaitMsg sets up a message subscription to wait for a workflow message
 func (s *NatsService) AwaitMsg(ctx context.Context, state *model.WorkflowState) error {
 	id := ksuid.New().String()
 	if err := common.SaveObj(ctx, s.wfMsgSub, id, state); err != nil {
@@ -85,6 +88,7 @@ func (s *NatsService) AwaitMsg(ctx context.Context, state *model.WorkflowState) 
 	return nil
 }
 
+// ListWorkflows returns a list of all the workflows in SHAR.
 func (s *NatsService) ListWorkflows(_ context.Context) (chan *model.ListWorkflowResult, chan error) {
 	res := make(chan *model.ListWorkflowResult, 100)
 	errs := make(chan error, 1)
@@ -116,6 +120,7 @@ func (s *NatsService) ListWorkflows(_ context.Context) (chan *model.ListWorkflow
 	return res, errs
 }
 
+// NewNatsService creates a new instance of the NATS communication layer.
 func NewNatsService(log *zap.Logger, conn common.NatsConn, txConn common.NatsConn, storageType nats.StorageType, concurrency int, allowOrphanServiceTasks bool) (*NatsService, error) {
 	if concurrency < 1 || concurrency > 200 {
 		return nil, errors2.New("invalid concurrency set")
@@ -143,7 +148,7 @@ func NewNatsService(log *zap.Logger, conn common.NatsConn, txConn common.NatsCon
 		allowOrphanServiceTasks: allowOrphanServiceTasks,
 	}
 
-	if err := setup.Nats(js, storageType); err != nil {
+	if err := setup.EnsureWorkflowStream(js, storageType); err != nil {
 		return nil, fmt.Errorf("failed to set up nats queue insfrastructure: %w", err)
 	}
 
@@ -183,6 +188,7 @@ func NewNatsService(log *zap.Logger, conn common.NatsConn, txConn common.NatsCon
 	return ms, nil
 }
 
+// StoreWorkflow stores a workflow definition and returns a unique ID
 func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (string, error) {
 
 	// get this workflow name if it has already been registered
@@ -258,7 +264,7 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 			AckPolicy:     nats.AckExplicitPolicy,
 			MaxAckPending: 65536,
 		}
-		if err = EnsureConsumer(s.js, "WORKFLOW", jxCfg); err != nil {
+		if err = ensureConsumer(s.js, "WORKFLOW", jxCfg); err != nil {
 			return "", fmt.Errorf("failed to add service task consumer: %w", err)
 		}
 
@@ -281,7 +287,7 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 						AckPolicy:     nats.AckExplicitPolicy,
 					}
 
-					if err = EnsureConsumer(s.js, "WORKFLOW", jxCfg); err != nil {
+					if err = ensureConsumer(s.js, "WORKFLOW", jxCfg); err != nil {
 						return "", fmt.Errorf("failed to add service task consumer: %w", err)
 					}
 				}
@@ -294,7 +300,7 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 	return wfID, nil
 }
 
-func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
+func ensureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
 	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); err == nats.ErrConsumerNotFound {
 		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
 			panic(err)
@@ -305,6 +311,7 @@ func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig 
 	return nil
 }
 
+// GetWorkflow retrieves a workflow model given its ID
 func (s *NatsService) GetWorkflow(_ context.Context, workflowID string) (*model.Workflow, error) {
 	wf := &model.Workflow{}
 	if err := common.LoadObj(s.wf, workflowID, wf); err == nats.ErrKeyNotFound {
@@ -315,6 +322,7 @@ func (s *NatsService) GetWorkflow(_ context.Context, workflowID string) (*model.
 	return wf, nil
 }
 
+// CreateWorkflowInstance given a workflow, starts a new workflow instance and returns its ID
 func (s *NatsService) CreateWorkflowInstance(ctx context.Context, wfInstance *model.WorkflowInstance) (*model.WorkflowInstance, error) {
 	wfiID := ksuid.New().String()
 	wfInstance.WorkflowInstanceId = wfiID
@@ -330,6 +338,7 @@ func (s *NatsService) CreateWorkflowInstance(ctx context.Context, wfInstance *mo
 	return wfInstance, nil
 }
 
+// GetWorkflowInstance retrieves workflow instance given its ID.
 func (s *NatsService) GetWorkflowInstance(_ context.Context, workflowInstanceID string) (*model.WorkflowInstance, error) {
 	wfi := &model.WorkflowInstance{}
 	if err := common.LoadObj(s.wfInstance, workflowInstanceID, wfi); errors2.Is(err, nats.ErrKeyNotFound) {
@@ -340,6 +349,7 @@ func (s *NatsService) GetWorkflowInstance(_ context.Context, workflowInstanceID 
 	return wfi, nil
 }
 
+// GetServiceTaskRoutingKey gets a unique ID for a service task that can be used to listen for its activation.
 func (s *NatsService) GetServiceTaskRoutingKey(taskName string) (string, error) {
 	var b []byte
 	var err error
@@ -359,6 +369,7 @@ func (s *NatsService) GetServiceTaskRoutingKey(taskName string) (string, error) 
 	return string(b), nil
 }
 
+// GetMessageSenderRoutingKey gets an ID used to listen for workflow message instances.
 func (s *NatsService) GetMessageSenderRoutingKey(workflowName string, messageName string) (string, error) {
 	_, err := s.wfName.Get(workflowName)
 	if err != nil {
@@ -371,6 +382,7 @@ func (s *NatsService) GetMessageSenderRoutingKey(workflowName string, messageNam
 	return string(b), nil
 }
 
+// SetInFlight updates a workflow instance with the currently executing activity.
 func (s *NatsService) SetInFlight(ctx context.Context, wfiID string, activityID string, inFlight bool) error {
 	wfi := &model.WorkflowInstance{}
 	return common.UpdateObj(ctx, s.wfInstance, wfiID, wfi, func(i *model.WorkflowInstance) (*model.WorkflowInstance, error) {
@@ -386,6 +398,7 @@ func (s *NatsService) SetInFlight(ctx context.Context, wfiID string, activityID 
 	})
 }
 
+// DestroyWorkflowInstance terminates a running workflow instance with a cancellation reason and error
 func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceID string, state model.CancellationState, wfError *model.Error) error {
 	// Get the workflow instance
 	wfi := &model.WorkflowInstance{}
@@ -467,6 +480,7 @@ func (s *NatsService) GetLatestVersion(_ context.Context, workflowName string) (
 	}
 }
 
+// CreateJob stores a workflow task state.
 func (s *NatsService) CreateJob(ctx context.Context, job *model.WorkflowState) (string, error) {
 	tid := ksuid.New().String()
 	job.Id = common.TrackingID(job.Id).Push(tid)
@@ -476,6 +490,7 @@ func (s *NatsService) CreateJob(ctx context.Context, job *model.WorkflowState) (
 	return tid, nil
 }
 
+// GetJob gets a workflow task state.
 func (s *NatsService) GetJob(_ context.Context, trackingID string) (*model.WorkflowState, error) {
 	job := &model.WorkflowState{}
 	if err := common.LoadObj(s.job, trackingID, job); err == nil {
@@ -489,10 +504,12 @@ func (s *NatsService) GetJob(_ context.Context, trackingID string) (*model.Workf
 	}
 }
 
+// DeleteJob removes a workflow task state.
 func (s *NatsService) DeleteJob(_ context.Context, trackingID string) error {
 	return common.Delete(s.job, trackingID)
 }
 
+// ListWorkflowInstance returns a list of running workflows and versions given a workflow ID
 func (s *NatsService) ListWorkflowInstance(_ context.Context, workflowName string) (chan *model.ListWorkflowInstanceResult, chan error) {
 	errs := make(chan error, 1)
 	wch := make(chan *model.ListWorkflowInstanceResult, 100)
@@ -537,6 +554,7 @@ func (s *NatsService) ListWorkflowInstance(_ context.Context, workflowName strin
 	return wch, errs
 }
 
+// GetWorkflowInstanceStatus gets the current status for a workflow instance.
 func (s *NatsService) GetWorkflowInstanceStatus(_ context.Context, id string) (*model.WorkflowInstanceStatus, error) {
 	v := &model.WorkflowState{}
 	err := common.LoadObj(s.wfTracking, id, v)
@@ -546,9 +564,10 @@ func (s *NatsService) GetWorkflowInstanceStatus(_ context.Context, id string) (*
 	return &model.WorkflowInstanceStatus{State: []*model.WorkflowState{v}}, nil
 }
 
+// StartProcessing begins listening to all of the message processing queues.
 func (s *NatsService) StartProcessing(ctx context.Context) error {
 
-	if err := setup.Nats(s.js, s.storageType); err != nil {
+	if err := setup.EnsureWorkflowStream(s.js, s.storageType); err != nil {
 		return err
 	}
 
@@ -584,41 +603,53 @@ func (s *NatsService) StartProcessing(ctx context.Context) error {
 	}
 	return nil
 }
+
+// SetEventProcessor sets the callback for processing workflow activities.
 func (s *NatsService) SetEventProcessor(processor EventProcessorFunc) {
 	s.eventProcessor = processor
 }
+
+// SetMessageCompleteProcessor sets the callback for completed messages.
 func (s *NatsService) SetMessageCompleteProcessor(processor MessageCompleteProcessorFunc) {
 	s.messageCompleteProcessor = processor
 }
 
+// SetMessageProcessor sets the callback used to create new workflow instances based on a timer.
 func (s *NatsService) SetMessageProcessor(processor MessageProcessorFunc) {
 	s.messageProcessor = processor
 }
 
+// SetCompleteJobProcessor sets the callback for completed tasks.
 func (s *NatsService) SetCompleteJobProcessor(processor CompleteJobProcessorFunc) {
 	s.eventJobCompleteProcessor = processor
 }
 
+// SetCompleteActivityProcessor sets the callback fired when an activity completes.
 func (s *NatsService) SetCompleteActivityProcessor(processor CompleteActivityProcessorFunc) {
 	s.eventActivityCompleteProcessor = processor
 }
 
+// SetLaunchFunc sets the callback used to start child workflows.
 func (s *NatsService) SetLaunchFunc(processor LaunchFunc) {
 	s.launchFunc = processor
 }
 
+// SetTraversalProvider sets the callback used to handle traversals.
 func (s *NatsService) SetTraversalProvider(provider TraversalFunc) {
 	s.traverslFunc = provider
 }
 
+// SetCompleteActivity sets the callback which generates complete activity events.
 func (s *NatsService) SetCompleteActivity(processor CompleteActivityFunc) {
 	s.completeActivityFunc = processor
 }
 
+// SetAbort sets the funcation called when a workflow object aborts.
 func (s *NatsService) SetAbort(processor AbortFunc) {
 	s.abortFunc = processor
 }
 
+// PublishWorkflowState publishes a SHAR state object to a given subject
 func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState, opts ...PublishOpt) error {
 	c := &publishOptions{}
 	for _, i := range opts {
@@ -652,6 +683,7 @@ func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string
 	return nil
 }
 
+// PublishMessage publishes a workflow message.
 func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string, vars []byte) error {
 	messageIDb, err := common.Load(s.wfMessageID, name)
 	messageID := string(messageIDb)
@@ -680,6 +712,7 @@ func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID str
 	return nil
 }
 
+// GetElement gets the definition for the current element given a workflow state.
 func (s *NatsService) GetElement(_ context.Context, state *model.WorkflowState) (*model.Element, error) {
 	wf := &model.Workflow{}
 	if err := common.LoadObj(s.wf, state.WorkflowId, wf); err == nats.ErrKeyNotFound {
@@ -781,8 +814,8 @@ func (s *NatsService) track(ctx context.Context, msg *nats.Msg) (bool, error) {
 	return true, nil
 }
 
-//nolint:ireturn
-func (s *NatsService) Conn() common.NatsConn {
+// Conn returns the active nats connection
+func (s *NatsService) Conn() common.NatsConn { //nolint:ireturn
 	return s.conn
 }
 
@@ -873,6 +906,7 @@ func remove[T comparable](slice []T, member T) []T {
 	return slice
 }
 
+// Shutdown signals the engine to stop processing.
 func (s *NatsService) Shutdown() {
 	close(s.closing)
 }
@@ -910,7 +944,7 @@ func (s *NatsService) processActivities(ctx context.Context) error {
 			if err := s.eventActivityCompleteProcessor(ctx, &activity); err != nil {
 				return false, err
 			}
-			err := s.DeleteSavedState(activityID)
+			err := s.deleteSavedState(activityID)
 			if err != nil {
 				return true, err
 			}
@@ -924,13 +958,14 @@ func (s *NatsService) processActivities(ctx context.Context) error {
 	return nil
 }
 
-func (s *NatsService) DeleteSavedState(activityID string) error {
+func (s *NatsService) deleteSavedState(activityID string) error {
 	if err := common.Delete(s.wfVarState, activityID); err != nil {
 		return err
 	}
 	return nil
 }
 
+// CloseUserTask removes a completed user task.
 func (s *NatsService) CloseUserTask(ctx context.Context, trackingID string) error {
 	job := &model.WorkflowState{}
 	if err := common.LoadObj(s.job, trackingID, job); err != nil {
@@ -958,6 +993,7 @@ func (s *NatsService) openUserTask(ctx context.Context, owner string, id string)
 	})
 }
 
+// GetUserTaskIDs gets a list of tasks given an owner.
 func (s *NatsService) GetUserTaskIDs(owner string) (*model.UserTasks, error) {
 	ut := &model.UserTasks{}
 	if err := common.LoadObj(s.wfUserTasks, owner, ut); err != nil {
@@ -966,6 +1002,7 @@ func (s *NatsService) GetUserTaskIDs(owner string) (*model.UserTasks, error) {
 	return ut, nil
 }
 
+// OwnerID gets a unique identifier for a task owner.
 func (s *NatsService) OwnerID(name string) (string, error) {
 	if name == "" {
 		name = "AnyUser"
@@ -986,6 +1023,8 @@ func (s *NatsService) OwnerID(name string) (string, error) {
 	}
 	return string(nm.Value()), nil
 }
+
+// OwnerName retrieves an owner name given an ID.
 func (s *NatsService) OwnerName(id string) (string, error) {
 	nm, err := s.ownerName.Get(id)
 	if err != nil {
@@ -1159,6 +1198,7 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 	return nil
 }
 
+// GetOldState gets a task state given its tracking ID.
 func (s *NatsService) GetOldState(id string) (*model.WorkflowState, error) {
 	oldState := &model.WorkflowState{}
 	err := common.LoadObj(s.wfVarState, id, oldState)
@@ -1254,7 +1294,7 @@ func (s *NatsService) deleteWorkflow(state *model.WorkflowState) error {
 }
 
 func (s *NatsService) deleteActivity(state *model.WorkflowState) error {
-	if err := s.DeleteSavedState(common.TrackingID(state.Id).ID()); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
+	if err := s.deleteSavedState(common.TrackingID(state.Id).ID()); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
 		return fmt.Errorf("could not delete activity: %w", err)
 	}
 	return nil
@@ -1274,6 +1314,7 @@ func (s *NatsService) deleteJob(ctx context.Context, state *model.WorkflowState)
 	return nil
 }
 
+// SaveState saves the task state.
 func (s *NatsService) SaveState(id string, state *model.WorkflowState) error {
 	saveState := proto.Clone(state).(*model.WorkflowState)
 	saveState.Id = common.TrackingID(saveState.Id).Pop().Push(id)

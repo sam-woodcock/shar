@@ -10,6 +10,7 @@ import (
 	"strings"
 )
 
+// Eval evaluates an expression given a set of variables and returns a generic type.
 func Eval[T any](log *zap.Logger, exp string, vars map[string]interface{}) (retval T, reterr error) { //nolint:ireturn
 	ex, err := expr.Compile(exp)
 	if err != nil {
@@ -33,6 +34,7 @@ func Eval[T any](log *zap.Logger, exp string, vars map[string]interface{}) (retv
 	return res.(T), nil
 }
 
+// EvalAny evaluates an expression given a set of variables and returns a 'boxed' interface type.'
 func EvalAny(log *zap.Logger, exp string, vars map[string]interface{}) (retval interface{}, reterr error) { //nolint:ireturn
 	exp = strings.TrimSpace(exp)
 	if len(exp) == 0 {
@@ -65,6 +67,7 @@ func EvalAny(log *zap.Logger, exp string, vars map[string]interface{}) (retval i
 	return res, nil
 }
 
+// GetVariables returns a list of variables mentioned in an expression
 func GetVariables(exp string) (map[string]struct{}, error) {
 	ret := make(map[string]struct{})
 	exp = strings.TrimSpace(exp)
@@ -90,6 +93,7 @@ type variableWalker struct {
 	v map[string]struct{}
 }
 
+// Enter is called from the visitor to iterate all IdentifierNode types
 func (w *variableWalker) Enter(n *ast.Node) {
 	switch t := (*n).(type) {
 	case *ast.IdentifierNode:
@@ -97,4 +101,5 @@ func (w *variableWalker) Enter(n *ast.Node) {
 	}
 }
 
+// Exit is unused in the variableWalker implementation
 func (w *variableWalker) Exit(_ *ast.Node) {}

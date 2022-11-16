@@ -17,6 +17,7 @@ import (
 	"time"
 )
 
+// NatsConn is the trimmad down NATS Connection interface that only emcompasses the methods used by SHAR
 type NatsConn interface {
 	JetStream(opts ...nats.JSOpt) (nats.JetStreamContext, error)
 	QueueSubscribe(subj string, queue string, cb nats.MsgHandler) (*nats.Subscription, error)
@@ -53,11 +54,13 @@ func updateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []b
 	return nil
 }
 
+// Save saves a value to a key value store
 func Save(wf nats.KeyValue, k string, v []byte) error {
 	_, err := wf.Put(k, v)
 	return err
 }
 
+// Load loads a value from a key value store
 func Load(wf nats.KeyValue, k string) ([]byte, error) {
 	b, err := wf.Get(k)
 	if err == nil {
@@ -66,6 +69,7 @@ func Load(wf nats.KeyValue, k string) ([]byte, error) {
 	return nil, fmt.Errorf("failed to load value from KV: %w", err)
 }
 
+// SaveObj save an protobuf message to a key value store
 func SaveObj(_ context.Context, wf nats.KeyValue, k string, v proto.Message) error {
 	b, err := proto.Marshal(v)
 	if err == nil {
@@ -74,6 +78,7 @@ func SaveObj(_ context.Context, wf nats.KeyValue, k string, v proto.Message) err
 	return fmt.Errorf("failed to save object into KV: %w", err)
 }
 
+// LoadObj loads a protobuf message from a key value store
 func LoadObj(wf nats.KeyValue, k string, v proto.Message) error {
 	kv, err := Load(wf, k)
 	if err == nil {
@@ -82,6 +87,7 @@ func LoadObj(wf nats.KeyValue, k string, v proto.Message) error {
 	return fmt.Errorf("failed to load object from KV %s(%s): %w", wf.Bucket(), k, err)
 }
 
+// UpdateObj saves an protobuf message to a key value store after using updateFN to update the message.
 func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) error {
 	if oldk, err := wf.Get(k); err == nats.ErrKeyNotFound || (err == nil && oldk.Value() == nil) {
 		if err := SaveObj(ctx, wf, k, msg); err != nil {
@@ -104,10 +110,12 @@ func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string,
 	})
 }
 
+// Delete deletes an item from a key value store.
 func Delete(kv nats.KeyValue, key string) error {
 	return kv.Delete(key)
 }
 
+// EnsureBuckets ensures that a list of key value stores exist
 func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names []string) error {
 	for _, i := range names {
 		if _, err := js.KeyValue(i); err == nats.ErrBucketNotFound {
@@ -121,6 +129,7 @@ func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names
 	return nil
 }
 
+// Process processes messages from a nats consumer and executes a function against each one.
 func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, traceName string, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, msg *nats.Msg) (bool, error)) error {
 	if _, ok := setup.ConsumerDurableNames[durable]; !strings.HasPrefix(durable, "ServiceTask_") && !ok {
 		return fmt.Errorf("durable consumer '%s' is not explicity configured", durable)

@@ -69,7 +69,10 @@ func main() {
 		for {
 			tsk, err := cl.ListUserTaskIDs(ctx, "andrei")
 			if err == nil && tsk.Id != nil {
-				cl.CompleteUserTask(ctx, "andrei", tsk.Id[0], model.Vars{"Forename": "Brangelina", "Surname": "Miggins"})
+				err2 := cl.CompleteUserTask(ctx, "andrei", tsk.Id[0], model.Vars{"Forename": "Brangelina", "Surname": "Miggins"})
+				if err2 != nil {
+					panic(err)
+				}
 				return
 			}
 			time.Sleep(1 * time.Second)

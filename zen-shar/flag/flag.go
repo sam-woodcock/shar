@@ -1,24 +1,19 @@
 package flag
 
 const (
-	CorrelationKey      = "correlationKey" // Name of the correlation key flag.
-	Server              = "server"         // Name of the server flag.
-	LogLevel            = "loglevel"       // Name of the log level flag.
-	Vars                = "vars"           // Name of the vars flag.
-	VarsShort           = "v"              // Short name of the vars flag.
-	CorrelationKeyShort = "k"              // Short name of the correlation key flag.
-	ServerShort         = "s"              // Short name of the server flag.
-	LogLevelShort       = "l"              // Short name of the log level flag.
-	DebugTrace          = "debug"          // Name of the debug trace flag.
-	DebugTraceShort     = "d"              // Short name of the debug trace flag.
+	Server        = "server"   // Server is the name of the server flag.
+	LogLevel      = "loglevel" // LogLevel is the name of the log level flag.
+	ServerShort   = "s"        // ServerShort is the short name of the server flag.
+	LogLevelShort = "l"        // LogLevelShort is the short name of the log level flag.
 )
 
+// Set is a container for all of the flag messages used by zen-shar
 type Set struct {
-	Server         string   // NATS server URL setting
-	LogLevel       string   // Log level setting
-	CorrelationKey string   // Correlation key setting.
-	DebugTrace     bool     // Debug trace enabled setting.
-	Vars           []string // Workflow variables setting.
+	Server         string   // Server is the NATS server URL setting
+	LogLevel       string   // LogLevel is the Log level setting
+	CorrelationKey string   // CorrelationKey is the correlation key setting.
+	DebugTrace     bool     // DebugTrace is the debug trace enabled setting.
+	Vars           []string // Vars is the workflow variables setting.
 }
 
-var Value Set // Runtime vales for flags
+var Value Set // Value contains the runtime values for flags

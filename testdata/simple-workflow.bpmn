@@ -15,7 +15,7 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="SimpleProcess" />
         <zeebe:ioMapping>
-          <zeebe:input source="= carried" target="carried" />
+          <zeebe:input source="= carried" target="tarzan" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1f45p7m</bpmn:incoming>

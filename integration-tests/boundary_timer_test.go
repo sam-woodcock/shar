@@ -143,7 +143,7 @@ type testBoundaryTimerDef struct {
 	NoTimeoutPause    time.Duration
 }
 
-func (d *testBoundaryTimerDef) canTimeout(ctx context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testBoundaryTimerDef) canTimeout(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	d.mx.Lock()
 	d.CanTimeOutCalled++
 	d.mx.Unlock()
@@ -151,7 +151,7 @@ func (d *testBoundaryTimerDef) canTimeout(ctx context.Context, _ client.JobClien
 	return vars, nil
 }
 
-func (d *testBoundaryTimerDef) noTimeout(ctx context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testBoundaryTimerDef) noTimeout(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	d.mx.Lock()
 	d.NoTimeoutCalled++
 	d.mx.Unlock()
@@ -159,14 +159,14 @@ func (d *testBoundaryTimerDef) noTimeout(ctx context.Context, _ client.JobClient
 	return vars, nil
 }
 
-func (d *testBoundaryTimerDef) timedOut(ctx context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testBoundaryTimerDef) timedOut(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	d.mx.Lock()
 	d.TimedOutCalled++
 	d.mx.Unlock()
 	return vars, nil
 }
 
-func (d *testBoundaryTimerDef) checkResult(ctx context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testBoundaryTimerDef) checkResult(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	d.mx.Lock()
 	d.CheckResultCalled++
 	d.mx.Unlock()

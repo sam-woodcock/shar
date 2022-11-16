@@ -550,6 +550,7 @@ func (c *Client) clientLog(ctx context.Context, trackingID string, severity mess
 	return common.Log(ctx, c.txJS, trackingID, model.LogSource_logSourceJob, severity, code, message, attrs)
 }
 
+// GetJob returns a Job given a tracking ID
 func (c *Client) GetJob(_ context.Context, id string) (*model.WorkflowState, error) {
 	job := &model.WorkflowState{}
 	if err := common.LoadObj(c.job, id, job); err != nil {
