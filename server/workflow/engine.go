@@ -729,6 +729,8 @@ func (c *Engine) engineErr(msg string, err error, z ...zap.Field) error {
 		return &errors.ErrWorkflowFatal{Err: c.engineErr(msg, err, z...)}
 	}
 */
+
+// Shutdown gracefully stops the engine.
 func (c *Engine) Shutdown() {
 	select {
 	case <-c.closing:
@@ -740,7 +742,7 @@ func (c *Engine) Shutdown() {
 	}
 }
 
-// CancelWorkflowInstance will cancel a workflow instance with a reason
+// CancelWorkflowInstance cancels a workflow instance with a reason.
 func (c *Engine) CancelWorkflowInstance(ctx context.Context, id string, state model.CancellationState, wfError *model.Error) error {
 	if state == model.CancellationState_executing {
 		return errors2.New("executing is an invalid cancellation state")
@@ -1029,7 +1031,7 @@ func (c *Engine) timedExecuteProcessor(ctx context.Context, state *model.Workflo
 	return true, 0, nil
 }
 
-func (c *Engine) abortProcessor(ctx context.Context, abort services.AbortType, state *model.WorkflowState) (bool, error) {
+func (c *Engine) abortProcessor(_ context.Context, abort services.AbortType, _ *model.WorkflowState) (bool, error) {
 	switch abort {
 	case services.AbortTypeActivity:
 	case services.AbortTypeServiceTask:

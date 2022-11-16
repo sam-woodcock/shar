@@ -54,12 +54,12 @@ func (s *SharServer) storeWorkflow(ctx context.Context, wf *model.Workflow) (*wr
 	return &wrapperspb.StringValue{Value: res}, err
 }
 
-func (s *SharServer) getServiceTaskRoutingID(ctx context.Context, taskName *wrapperspb.StringValue) (*wrapperspb.StringValue, error) {
+func (s *SharServer) getServiceTaskRoutingID(_ context.Context, taskName *wrapperspb.StringValue) (*wrapperspb.StringValue, error) {
 	res, err := s.ns.GetServiceTaskRoutingKey(taskName.Value)
 	return &wrapperspb.StringValue{Value: res}, err
 }
 
-func (s *SharServer) getMessageSenderRoutingID(ctx context.Context, req *model.GetMessageSenderRoutingIdRequest) (*wrapperspb.StringValue, error) {
+func (s *SharServer) getMessageSenderRoutingID(_ context.Context, req *model.GetMessageSenderRoutingIdRequest) (*wrapperspb.StringValue, error) {
 	res, err := s.ns.GetMessageSenderRoutingKey(req.WorkflowName, req.MessageName)
 	return &wrapperspb.StringValue{Value: res}, err
 }
@@ -224,7 +224,7 @@ func (s *SharServer) Listen() error {
 	return nil
 }
 
-func (s *SharServer) listUserTaskIDs(ctx context.Context, req *model.ListUserTasksRequest) (*model.UserTasks, error) {
+func (s *SharServer) listUserTaskIDs(_ context.Context, req *model.ListUserTasksRequest) (*model.UserTasks, error) {
 	oid, err := s.ns.OwnerID(req.Owner)
 	if err != nil {
 		return nil, err
@@ -362,7 +362,7 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 	return &model.HandleWorkflowErrorResponse{Handled: true}, nil
 }
 
-func (s *SharServer) getServerInstanceStats(ctx context.Context, req *emptypb.Empty) (*model.WorkflowStats, error) {
+func (s *SharServer) getServerInstanceStats(_ context.Context, _ *emptypb.Empty) (*model.WorkflowStats, error) {
 	ret := *s.ns.WorkflowStats()
 	return &ret, nil
 }
