@@ -21,7 +21,7 @@ var Cmd = &cobra.Command{
 
 func run(cmd *cobra.Command, args []string) error {
 	if err := cmd.ValidateArgs(args); err != nil {
-		return err
+		return fmt.Errorf("invalid arguments: %w", err)
 	}
 	ctx := context.Background()
 	shar := client.New(output.Logger)

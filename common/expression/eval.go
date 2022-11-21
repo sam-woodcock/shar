@@ -34,7 +34,7 @@ func Eval[T any](log *zap.Logger, exp string, vars map[string]interface{}) (retv
 	return res.(T), nil
 }
 
-// EvalAny evaluates an expression given a set of variables and returns a 'boxed' interface type.'
+// EvalAny evaluates an expression given a set of variables and returns a 'boxed' interface type.
 func EvalAny(log *zap.Logger, exp string, vars map[string]interface{}) (retval interface{}, reterr error) { //nolint:ireturn
 	exp = strings.TrimSpace(exp)
 	if len(exp) == 0 {

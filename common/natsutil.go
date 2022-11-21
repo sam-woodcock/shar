@@ -27,7 +27,7 @@ func updateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []b
 	for {
 		entry, err := wf.Get(k)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get value to update: %w", err)
 		}
 		rev := entry.Revision()
 		uv, err := updateFn(entry.Value(), msg)
@@ -47,7 +47,7 @@ func updateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []b
 				time.Sleep(time.Duration(dur.Int64()))
 				continue
 			}
-			return err
+			return fmt.Errorf("failed to update kv: %w", err)
 		}
 		break
 	}
@@ -56,8 +56,10 @@ func updateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []b
 
 // Save saves a value to a key value store
 func Save(wf nats.KeyValue, k string, v []byte) error {
-	_, err := wf.Put(k, v)
-	return err
+	if _, err := wf.Put(k, v); err != nil {
+		return fmt.Errorf("failed to save kv: %w", err)
+	}
+	return nil
 }
 
 // Load loads a value from a key value store
@@ -81,10 +83,13 @@ func SaveObj(_ context.Context, wf nats.KeyValue, k string, v proto.Message) err
 // LoadObj loads a protobuf message from a key value store
 func LoadObj(wf nats.KeyValue, k string, v proto.Message) error {
 	kv, err := Load(wf, k)
-	if err == nil {
-		return proto.Unmarshal(kv, v)
+	if err != nil {
+		return fmt.Errorf("failed to load object from KV %s(%s): %w", wf.Bucket(), k, err)
 	}
-	return fmt.Errorf("failed to load object from KV %s(%s): %w", wf.Bucket(), k, err)
+	if err := proto.Unmarshal(kv, v); err != nil {
+		return fmt.Errorf("failed to unmarshal in LoadObj: %w", err)
+	}
+	return nil
 }
 
 // UpdateObj saves an protobuf message to a key value store after using updateFN to update the message.
@@ -112,7 +117,10 @@ func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string,
 
 // Delete deletes an item from a key value store.
 func Delete(kv nats.KeyValue, key string) error {
-	return kv.Delete(key)
+	if err := kv.Delete(key); err != nil {
+		return fmt.Errorf("failed to delete key: %w", err)
+	}
+	return nil
 }
 
 // EnsureBuckets ensures that a list of key value stores exist

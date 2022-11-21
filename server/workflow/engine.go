@@ -4,14 +4,9 @@ import (
 	"context"
 	errors2 "errors"
 	"fmt"
-	"strconv"
-	"time"
-
-	"gitlab.com/shar-workflow/shar/client/parser"
-	"gitlab.com/shar-workflow/shar/server/services"
-
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
+	"gitlab.com/shar-workflow/shar/client/parser"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/expression"
 	"gitlab.com/shar-workflow/shar/common/subj"
@@ -19,8 +14,11 @@ import (
 	"gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/errors/keys"
 	"gitlab.com/shar-workflow/shar/server/messages"
+	"gitlab.com/shar-workflow/shar/server/services"
 	"gitlab.com/shar-workflow/shar/server/vars"
 	"go.uber.org/zap"
+	"strconv"
+	"time"
 )
 
 // Engine contains the workflow processing functions
@@ -74,7 +72,7 @@ func (c *Engine) LoadWorkflow(ctx context.Context, model *model.Workflow) (strin
 	// Store the workflow model and return an ID
 	wfID, err := c.ns.StoreWorkflow(ctx, model)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to store workflow: %w", err)
 	}
 	return wfID, nil
 }
@@ -108,7 +106,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 	}
 	testVars, err := vars.Decode(c.log, vrs)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to decode variables during launch: %w", err)
 	}
 	var hasStartEvents bool
 	// Test to see if all variables are present.
@@ -118,7 +116,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 			for _, v := range el.OutputTransform {
 				evs, err := expression.GetVariables(v)
 				if err != nil {
-					return err
+					return fmt.Errorf("failed to extract variables from workflow during launch: %w", err)
 				}
 				for ev := range evs {
 					if _, ok := testVars[ev]; !ok {
@@ -131,7 +129,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 	})
 
 	if vErr != nil {
-		return "", vErr
+		return "", fmt.Errorf("failed to initialize all workflow start events: %w", err)
 	}
 
 	// Start all timed start events.
@@ -203,7 +201,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 				Vars:               vrs,
 			}); err != nil {
 				c.log.Error("failed to publish initial traversal", zap.Error(err))
-				return err
+				return fmt.Errorf("failed to publish initial traversal: %w", err)
 			}
 			return nil
 		})
@@ -1025,7 +1023,7 @@ func (c *Engine) timedExecuteProcessor(ctx context.Context, state *model.Workflo
 				return false, 0, nil
 			}
 		} else if el.Timer.Type == model.WorkflowTimerType_duration {
-			return false, int(value - now), err
+			return false, int(value - now), nil
 		}
 	}
 	return true, 0, nil

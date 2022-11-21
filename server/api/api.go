@@ -35,10 +35,10 @@ type SharServer struct {
 func New(log *zap.Logger, ns *services.NatsService, panicRecovery bool) (*SharServer, error) {
 	engine, err := workflow.NewEngine(log, ns)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create SHAR engine instance: %w", err)
 	}
 	if err := engine.Start(context.Background()); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to start SHAR engine: %w", err)
 	}
 	return &SharServer{
 		log:           log,
@@ -51,30 +51,42 @@ func New(log *zap.Logger, ns *services.NatsService, panicRecovery bool) (*SharSe
 
 func (s *SharServer) storeWorkflow(ctx context.Context, wf *model.Workflow) (*wrapperspb.StringValue, error) {
 	res, err := s.engine.LoadWorkflow(ctx, wf)
-	return &wrapperspb.StringValue{Value: res}, err
+	if err != nil {
+		return nil, fmt.Errorf("failed to store workflow: %w", err)
+	}
+	return &wrapperspb.StringValue{Value: res}, nil
 }
 
 func (s *SharServer) getServiceTaskRoutingID(_ context.Context, taskName *wrapperspb.StringValue) (*wrapperspb.StringValue, error) {
 	res, err := s.ns.GetServiceTaskRoutingKey(taskName.Value)
-	return &wrapperspb.StringValue{Value: res}, err
+	if err != nil {
+		return nil, fmt.Errorf("failed to get service task routing id: %w", err)
+	}
+	return &wrapperspb.StringValue{Value: res}, nil
 }
 
 func (s *SharServer) getMessageSenderRoutingID(_ context.Context, req *model.GetMessageSenderRoutingIdRequest) (*wrapperspb.StringValue, error) {
 	res, err := s.ns.GetMessageSenderRoutingKey(req.WorkflowName, req.MessageName)
-	return &wrapperspb.StringValue{Value: res}, err
+	if err != nil {
+		return nil, fmt.Errorf("failed to get message sender routing id: %w", err)
+	}
+	return &wrapperspb.StringValue{Value: res}, nil
 }
 
 func (s *SharServer) launchWorkflow(ctx context.Context, req *model.LaunchWorkflowRequest) (*wrapperspb.StringValue, error) {
 	res, err := s.engine.Launch(ctx, req.Name, req.Vars)
-	return &wrapperspb.StringValue{Value: res}, err
+	if err != nil {
+		return nil, fmt.Errorf("failed to launch workflow instance kv: %w", err)
+	}
+	return &wrapperspb.StringValue{Value: res}, nil
 }
 
 func (s *SharServer) cancelWorkflowInstance(ctx context.Context, req *model.CancelWorkflowInstanceRequest) (*emptypb.Empty, error) {
 	err := s.engine.CancelWorkflowInstance(ctx, req.Id, req.State, req.Error)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to cancel workflow instance kv: %w", err)
 	}
-	return &emptypb.Empty{}, err
+	return &emptypb.Empty{}, nil
 }
 
 func (s *SharServer) listWorkflowInstance(ctx context.Context, req *model.ListWorkflowInstanceRequest) (*model.ListWorkflowInstanceResponse, error) {
@@ -91,7 +103,7 @@ func (s *SharServer) listWorkflowInstance(ctx context.Context, req *model.ListWo
 				Version: winf.Version,
 			})
 		case err := <-errs:
-			return nil, err
+			return nil, fmt.Errorf("failed to list workflow instancesr: %w", err)
 		}
 	}
 }
@@ -99,7 +111,7 @@ func (s *SharServer) listWorkflowInstance(ctx context.Context, req *model.ListWo
 func (s *SharServer) getWorkflowInstanceStatus(ctx context.Context, req *model.GetWorkflowInstanceStatusRequest) (*model.WorkflowInstanceStatus, error) {
 	res, err := s.ns.GetWorkflowInstanceStatus(ctx, req.Id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get workflow instance status: %w", err)
 	}
 	return res, nil
 }
@@ -118,14 +130,14 @@ func (s *SharServer) listWorkflows(ctx context.Context, _ *emptypb.Empty) (*mode
 				Version: winf.Version,
 			})
 		case err := <-errs:
-			return nil, err
+			return nil, fmt.Errorf("failed to list workflowsr: %w", err)
 		}
 	}
 }
 
 func (s *SharServer) sendMessage(ctx context.Context, req *model.SendMessageRequest) (*emptypb.Empty, error) {
 	if err := s.ns.PublishMessage(ctx, req.WorkflowInstanceId, req.Name, req.Key, req.Vars); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to send message: %w", err)
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -166,58 +178,58 @@ func (s *SharServer) Shutdown() {
 func (s *SharServer) Listen() error {
 	con := s.ns.Conn()
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
-		return err
+		return fmt.Errorf("APIStoreWorkflow failed: %w", err)
 	}
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance); err != nil {
-		return err
+		return fmt.Errorf("APICancelWorkflowInstance failed: %w", err)
 	}
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APILaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow); err != nil {
-		return err
+		return fmt.Errorf("APILaunchWorkflow failed: %w", err)
 	}
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
-		return err
+		return fmt.Errorf("APIListWorkflows failed: %w", err)
 	}
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus); err != nil {
-		return err
+		return fmt.Errorf("APIGetWorkflowStatus failed: %w", err)
 	}
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
-		return err
+		return fmt.Errorf("APIListWorkflowInstance failed: %w", err)
 	}
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APISendMessage, &model.SendMessageRequest{}, s.sendMessage); err != nil {
-		return err
+		return fmt.Errorf("APISendMessage failed: %w", err)
 	}
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask); err != nil {
-		return err
+		return fmt.Errorf("APICompleteManualTask failed: %w", err)
 	}
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask); err != nil {
-		return err
+		return fmt.Errorf("APICompleteServiceTask failed: %w", err)
 	}
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask); err != nil {
-		return err
+		return fmt.Errorf("APICompleteUserTask failed: %w", err)
 	}
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs); err != nil {
-		return err
+		return fmt.Errorf("APIListUserTaskIDs failed: %w", err)
 	}
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask); err != nil {
-		return err
+		return fmt.Errorf("APIGetUserTask failed: %w", err)
 	}
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIHandleWorkflowError, &model.HandleWorkflowErrorRequest{}, s.handleWorkflowError); err != nil {
-		return err
+		return fmt.Errorf("APIHandleWorkflowError failed: %w", err)
 	}
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
-		return err
+		return fmt.Errorf("APIGetServerInstanceStats failed: %w", err)
 	}
 
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetServiceTaskRoutingID, &wrapperspb.StringValue{}, s.getServiceTaskRoutingID); err != nil {
-		return err
+		return fmt.Errorf("APIGetServiceTaskRoutingID failed: %w", err)
 	}
 
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetMessageSenderRoutingID, &model.GetMessageSenderRoutingIdRequest{}, s.getMessageSenderRoutingID); err != nil {
-		return err
+		return fmt.Errorf("APIGetMessageSenderRoutingID failed: %w", err)
 	}
 
 	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICompleteSendMessageTask, &model.CompleteSendMessageRequest{}, s.completeSendMessageTask); err != nil {
-		return err
+		return fmt.Errorf("APICompleteSendMessageTask failed: %w", err)
 	}
 
 	s.log.Info("shar api listener started")
@@ -270,13 +282,13 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 	// First get the job that the error occurred in
 	job, err := s.ns.GetJob(ctx, req.TrackingId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get job for handle workflow error: %w", err)
 	}
 
 	// Get the workflow, so we can look up the error definitions
 	wf, err := s.ns.GetWorkflow(ctx, job.WorkflowId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get workflow definition for handle workflow error: %w", err)
 	}
 
 	// Get the element corresponding to the job
@@ -328,7 +340,7 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 
 	oldState, err := s.ns.GetOldState(common.TrackingID(job.Id).Pop().ID())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get old state for handle workflow error: %w", err)
 	}
 	if err := vars.OutputVars(s.log, req.Vars, &oldState.Vars, caughtError.OutputTransform); err != nil {
 		return nil, &errors2.ErrWorkflowFatal{Err: err}
@@ -342,7 +354,7 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		Vars:               oldState.Vars,
 	}); err != nil {
 		s.log.Error("failed to publish workflow state", zap.Error(err))
-		return nil, err
+		return nil, fmt.Errorf("failed to publish traversal for handle workflow error: %w", err)
 	}
 	// TODO: This always assumes service task.  Wrong!
 	if err := s.ns.PublishWorkflowState(ctx, messages.WorkflowJobServiceTaskAbort, &model.WorkflowState{
@@ -357,7 +369,7 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		// We have already traversed so retunring an error here would be incorrect.
 		// It would force reprocessing and possibly double traversing
 		// TODO: develop an idempotent behaviour based upon hash nats message ids + deduplication
-		return nil, nil
+		return nil, fmt.Errorf("failed to publish abort task for handle workflow error: %w", err)
 	}
 	return &model.HandleWorkflowErrorResponse{Handled: true}, nil
 }

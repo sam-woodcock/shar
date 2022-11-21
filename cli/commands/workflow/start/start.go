@@ -29,14 +29,14 @@ var Cmd = &cobra.Command{
 
 func run(cmd *cobra.Command, args []string) error {
 	if err := cmd.ValidateArgs(args); err != nil {
-		return err
+		return fmt.Errorf("invalid arguments: %w", err)
 	}
 	vars := &model.Vars{}
 	var err error
 	if len(flag.Value.Vars) > 0 {
 		vars, err = valueparsing.Parse(flag.Value.Vars)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to parse flags: %w", err)
 		}
 	}
 
@@ -87,7 +87,7 @@ func run(cmd *cobra.Command, args []string) error {
 			return true, nil
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("error starting debug trace processing: %w", err)
 		}
 
 		c := output.Console{}
@@ -96,12 +96,12 @@ func run(cmd *cobra.Command, args []string) error {
 			err := proto.Unmarshal(msg.Data, &state)
 			if err != nil {
 				log.Error("unable to unmarshal message", zap.Error(err))
-				return err
+				return fmt.Errorf("failed to unmarshal status trace message: %w", err)
 			}
 			if state.WorkflowInstanceId == wfiID {
 				err := c.OutputWorkflowInstanceStatus([]*model.WorkflowState{&state})
 				if err != nil {
-					return err
+					return fmt.Errorf("error outputting workflow instance status: %w", err)
 				}
 			}
 			// Check end states once they are implemented
@@ -126,7 +126,7 @@ func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig 
 			panic(err)
 		}
 	} else if err != nil {
-		return err
+		return fmt.Errorf("error ensuring consumer: %w", err)
 	}
 	return nil
 }
