@@ -20,7 +20,7 @@ var Cmd = &cobra.Command{
 
 func run(cmd *cobra.Command, args []string) error {
 	if err := cmd.ValidateArgs(args); err != nil {
-		return err
+		return fmt.Errorf("invalid arguments: %w", err)
 	}
 	ctx := context.Background()
 	instanceID := args[0]
@@ -30,8 +30,11 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	status, err := shar.GetWorkflowInstanceStatus(ctx, instanceID)
 	if err != nil {
-		return err
+		return fmt.Errorf("error getting workflow instance status: %w", err)
 	}
 	c := &output.Console{}
-	return c.OutputWorkflowInstanceStatus(status)
+	if err := c.OutputWorkflowInstanceStatus(status); err != nil {
+		return fmt.Errorf("failed to output workflow instance status: %w", err)
+	}
+	return nil
 }

@@ -130,7 +130,7 @@ func ensureConsumer(js nats.JetStreamContext, streamName string, consumerConfig 
 			return fmt.Errorf("cannot ensure consumer '%s' with subject '%s' : %w", consumerConfig.Name, consumerConfig.FilterSubject, err)
 		}
 	} else if err != nil {
-		return err
+		return fmt.Errorf("could not ensure consumer: %w", err)
 	}
 	return nil
 }
@@ -138,10 +138,10 @@ func ensureConsumer(js nats.JetStreamContext, streamName string, consumerConfig 
 func ensureStream(js nats.JetStreamContext, streamConfig *nats.StreamConfig) error {
 	if _, err := js.StreamInfo(streamConfig.Name); err == nats.ErrStreamNotFound {
 		if _, err := js.AddStream(streamConfig); err != nil {
-			return err
+			return fmt.Errorf("could not add stream: %w", err)
 		}
 	} else if err != nil {
-		return err
+		return fmt.Errorf("could not ensure stream: %w", err)
 	}
 	return nil
 }
