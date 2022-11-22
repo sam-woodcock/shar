@@ -12,6 +12,7 @@ var (
 	ErrStateNotFound            = errors.New("state not found")                                                                            // ErrStateNotFound signifies state not found
 	ErrJobNotFound              = errors.New("job not found")                                                                              // ErrJobNotFound signifies job not found
 	ErrFatalBadDuration         = &ErrWorkflowFatal{Err: errors.New("timer embargo value could not be evaluated to an int or a duration")} // ErrFatalBadDuration sigifies that the timer embargo value could not be evaluated to an int or a duration
+	ErrWorkflowErrorNotFound    = errors.New("workflow error number not found")                                                            // ErrWorkflowErrorNotFound signifies that the workflow error thrown is not recognised
 )
 
 var (

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"gitlab.com/shar-workflow/shar/common/subj"
+	"golang.org/x/exp/slog"
 
 	"github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
@@ -14,7 +15,6 @@ import (
 	"gitlab.com/shar-workflow/shar/common/valueparsing"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/messages"
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -41,7 +41,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.Background()
-	shar := client.New(output.Logger)
+	shar := client.New()
 	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
@@ -52,9 +52,6 @@ func run(cmd *cobra.Command, args []string) error {
 	fmt.Println("workflow instance started. instance-id:", wfiID)
 
 	if flag.Value.DebugTrace {
-		// Create logger
-		log, _ := zap.NewDevelopment()
-
 		// Connect to a server
 		nc, _ := nats.Connect(nats.DefaultURL)
 
@@ -82,7 +79,7 @@ func run(cmd *cobra.Command, args []string) error {
 		closer := make(chan struct{})
 		workflowMessages := make(chan *nats.Msg)
 
-		err = common.Process(ctx, js, log, "trace", closer, subj.NS(messages.WorkflowStateAll, "*"), "Tracing", 1, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+		err = common.Process(ctx, js, "trace", closer, subj.NS(messages.WorkflowStateAll, "*"), "Tracing", 1, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 			workflowMessages <- msg
 			return true, nil
 		})
@@ -95,7 +92,8 @@ func run(cmd *cobra.Command, args []string) error {
 			var state = model.WorkflowState{}
 			err := proto.Unmarshal(msg.Data, &state)
 			if err != nil {
-				log.Error("unable to unmarshal message", zap.Error(err))
+				log := slog.FromContext(ctx)
+				log.Error("unable to unmarshal message", err)
 				return fmt.Errorf("failed to unmarshal status trace message: %w", err)
 			}
 			if state.WorkflowInstanceId == wfiID {

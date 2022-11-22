@@ -10,7 +10,6 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
 	zensvr "gitlab.com/shar-workflow/shar/zen-shar/server"
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 	"sync"
 	"testing"
@@ -36,18 +35,7 @@ func (s *integration) setup(t *testing.T) {
 	s.cooldown = 2 * time.Second
 	s.test = t
 	s.finalVars = make(map[string]interface{})
-	logger, err := zap.Config{
-		Level:            zap.NewAtomicLevelAt(zap.DebugLevel),
-		Development:      true,
-		Encoding:         "console",
-		EncoderConfig:    zap.NewDevelopmentEncoderConfig(),
-		OutputPaths:      []string{"stderr"},
-		ErrorOutputPaths: []string{"stderr"},
-	}.Build()
-	if err != nil {
-		panic(err)
-	}
-	ss, ns, err := zensvr.GetServers(natsHost, natsPort, logger)
+	ss, ns, err := zensvr.GetServers(natsHost, natsPort)
 	if err != nil {
 		panic(err)
 	}

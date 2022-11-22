@@ -9,7 +9,7 @@ import (
 	"gitlab.com/shar-workflow/shar/common/setup"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
-	"go.uber.org/zap"
+	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
 	"math/big"
 	"strconv"
@@ -138,7 +138,8 @@ func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names
 }
 
 // Process processes messages from a nats consumer and executes a function against each one.
-func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, traceName string, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, msg *nats.Msg) (bool, error)) error {
+func Process(ctx context.Context, js nats.JetStreamContext, traceName string, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, msg *nats.Msg) (bool, error)) error {
+	log := slog.FromContext(ctx)
 	if _, ok := setup.ConsumerDurableNames[durable]; !strings.HasPrefix(durable, "ServiceTask_") && !ok {
 		return fmt.Errorf("durable consumer '%s' is not explicity configured", durable)
 	}
@@ -146,7 +147,7 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, tra
 		go func() {
 			sub, err := js.PullSubscribe(subject, durable)
 			if err != nil {
-				log.Error("process pull subscribe error", zap.Error(err), zap.String("subject", subject), zap.String("durable", durable))
+				log.Error("process pull subscribe error", err, "subject", subject, "durable", durable)
 				return
 			}
 			for {
@@ -163,17 +164,17 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, tra
 						continue
 					}
 					// Log Error
-					log.Error("message fetch error", zap.Error(err))
+					log.Error("message fetch error", err)
 					cancel()
 					continue
 				}
 				m := msg[0]
-				//				log.Debug("Process:"+traceName, zap.String("subject", msg[0].Subject))
+				//				log.Debug("Process:"+traceName, slog.String("subject", msg[0].Subject))
 				cancel()
 				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
 					e, err := strconv.Atoi(embargo)
 					if err != nil {
-						log.Error("bad embargo value", zap.Error(err))
+						log.Error("bad embargo value", err)
 						continue
 					}
 					offset := time.Duration(int64(e) - time.Now().UnixNano())
@@ -188,22 +189,22 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, tra
 				ack, err := fn(executeCtx, msg[0])
 				if err != nil {
 					if errors2.IsWorkflowFatal(err) {
-						log.Error("workflow fatal error occured processing function", zap.Error(err))
+						log.Error("workflow fatal error occured processing function", err)
 						ack = true
 					} else {
 						wfe := &workflow.Error{}
 						if !errors.As(err, wfe) {
-							log.Error("processing error", zap.Error(err), zap.String("name", traceName))
+							log.Error("processing error", err, "name", traceName)
 						}
 					}
 				}
 				if ack {
 					if err := msg[0].Ack(); err != nil {
-						log.Error("processing failed to ack", zap.Error(err))
+						log.Error("processing failed to ack", err)
 					}
 				} else {
 					if err := msg[0].Nak(); err != nil {
-						log.Error("processing failed to nak", zap.Error(err))
+						log.Error("processing failed to nak", err)
 					}
 				}
 			}

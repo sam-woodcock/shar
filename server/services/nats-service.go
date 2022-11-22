@@ -18,7 +18,7 @@ import (
 	"gitlab.com/shar-workflow/shar/server/errors/keys"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/vars"
-	"go.uber.org/zap"
+	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
 	"strconv"
 	"strings"
@@ -36,7 +36,6 @@ type NatsService struct {
 	traverslFunc                   TraversalFunc
 	launchFunc                     LaunchFunc
 	messageProcessor               MessageProcessorFunc
-	log                            *zap.Logger
 	storageType                    nats.StorageType
 	concurrency                    int
 	closing                        chan struct{}
@@ -121,7 +120,7 @@ func (s *NatsService) ListWorkflows(_ context.Context) (chan *model.ListWorkflow
 }
 
 // NewNatsService creates a new instance of the NATS communication layer.
-func NewNatsService(log *zap.Logger, conn common.NatsConn, txConn common.NatsConn, storageType nats.StorageType, concurrency int, allowOrphanServiceTasks bool) (*NatsService, error) {
+func NewNatsService(conn common.NatsConn, txConn common.NatsConn, storageType nats.StorageType, concurrency int, allowOrphanServiceTasks bool) (*NatsService, error) {
 	if concurrency < 1 || concurrency > 200 {
 		return nil, errors2.New("invalid concurrency set")
 	}
@@ -139,7 +138,6 @@ func NewNatsService(log *zap.Logger, conn common.NatsConn, txConn common.NatsCon
 		txConn:                  txConn,
 		js:                      js,
 		txJS:                    txJS,
-		log:                     log,
 		concurrency:             concurrency,
 		storageType:             storageType,
 		closing:                 make(chan struct{}),
@@ -403,23 +401,24 @@ func (s *NatsService) SetInFlight(ctx context.Context, wfiID string, activityID 
 
 // DestroyWorkflowInstance terminates a running workflow instance with a cancellation reason and error
 func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceID string, state model.CancellationState, wfError *model.Error) error {
+	log := slog.FromContext(ctx)
 	// Get the workflow instance
 	wfi := &model.WorkflowInstance{}
 	if err := common.LoadObj(s.wfInstance, workflowInstanceID, wfi); err != nil {
-		s.log.Warn("Could not fetch workflow instance",
-			zap.String(keys.WorkflowInstanceID, workflowInstanceID),
+		log.Warn("Could not fetch workflow instance",
+			slog.String(keys.WorkflowInstanceID, workflowInstanceID),
 		)
-		return s.expectPossibleMissingKey("error fetching workflow instance", err)
+		return s.expectPossibleMissingKey(ctx, "error fetching workflow instance", err)
 	}
 
 	// Get the workflow
 	wf := &model.Workflow{}
 	if wfi.WorkflowId != "" {
 		if err := common.LoadObj(s.wf, wfi.WorkflowId, wf); err != nil {
-			s.log.Warn("Could not fetch workflow definition",
-				zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-				zap.String(keys.WorkflowID, wfi.WorkflowId),
-				zap.String(keys.WorkflowName, wf.Name),
+			log.Warn("Could not fetch workflow definition",
+				slog.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+				slog.String(keys.WorkflowID, wfi.WorkflowId),
+				slog.String(keys.WorkflowName, wf.Name),
 			)
 		}
 	}
@@ -427,11 +426,11 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 	// Get all the subscriptions
 	subs := &model.WorkflowInstanceSubscribers{}
 	if err := common.LoadObj(s.wfMsgSubs, wfi.WorkflowInstanceId, subs); err != nil {
-		s.log.Debug("Could not fetch message subscribers",
-			zap.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
-			zap.String(keys.WorkflowID, wfi.WorkflowId),
-			zap.String(keys.WorkflowName, wf.Name),
-			zap.String(keys.MessageID, wf.Name),
+		log.Debug("Could not fetch message subscribers",
+			slog.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId),
+			slog.String(keys.WorkflowID, wfi.WorkflowId),
+			slog.String(keys.WorkflowName, wf.Name),
+			slog.String(keys.MessageID, wf.Name),
 		)
 	}
 
@@ -439,14 +438,14 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		for i := 0; i < len(subs.List); i++ {
 			err := s.wfMsgSub.Delete(subs.List[i])
 			if err != nil {
-				s.log.Debug("could not delete instance subscriber",
-					zap.String("inst.id", subs.List[i]),
+				log.Debug("could not delete instance subscriber",
+					slog.String("inst.id", subs.List[i]),
 				)
 			}
 		}
 		return subs, nil
 	}); err != nil {
-		return s.expectPossibleMissingKey("could not update message subscriptions", err)
+		return s.expectPossibleMissingKey(ctx, "could not update message subscriptions", err)
 	}
 
 	tState := &model.WorkflowState{
@@ -516,7 +515,8 @@ func (s *NatsService) DeleteJob(_ context.Context, trackingID string) error {
 }
 
 // ListWorkflowInstance returns a list of running workflows and versions given a workflow ID
-func (s *NatsService) ListWorkflowInstance(_ context.Context, workflowName string) (chan *model.ListWorkflowInstanceResult, chan error) {
+func (s *NatsService) ListWorkflowInstance(ctx context.Context, workflowName string) (chan *model.ListWorkflowInstanceResult, chan error) {
+	log := slog.FromContext(ctx)
 	errs := make(chan error, 1)
 	wch := make(chan *model.ListWorkflowInstanceResult, 100)
 
@@ -535,7 +535,8 @@ func (s *NatsService) ListWorkflowInstance(_ context.Context, workflowName strin
 	if err == nats.ErrNoKeysFound {
 		ks = []string{}
 	} else if err != nil {
-		s.log.Error("error obtaining keys", zap.Error(err))
+		log := slog.FromContext(ctx)
+		log.Error("error obtaining keys", err)
 		return nil, errs
 	}
 	go func(keys []string) {
@@ -545,7 +546,7 @@ func (s *NatsService) ListWorkflowInstance(_ context.Context, workflowName strin
 			if wv, ok := ver[v.WorkflowId]; ok {
 				if err != nil && err != nats.ErrKeyNotFound {
 					errs <- err
-					s.log.Error("error loading object", zap.Error(err))
+					log.Error("error loading object", err)
 					close(errs)
 					return
 				}
@@ -591,7 +592,7 @@ func (s *NatsService) StartProcessing(ctx context.Context) error {
 	if err := s.processMessages(ctx); err != nil {
 		return err
 	}
-	if err := s.listenForTimer(ctx, s.js, s.log, s.closing, 4); err != nil {
+	if err := s.listenForTimer(ctx, s.js, s.closing, 4); err != nil {
 		return err
 	}
 	if err := s.processCompletedJobs(ctx); err != nil {
@@ -672,7 +673,8 @@ func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string
 	}
 
 	if _, err := s.txJS.PublishMsg(msg, nats.Context(pubCtx), nats.MsgId(c.ID)); err != nil {
-		s.log.Error("failed to publish message", zap.Error(err), zap.String("nats.msg.id", c.ID), zap.Any("state", state), zap.String("subject", msg.Subject))
+		log := slog.FromContext(ctx)
+		log.Error("failed to publish message", err, slog.String("nats.msg.id", c.ID), slog.Any("state", state), slog.String("subject", msg.Subject))
 		return fmt.Errorf("failed to publish workflow state message: %w", err)
 	}
 	if stateName == subj.NS(messages.WorkflowJobUserTaskExecute, "default") {
@@ -708,7 +710,8 @@ func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID str
 	defer cancel()
 	id := ksuid.New().String()
 	if _, err := s.txJS.PublishMsg(msg, nats.Context(pubCtx), nats.MsgId(id)); err != nil {
-		s.log.Error("failed to publish message", zap.Error(err), zap.String("nats.msg.id", id), zap.Any("msg", sharMsg), zap.String("subject", msg.Subject))
+		log := slog.FromContext(ctx)
+		log.Error("failed to publish message", err, slog.String("nats.msg.id", id), slog.Any("msg", sharMsg), slog.String("subject", msg.Subject))
 		return fmt.Errorf("failed to publish message: %w", err)
 	}
 	return nil
@@ -728,7 +731,7 @@ func (s *NatsService) GetElement(_ context.Context, state *model.WorkflowState) 
 }
 
 func (s *NatsService) processTraversals(ctx context.Context) error {
-	err := common.Process(ctx, s.js, s.log, "traversal", s.closing, subj.NS(messages.WorkflowTraversalExecute, "*"), "Traversal", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+	err := common.Process(ctx, s.js, "traversal", s.closing, subj.NS(messages.WorkflowTraversalExecute, "*"), "Traversal", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var traversal model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &traversal); err != nil {
 			return false, fmt.Errorf("could not unmarshal traversal proto: %w", err)
@@ -740,7 +743,7 @@ func (s *NatsService) processTraversals(ctx context.Context) error {
 				return false, err
 			}
 			if err := s.eventProcessor(ctx, activityID, &traversal, false); errors.IsWorkflowFatal(err) {
-				s.log.Error("workflow fatally terminated whilst processing activity", zap.String(keys.WorkflowInstanceID, traversal.WorkflowInstanceId), zap.String(keys.WorkflowID, traversal.WorkflowId), zap.Error(err), zap.String(keys.ElementID, traversal.ElementId))
+				slog.FromContext(ctx).Error("workflow fatally terminated whilst processing activity", err, slog.String(keys.WorkflowInstanceID, traversal.WorkflowInstanceId), slog.String(keys.WorkflowID, traversal.WorkflowId), err, slog.String(keys.ElementID, traversal.ElementId))
 				return true, nil
 			} else if err != nil {
 				return false, fmt.Errorf("could not process event: %w", err)
@@ -755,7 +758,7 @@ func (s *NatsService) processTraversals(ctx context.Context) error {
 }
 
 func (s *NatsService) processTracking(ctx context.Context) error {
-	err := common.Process(ctx, s.js, s.log, "tracking", s.closing, "WORKFLOW.>", "Tracking", 1, s.track)
+	err := common.Process(ctx, s.js, "tracking", s.closing, "WORKFLOW.>", "Tracking", 1, s.track)
 	if err != nil {
 		return fmt.Errorf("failed during tracking processor: %w", err)
 	}
@@ -763,7 +766,7 @@ func (s *NatsService) processTracking(ctx context.Context) error {
 }
 
 func (s *NatsService) processCompletedJobs(ctx context.Context) error {
-	err := common.Process(ctx, s.js, s.log, "completedJob", s.closing, subj.NS(messages.WorkFlowJobCompleteAll, "*"), "JobCompleteConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+	err := common.Process(ctx, s.js, "completedJob", s.closing, subj.NS(messages.WorkFlowJobCompleteAll, "*"), "JobCompleteConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var job model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &job); err != nil {
 			return false, fmt.Errorf("failed to unmarshal completed job state: %w", err)
@@ -818,7 +821,7 @@ func (s *NatsService) Conn() common.NatsConn { //nolint:ireturn
 }
 
 func (s *NatsService) processMessages(ctx context.Context) error {
-	err := common.Process(ctx, s.js, s.log, "message", s.closing, subj.NS(messages.WorkflowMessages, "*"), "Message", s.concurrency, s.processMessage)
+	err := common.Process(ctx, s.js, "message", s.closing, subj.NS(messages.WorkflowMessages, "*"), "Message", s.concurrency, s.processMessage)
 	if err != nil {
 		return fmt.Errorf("failed to start message processor: %w", err)
 	}
@@ -856,11 +859,11 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 			continue
 		}
 
-		dv, err := vars.Decode(s.log, sub.Vars)
+		dv, err := vars.Decode(ctx, sub.Vars)
 		if err != nil {
 			return false, fmt.Errorf("failed to decode message subscription variables: %w", err)
 		}
-		success, err := expression.Eval[bool](s.log, *sub.Execute+"=="+instance.CorrelationKey, dv)
+		success, err := expression.Eval[bool](ctx, *sub.Execute+"=="+instance.CorrelationKey, dv)
 		if err != nil {
 			return false, &errors.ErrWorkflowFatal{Err: err}
 		}
@@ -873,7 +876,7 @@ func (s *NatsService) processMessage(ctx context.Context, msg *nats.Msg) (bool, 
 			return true, &errors.ErrWorkflowFatal{Err: err}
 		}
 
-		err = vars.OutputVars(s.log, instance.Vars, &sub.Vars, el.OutputTransform)
+		err = vars.OutputVars(ctx, instance.Vars, &sub.Vars, el.OutputTransform)
 		if err != nil {
 			return false, fmt.Errorf("failed to transform output variables for message: %w", err)
 		}
@@ -910,7 +913,7 @@ func (s *NatsService) Shutdown() {
 }
 
 func (s *NatsService) processWorkflowEvents(ctx context.Context) error {
-	err := common.Process(ctx, s.js, s.log, "workflowEvent", s.closing, subj.NS(messages.WorkflowInstanceAll, "*"), "WorkflowConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+	err := common.Process(ctx, s.js, "workflowEvent", s.closing, subj.NS(messages.WorkflowInstanceAll, "*"), "WorkflowConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var job model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &job); err != nil {
 			return false, fmt.Errorf("failed to load workflow state processing workflow event: %w", err)
@@ -929,7 +932,7 @@ func (s *NatsService) processWorkflowEvents(ctx context.Context) error {
 }
 
 func (s *NatsService) processActivities(ctx context.Context) error {
-	err := common.Process(ctx, s.js, s.log, "activity", s.closing, subj.NS(messages.WorkflowActivityAll, "*"), "ActivityConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+	err := common.Process(ctx, s.js, "activity", s.closing, subj.NS(messages.WorkflowActivityAll, "*"), "ActivityConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var activity model.WorkflowState
 		switch {
 		case strings.HasSuffix(msg.Subject, ".State.Activity.Execute"):
@@ -1052,22 +1055,24 @@ func (s *NatsService) incrementWorkflowStarted() {
 	s.statsMx.Unlock()
 }
 
-func (s *NatsService) expectPossibleMissingKey(msg string, err error) error {
+func (s *NatsService) expectPossibleMissingKey(ctx context.Context, msg string, err error) error {
 	if errors2.Is(err, nats.ErrKeyNotFound) {
-		s.log.Debug(msg, zap.Error(err))
+		log := slog.FromContext(ctx)
+		log.Debug(msg, err)
 		return nil
 	}
 	return err
 }
 
-func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, closer chan struct{}, concurrency int) error {
+func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamContext, closer chan struct{}, concurrency int) error {
+	log := slog.FromContext(ctx)
 	subject := subj.NS("WORKFLOW.%s.Timers.>", "*")
 	durable := "workflowTimers"
 	for i := 0; i < concurrency; i++ {
 		go func() {
 			sub, err := js.PullSubscribe(subject, durable)
 			if err != nil {
-				log.Error("process pull subscribe error", zap.Error(err), zap.String("subject", subject), zap.String("durable", durable))
+				log.Error("process pull subscribe error", err, slog.String("subject", subject), slog.String("durable", durable))
 				return
 			}
 			for {
@@ -1084,17 +1089,17 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 						continue
 					}
 					// Log Error
-					log.Error("message fetch error", zap.Error(err))
+					log.Error("message fetch error", err)
 					cancel()
 					continue
 				}
 				m := msg[0]
-				//				log.Debug("Process:"+traceName, zap.String("subject", msg[0].Subject))
+				//				log.Debug("Process:"+traceName, slog.String("subject", msg[0].Subject))
 				cancel()
 				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
 					e, err := strconv.Atoi(embargo)
 					if err != nil {
-						log.Error("bad embargo value", zap.Error(err))
+						log.Error("bad embargo value", err)
 						continue
 					}
 					offset := time.Duration(int64(e) - time.Now().UnixNano())
@@ -1109,10 +1114,10 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 				state := &model.WorkflowState{}
 				err = proto.Unmarshal(msg[0].Data, state)
 				if err != nil {
-					s.log.Error("could not unmarshal timer proto: %s", zap.Error(err))
+					log.Error("could not unmarshal timer proto: %s", err)
 					err := msg[0].Ack()
 					if err != nil {
-						s.log.Error("could not dispose of timer message after unmarshal error: %s", zap.Error(err))
+						log.Error("could not dispose of timer message after unmarshal error: %s", err)
 					}
 					continue
 				}
@@ -1121,21 +1126,21 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 					wfi, err := s.GetWorkflowInstance(ctx, state.WorkflowInstanceId)
 					if err == errors.ErrWorkflowInstanceNotFound {
 						if err := msg[0].Ack(); err != nil {
-							s.log.Error("failed to ack message after workflow instance not found", zap.Error(err))
+							log.Error("failed to ack message after workflow instance not found", err)
 							continue
 						}
 						continue
 					}
 					wf, err := s.GetWorkflow(ctx, wfi.WorkflowId)
 					if err != nil {
-						s.log.Error("failed to get workflow", zap.Error(err))
+						log.Error("failed to get workflow", err)
 						continue
 					}
 					activityID := common.TrackingID(state.Id).ID()
 					_, err = s.GetOldState(activityID)
 					if err == errors.ErrStateNotFound {
 						if err := msg[0].Ack(); err != nil {
-							s.log.Error("failed to ack message after state not found", zap.Error(err))
+							log.Error("failed to ack message after state not found", err)
 							continue
 						}
 					}
@@ -1145,7 +1150,7 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 					els := common.ElementTable(wf)
 					parent := common.TrackingID(state.Id).Pop()
 					if err := s.traverslFunc(ctx, wfi, parent, &model.Targets{Target: []*model.Target{{Id: "timer-target", Target: *state.Execute}}}, els, state.Vars); err != nil {
-						s.log.Error("failed to traverse", zap.Error(err))
+						log.Error("failed to traverse", err)
 						continue
 					}
 					if err := s.PublishWorkflowState(ctx, subj.NS(messages.WorkflowActivityAbort, "default"), state); err != nil {
@@ -1155,7 +1160,7 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 					}
 
 					if err = msg[0].Ack(); err != nil {
-						s.log.Warn("failed to ack after timer redirect", zap.Error(err))
+						log.Warn("failed to ack after timer redirect", err)
 					}
 					continue
 				}
@@ -1164,31 +1169,31 @@ func (s *NatsService) listenForTimer(ctx context.Context, js nats.JetStreamConte
 				if err != nil {
 					if errors.IsWorkflowFatal(err) {
 						if err := msg[0].Ack(); err != nil {
-							s.log.Error("failed to ack after a fatal error in message processing: %s", zap.Error(err))
+							log.Error("failed to ack after a fatal error in message processing: %s", err)
 						}
-						s.log.Error("a fatal error occurred processing a message: %s", zap.Error(err))
+						log.Error("a fatal error occurred processing a message: %s", err)
 						continue
 					}
-					s.log.Error("an error occured processing a message: %s", zap.Error(err))
+					log.Error("an error occured processing a message: %s", err)
 					continue
 				}
 				if ack {
 					err := msg[0].Ack()
 					if err != nil {
-						s.log.Error("could not ack after message processing: %s", zap.Error(err))
+						log.Error("could not ack after message processing: %s", err)
 						continue
 					}
 				} else {
 					if delay > 0 {
 						err := msg[0].NakWithDelay(time.Duration(delay))
 						if err != nil {
-							s.log.Error("could not nak message with delay: %s", zap.Error(err))
+							log.Error("could not nak message with delay: %s", err)
 							continue
 						}
 					} else {
 						err := msg[0].Nak()
 						if err != nil {
-							s.log.Error("could not nak message: %s", zap.Error(err))
+							log.Error("could not nak message: %s", err)
 							continue
 						}
 					}
@@ -1212,7 +1217,7 @@ func (s *NatsService) GetOldState(id string) (*model.WorkflowState, error) {
 }
 
 func (s *NatsService) processLaunch(ctx context.Context) error {
-	err := common.Process(ctx, s.js, s.log, "launch", s.closing, subj.NS(messages.WorkflowJobLaunchExecute, "*"), "LaunchConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+	err := common.Process(ctx, s.js, "launch", s.closing, subj.NS(messages.WorkflowJobLaunchExecute, "*"), "LaunchConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var job model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &job); err != nil {
 			return false, fmt.Errorf("failed to unmarshal during process launch: %w", err)
@@ -1229,7 +1234,7 @@ func (s *NatsService) processLaunch(ctx context.Context) error {
 }
 
 func (s *NatsService) processJobAbort(ctx context.Context) error {
-	err := common.Process(ctx, s.js, s.log, "abort", s.closing, subj.NS(messages.WorkFlowJobAbortAll, "*"), "JobAbortConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+	err := common.Process(ctx, s.js, "abort", s.closing, subj.NS(messages.WorkFlowJobAbortAll, "*"), "JobAbortConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var state model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &state); err != nil {
 			return false, fmt.Errorf("job abort consumer failed to unmarshal state: %w", err)
@@ -1253,7 +1258,7 @@ func (s *NatsService) processJobAbort(ctx context.Context) error {
 }
 
 func (s *NatsService) processGeneralAbort(ctx context.Context) error {
-	err := common.Process(ctx, s.js, s.log, "abort", s.closing, subj.NS(messages.WorkflowGeneralAbortAll, "*"), "GeneralAbortConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+	err := common.Process(ctx, s.js, "abort", s.closing, subj.NS(messages.WorkflowGeneralAbortAll, "*"), "GeneralAbortConsumer", s.concurrency, func(ctx context.Context, msg *nats.Msg) (bool, error) {
 		var state model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &state); err != nil {
 			return false, fmt.Errorf("failed to unmarshal during general abort processor: %w", err)

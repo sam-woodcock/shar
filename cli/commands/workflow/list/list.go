@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"gitlab.com/shar-workflow/shar/cli/flag"
-	"gitlab.com/shar-workflow/shar/cli/output"
 	"gitlab.com/shar-workflow/shar/client"
 )
 
@@ -23,7 +22,7 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid arguments: %w", err)
 	}
 	ctx := context.Background()
-	shar := client.New(output.Logger)
+	shar := client.New()
 	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}

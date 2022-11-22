@@ -6,7 +6,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
-	"go.uber.org/zap"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -16,11 +16,8 @@ func main() {
 	// Create a starting context
 	ctx := context.Background()
 
-	// Create logger
-	log, _ := zap.NewDevelopment()
-
 	// Dial shar
-	cl1 := client.New(log)
+	cl1 := client.New()
 
 	if err := cl1.Dial(nats.DefaultURL); err != nil {
 		panic(err)

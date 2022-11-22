@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/server/vars"
+	"golang.org/x/exp/slog"
 	"sync"
 
 	"github.com/nats-io/nats.go"
@@ -15,7 +17,6 @@ import (
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/services"
 	"gitlab.com/shar-workflow/shar/server/workflow"
-	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -24,7 +25,6 @@ import (
 
 // SharServer provides API endpoints for SHAR
 type SharServer struct {
-	log           *zap.Logger
 	ns            *services.NatsService
 	engine        *workflow.Engine
 	subs          map[*nats.Subscription]struct{}
@@ -32,8 +32,8 @@ type SharServer struct {
 }
 
 // New creates a new instance of the SHAR API server
-func New(log *zap.Logger, ns *services.NatsService, panicRecovery bool) (*SharServer, error) {
-	engine, err := workflow.NewEngine(log, ns)
+func New(ns *services.NatsService, panicRecovery bool) (*SharServer, error) {
+	engine, err := workflow.NewEngine(ns)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create SHAR engine instance: %w", err)
 	}
@@ -41,7 +41,6 @@ func New(log *zap.Logger, ns *services.NatsService, panicRecovery bool) (*SharSe
 		return nil, fmt.Errorf("failed to start SHAR engine: %w", err)
 	}
 	return &SharServer{
-		log:           log,
 		ns:            ns,
 		engine:        engine,
 		panicRecovery: panicRecovery,
@@ -162,77 +161,77 @@ var shutdownOnce sync.Once
 
 // Shutdown gracefully shuts down the SHAR API server and Engine
 func (s *SharServer) Shutdown() {
-	s.log.Info("stopping shar api listener")
+	slog.Info("stopping shar api listener")
 	shutdownOnce.Do(func() {
 		for sub := range s.subs {
 			if err := sub.Drain(); err != nil {
-				s.log.Error("Could not drain subscription for "+sub.Subject, zap.Error(err))
+				slog.Error("Could not drain subscription for "+sub.Subject, err)
 			}
 		}
 		s.engine.Shutdown()
-		s.log.Info("shar api listener stopped")
+		slog.Info("shar api listener stopped")
 	})
 }
 
 // Listen starts the SHAR API server listening to incoming requests
 func (s *SharServer) Listen() error {
 	con := s.ns.Conn()
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
 		return fmt.Errorf("APIStoreWorkflow failed: %w", err)
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APICancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance); err != nil {
 		return fmt.Errorf("APICancelWorkflowInstance failed: %w", err)
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APILaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APILaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow); err != nil {
 		return fmt.Errorf("APILaunchWorkflow failed: %w", err)
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
 		return fmt.Errorf("APIListWorkflows failed: %w", err)
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus); err != nil {
 		return fmt.Errorf("APIGetWorkflowStatus failed: %w", err)
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
 		return fmt.Errorf("APIListWorkflowInstance failed: %w", err)
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APISendMessage, &model.SendMessageRequest{}, s.sendMessage); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APISendMessage, &model.SendMessageRequest{}, s.sendMessage); err != nil {
 		return fmt.Errorf("APISendMessage failed: %w", err)
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APICompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask); err != nil {
 		return fmt.Errorf("APICompleteManualTask failed: %w", err)
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APICompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask); err != nil {
 		return fmt.Errorf("APICompleteServiceTask failed: %w", err)
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APICompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask); err != nil {
 		return fmt.Errorf("APICompleteUserTask failed: %w", err)
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs); err != nil {
 		return fmt.Errorf("APIListUserTaskIDs failed: %w", err)
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask); err != nil {
 		return fmt.Errorf("APIGetUserTask failed: %w", err)
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIHandleWorkflowError, &model.HandleWorkflowErrorRequest{}, s.handleWorkflowError); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIHandleWorkflowError, &model.HandleWorkflowErrorRequest{}, s.handleWorkflowError); err != nil {
 		return fmt.Errorf("APIHandleWorkflowError failed: %w", err)
 	}
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
 		return fmt.Errorf("APIGetServerInstanceStats failed: %w", err)
 	}
 
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetServiceTaskRoutingID, &wrapperspb.StringValue{}, s.getServiceTaskRoutingID); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetServiceTaskRoutingID, &wrapperspb.StringValue{}, s.getServiceTaskRoutingID); err != nil {
 		return fmt.Errorf("APIGetServiceTaskRoutingID failed: %w", err)
 	}
 
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APIGetMessageSenderRoutingID, &model.GetMessageSenderRoutingIdRequest{}, s.getMessageSenderRoutingID); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetMessageSenderRoutingID, &model.GetMessageSenderRoutingIdRequest{}, s.getMessageSenderRoutingID); err != nil {
 		return fmt.Errorf("APIGetMessageSenderRoutingID failed: %w", err)
 	}
 
-	if _, err := listen(con, s.log, s.panicRecovery, s.subs, messages.APICompleteSendMessageTask, &model.CompleteSendMessageRequest{}, s.completeSendMessageTask); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APICompleteSendMessageTask, &model.CompleteSendMessageRequest{}, s.completeSendMessageTask); err != nil {
 		return fmt.Errorf("APICompleteSendMessageTask failed: %w", err)
 	}
 
-	s.log.Info("shar api listener started")
+	slog.Info("shar api listener started")
 	return nil
 }
 
@@ -307,7 +306,7 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		wfErrs[v.Id] = v
 	}
 	if !found {
-		werr := &errors2.ErrWorkflowFatal{Err: fmt.Errorf("workflow-fatal: can't handle error code %s as the workflow doesn't support it: %w", req.ErrorCode, err)}
+		werr := &errors2.ErrWorkflowFatal{Err: fmt.Errorf("workflow-fatal: can't handle error code %s as the workflow doesn't support it: %w", req.ErrorCode, errors2.ErrWorkflowErrorNotFound)}
 		if _, err := s.cancelWorkflowInstance(ctx, &model.CancelWorkflowInstanceRequest{Id: job.WorkflowInstanceId, State: model.CancellationState_errored}); err != nil {
 			return nil, fmt.Errorf("failed to cancel workflow instance: %w", werr)
 		}
@@ -342,7 +341,7 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 	if err != nil {
 		return nil, fmt.Errorf("failed to get old state for handle workflow error: %w", err)
 	}
-	if err := vars.OutputVars(s.log, req.Vars, &oldState.Vars, caughtError.OutputTransform); err != nil {
+	if err := vars.OutputVars(ctx, req.Vars, &oldState.Vars, caughtError.OutputTransform); err != nil {
 		return nil, &errors2.ErrWorkflowFatal{Err: err}
 	}
 	if err := s.ns.PublishWorkflowState(ctx, messages.WorkflowTraversalExecute, &model.WorkflowState{
@@ -353,7 +352,8 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		Id:                 common.TrackingID(job.Id).Pop().Pop(),
 		Vars:               oldState.Vars,
 	}); err != nil {
-		s.log.Error("failed to publish workflow state", zap.Error(err))
+		log := slog.FromContext(ctx)
+		log.Error("failed to publish workflow state", err)
 		return nil, fmt.Errorf("failed to publish traversal for handle workflow error: %w", err)
 	}
 	// TODO: This always assumes service task.  Wrong!
@@ -365,7 +365,8 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		Id:                 job.Id,
 		Vars:               job.Vars,
 	}); err != nil {
-		s.log.Error("failed to publish workflow state", zap.Error(err))
+		log := slog.FromContext(ctx)
+		log.Error("failed to publish workflow state", err)
 		// We have already traversed so retunring an error here would be incorrect.
 		// It would force reprocessing and possibly double traversing
 		// TODO: develop an idempotent behaviour based upon hash nats message ids + deduplication
@@ -379,11 +380,11 @@ func (s *SharServer) getServerInstanceStats(_ context.Context, _ *emptypb.Empty)
 	return &ret, nil
 }
 
-func listen[T proto.Message, U proto.Message](con common.NatsConn, log *zap.Logger, panicRecovery bool, subList map[*nats.Subscription]struct{}, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
+func listen[T proto.Message, U proto.Message](con common.NatsConn, panicRecovery bool, subList map[*nats.Subscription]struct{}, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
 	sub, err := con.QueueSubscribe(subject, subject, func(msg *nats.Msg) {
-		ctx := context.Background()
+		ctx, log := logx.LoggingEntrypoint(context.Background(), "server", msg.Header.Get("cid"))
 		if err := callAPI(ctx, panicRecovery, req, msg, fn); err != nil {
-			log.Error("API call for "+subject+" failed", zap.Error(err))
+			log.Error("API call for "+subject+" failed", err)
 		}
 	})
 	if err != nil {
@@ -398,6 +399,12 @@ func callAPI[T proto.Message, U proto.Message](ctx context.Context, panicRecover
 		defer recoverAPIpanic(msg)
 	}
 	if err := proto.Unmarshal(msg.Data, container); err != nil {
+		errorResponse(msg, codes.InvalidArgument, err.Error())
+		return err
+	}
+	cid := msg.Header.Get("cid")
+	if cid == "" {
+		err := errors.New("no correlation key found")
 		errorResponse(msg, codes.InvalidArgument, err.Error())
 		return err
 	}
@@ -425,13 +432,13 @@ func callAPI[T proto.Message, U proto.Message](ctx context.Context, panicRecover
 func recoverAPIpanic(msg *nats.Msg) {
 	if r := recover(); r != nil {
 		errorResponse(msg, codes.Internal, r)
-		fmt.Println("recovered from ", r)
+		slog.Info("recovered from ", r)
 	}
 }
 
 func errorResponse(m *nats.Msg, code codes.Code, msg any) {
 	if err := m.Respond(apiError(code, msg)); err != nil {
-		fmt.Println("failed to send error response: " + string(apiError(codes.Internal, msg)))
+		slog.Error("failed to send error response: "+string(apiError(codes.Internal, msg)), err)
 	}
 }
 

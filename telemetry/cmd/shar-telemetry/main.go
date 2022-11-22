@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/subj"
@@ -11,7 +12,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
-	"go.uber.org/zap"
 	"os"
 	"time"
 )
@@ -23,12 +23,6 @@ const (
 )
 
 func main() {
-
-	// Create a logger
-	log, err := zap.NewDevelopment()
-	if err != nil {
-		panic(err)
-	}
 
 	// Get the configuration
 	cfg, err := config.GetEnvironment()
@@ -90,7 +84,8 @@ func main() {
 		panic(err)
 	}
 
-	svr := server.New(js, log, res, exp)
+	ctx := context.Background()
+	svr := server.New(ctx, js, res, exp)
 	if err := svr.Listen(); err != nil {
 		panic(err)
 	}
