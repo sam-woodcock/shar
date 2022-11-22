@@ -1,0 +1,1 @@
+- Each type only buffers 100 messages to the websocket. The rest are dumped. Need better solution.
