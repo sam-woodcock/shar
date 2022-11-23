@@ -1,13 +1,17 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
 
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/telemetry/config"
 	"golang.org/x/net/websocket"
 	"google.golang.org/protobuf/proto"
@@ -254,7 +258,7 @@ func trackBucket(js nats.JetStreamContext, store, httpEndpoint, wsEndpoint strin
 		e       error
 		watcher <-chan nats.KeyValueEntry
 		w       nats.KeyValueEntry
-		wschan  = make(chan []byte, 100)
+		wschans = make(map[string]chan []byte)
 		b       []byte
 	)
 
@@ -267,6 +271,20 @@ func trackBucket(js nats.JetStreamContext, store, httpEndpoint, wsEndpoint strin
 
 	// Start a websocket sender
 	http.Handle(wsEndpoint, websocket.Handler(func(ws *websocket.Conn) {
+
+		// I can't find the socket information, so well use a random string
+		id := RandomString(10)
+
+		// Make a message queue
+		wschan := make(chan []byte, 100)
+
+		// Register our message queue
+		wschans[id] = wschan
+
+		// Whatever happens remove our message queue
+		defer func() {
+			delete(wschans, id)
+		}()
 
 		var (
 			b []byte
@@ -310,9 +328,11 @@ func trackBucket(js nats.JetStreamContext, store, httpEndpoint, wsEndpoint strin
 					fmt.Println(e)
 					continue
 				} else {
-					select {
-					case wschan <- b:
-					default:
+					for _, wschan := range wschans {
+						select {
+						case wschan <- b:
+						default:
+						}
 					}
 				}
 
@@ -324,9 +344,11 @@ func trackBucket(js nats.JetStreamContext, store, httpEndpoint, wsEndpoint strin
 					fmt.Println(e)
 					continue
 				} else {
-					select {
-					case wschan <- b:
-					default:
+					for _, wschan := range wschans {
+						select {
+						case wschan <- b:
+						default:
+						}
 					}
 				}
 			}
@@ -360,6 +382,9 @@ func (t *inMemoryTable) HTTPServe(w http.ResponseWriter, r *http.Request) {
 	t.RLock()
 	defer t.RUnlock()
 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
 	b, e := t.JSON()
 
 	if e != nil {
@@ -367,5 +392,32 @@ func (t *inMemoryTable) HTTPServe(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(502)
 		return
 	}
+
 	w.Write(b)
+}
+
+// Decode decodes a go binary object containing workflow variables.
+func Decode(vars []byte) (model.Vars, error) {
+	ret := make(map[string]any)
+	if len(vars) == 0 {
+		return ret, nil
+	}
+	r := bytes.NewReader(vars)
+	d := gob.NewDecoder(r)
+	if err := d.Decode(&ret); err != nil {
+		msg := "failed to decode vars"
+		//		log.Error(msg, zap.Any("vars", vars), zap.Error(err))
+		return nil, fmt.Errorf(msg+": %w", &errors.ErrWorkflowFatal{Err: err})
+	}
+	return ret, nil
+}
+
+func RandomString(n int) string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+
+	s := make([]rune, n)
+	for i := range s {
+		s[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(s)
 }
