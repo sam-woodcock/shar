@@ -7,7 +7,7 @@ ARG COMMIT_HASH="12345abcd"
 WORKDIR /work
 
 # dep caching
-COPY go.mod go.sum ./
+COPY ../../go.mod ../../go.sum ./
 RUN go mod download -x
 RUN     go get -d google.golang.org/protobuf/cmd/protoc-gen-go@v1.28 && \
         go get -d google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2 && \
