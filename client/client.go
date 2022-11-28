@@ -204,19 +204,17 @@ func (c *Client) listen(ctx context.Context) error {
 		tasks[i] = subj.NS(messages.WorkflowJobSendMessageExecute+"."+i, c.ns)
 	}
 	for k, v := range tasks {
-		err := common.Process(ctx, c.js, "jobExecute", closer, v, "ServiceTask_"+k, 200, func(ctx context.Context, msg *nats.Msg) (bool, error) {
-			log := slog.FromContext(ctx)
-			xctx := context.Background()
+		err := common.Process(ctx, c.js, "jobExecute", closer, v, "ServiceTask_"+k, 200, func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
 			ut := &model.WorkflowState{}
 			if err := proto.Unmarshal(msg.Data, ut); err != nil {
 				log.Error("error unmarshaling", err)
 				return false, fmt.Errorf("failed during service task listener: %w", err)
 			}
-			xctx = context.WithValue(xctx, ctxkey.WorkflowInstanceID, ut.WorkflowInstanceId)
+			ctx = context.WithValue(ctx, ctxkey.WorkflowInstanceID, ut.WorkflowInstanceId)
 			switch ut.ElementType {
 			case "serviceTask":
 				trackingID := common.TrackingID(ut.Id).ID()
-				job, err := c.GetJob(xctx, trackingID)
+				job, err := c.GetJob(ctx, trackingID)
 				if err != nil {
 					log.Error("failed to get job", err, slog.String("JobId", trackingID))
 					return false, fmt.Errorf("failed to get service task job kv: %w", err)
@@ -238,7 +236,7 @@ func (c *Client) listen(ctx context.Context) error {
 							e = &errors2.ErrWorkflowFatal{Err: fmt.Errorf("call to service task \"%s\" terminated in panic: %w", *ut.Execute, r.(error))}
 						}
 					}()
-					v, e = svcFn(xctx, &jobClient{cl: c, trackingID: trackingID}, dv)
+					v, e = svcFn(ctx, &jobClient{cl: c, trackingID: trackingID}, dv)
 					return
 				}()
 				if err != nil {
@@ -263,7 +261,7 @@ func (c *Client) listen(ctx context.Context) error {
 					}
 					return wfe.Code != "", err
 				}
-				err = c.completeServiceTask(xctx, trackingID, newVars)
+				err = c.completeServiceTask(ctx, trackingID, newVars)
 				ae := &apiError{}
 				if errors.As(err, &ae) {
 					if codes.Code(ae.Code) == codes.Internal {
@@ -289,7 +287,7 @@ func (c *Client) listen(ctx context.Context) error {
 
 			case "intermediateThrowEvent":
 				trackingID := common.TrackingID(ut.Id).ID()
-				job, err := c.GetJob(xctx, trackingID)
+				job, err := c.GetJob(ctx, trackingID)
 				if err != nil {
 					log.Error("failed to get send message task", err, slog.String("JobId", common.TrackingID(ut.Id).ID()))
 					return false, fmt.Errorf("failed to complete send message task: %w", err)
@@ -299,17 +297,17 @@ func (c *Client) listen(ctx context.Context) error {
 					return true, nil
 				}
 
-				dv, err := vars.Decode(xctx, job.Vars)
+				dv, err := vars.Decode(ctx, job.Vars)
 				if err != nil {
 					log.Error("failed to decode vars", err, slog.String("fn", *job.Execute))
 					return false, &errors2.ErrWorkflowFatal{Err: fmt.Errorf("failed to decode send message variables: %w", err)}
 				}
-				xctx = context.WithValue(xctx, ctxkey.TrackingID, trackingID)
-				if err := sendFn(xctx, &messageClient{cl: c, trackingID: trackingID, wfiID: job.WorkflowInstanceId}, dv); err != nil {
+				ctx = context.WithValue(ctx, ctxkey.TrackingID, trackingID)
+				if err := sendFn(ctx, &messageClient{cl: c, trackingID: trackingID, wfiID: job.WorkflowInstanceId}, dv); err != nil {
 					log.Warn("nats listener", err)
 					return false, err
 				}
-				if err := c.completeSendMessage(xctx, trackingID, make(map[string]any)); errors2.IsWorkflowFatal(err) {
+				if err := c.completeSendMessage(ctx, trackingID, make(map[string]any)); errors2.IsWorkflowFatal(err) {
 					log.Error("a fatal error occurred in message sender "+*job.Execute, err)
 				} else if err != nil {
 					log.Error("API error", err)
@@ -559,9 +557,10 @@ func (c *Client) clientLog(ctx context.Context, trackingID string, severity mess
 }
 
 // GetJob returns a Job given a tracking ID
-func (c *Client) GetJob(_ context.Context, id string) (*model.WorkflowState, error) {
+func (c *Client) GetJob(ctx context.Context, id string) (*model.WorkflowState, error) {
 	job := &model.WorkflowState{}
-	if err := common.LoadObj(c.job, id, job); err != nil {
+	// TODO: Stop direct data read
+	if err := common.LoadObj(ctx, c.job, id, job); err != nil {
 		return nil, fmt.Errorf("failed load object for get job: %w", err)
 	}
 	return job, nil

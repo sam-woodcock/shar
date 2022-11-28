@@ -105,7 +105,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 	els := make(map[string]*model.Element)
 	common.IndexProcessElements(process.Elements, els)
 	id := "ljksdadlksajkldkjsakl"
-	svc.On("GetServiceTaskRoutingKey", mock.AnythingOfType("string")).Return(id, nil)
+	svc.On("GetServiceTaskRoutingKey", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string")).Return(id, nil)
 
 	svc.On("GetWorkflowInstance", mock.AnythingOfType("*context.valueCtx"), "test-workflow-instance-id").
 		Once().

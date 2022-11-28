@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/nats-io/nats.go"
+	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/setup"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
 	"math/big"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -55,7 +57,11 @@ func updateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []b
 }
 
 // Save saves a value to a key value store
-func Save(wf nats.KeyValue, k string, v []byte) error {
+func Save(ctx context.Context, wf nats.KeyValue, k string, v []byte) error {
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.VerboseLevel) {
+		log.Log(errors2.VerboseLevel, "Set KV", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.String("val", string(v)))
+	}
 	if _, err := wf.Put(k, v); err != nil {
 		return fmt.Errorf("failed to save kv: %w", err)
 	}
@@ -63,7 +69,11 @@ func Save(wf nats.KeyValue, k string, v []byte) error {
 }
 
 // Load loads a value from a key value store
-func Load(wf nats.KeyValue, k string) ([]byte, error) {
+func Load(ctx context.Context, wf nats.KeyValue, k string) ([]byte, error) {
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.VerboseLevel) {
+		log.Log(errors2.VerboseLevel, "Get KV", slog.Any("bucket", wf.Bucket()), slog.String("key", k))
+	}
 	b, err := wf.Get(k)
 	if err == nil {
 		return b.Value(), nil
@@ -72,17 +82,25 @@ func Load(wf nats.KeyValue, k string) ([]byte, error) {
 }
 
 // SaveObj save an protobuf message to a key value store
-func SaveObj(_ context.Context, wf nats.KeyValue, k string, v proto.Message) error {
+func SaveObj(ctx context.Context, wf nats.KeyValue, k string, v proto.Message) error {
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.TraceLevel) {
+		log.Log(errors2.TraceLevel, "save KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("val", v))
+	}
 	b, err := proto.Marshal(v)
 	if err == nil {
-		return Save(wf, k, b)
+		return Save(ctx, wf, k, b)
 	}
 	return fmt.Errorf("failed to save object into KV: %w", err)
 }
 
 // LoadObj loads a protobuf message from a key value store
-func LoadObj(wf nats.KeyValue, k string, v proto.Message) error {
-	kv, err := Load(wf, k)
+func LoadObj(ctx context.Context, wf nats.KeyValue, k string, v proto.Message) error {
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.TraceLevel) {
+		log.Log(errors2.TraceLevel, "load KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("val", v))
+	}
+	kv, err := Load(ctx, wf, k)
 	if err != nil {
 		return fmt.Errorf("failed to load object from KV %s(%s): %w", wf.Bucket(), k, err)
 	}
@@ -94,6 +112,10 @@ func LoadObj(wf nats.KeyValue, k string, v proto.Message) error {
 
 // UpdateObj saves an protobuf message to a key value store after using updateFN to update the message.
 func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) error {
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.TraceLevel) {
+		log.Log(errors2.TraceLevel, "update KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("fn", reflect.TypeOf(updateFn)))
+	}
 	if oldk, err := wf.Get(k); err == nats.ErrKeyNotFound || (err == nil && oldk.Value() == nil) {
 		if err := SaveObj(ctx, wf, k, msg); err != nil {
 			return err
@@ -138,7 +160,7 @@ func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names
 }
 
 // Process processes messages from a nats consumer and executes a function against each one.
-func Process(ctx context.Context, js nats.JetStreamContext, traceName string, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, msg *nats.Msg) (bool, error)) error {
+func Process(ctx context.Context, js nats.JetStreamContext, traceName string, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error)) error {
 	log := slog.FromContext(ctx)
 	if _, ok := setup.ConsumerDurableNames[durable]; !strings.HasPrefix(durable, "ServiceTask_") && !ok {
 		return fmt.Errorf("durable consumer '%s' is not explicity configured", durable)
@@ -185,16 +207,17 @@ func Process(ctx context.Context, js nats.JetStreamContext, traceName string, cl
 						continue
 					}
 				}
-				executeCtx := context.Background()
-				ack, err := fn(executeCtx, msg[0])
+				cid := msg[0].Header.Get(logx.CorrelationHeader)
+				executeCtx, executeLog := logx.LoggingEntrypoint(context.Background(), "server", cid)
+				ack, err := fn(executeCtx, executeLog, msg[0])
 				if err != nil {
 					if errors2.IsWorkflowFatal(err) {
-						log.Error("workflow fatal error occured processing function", err)
+						executeLog.Error("workflow fatal error occured processing function", err)
 						ack = true
 					} else {
 						wfe := &workflow.Error{}
 						if !errors.As(err, wfe) {
-							log.Error("processing error", err, "name", traceName)
+							executeLog.Error("processing error", err, "name", traceName)
 						}
 					}
 				}

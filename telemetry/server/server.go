@@ -67,8 +67,7 @@ func (s *Server) Listen() error {
 
 var empty8 = [8]byte{}
 
-func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error) {
-	log := slog.FromContext(ctx)
+func (s *Server) workflowTrace(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
 	state, done, err2 := s.decodeState(ctx, msg)
 	if done {
 		return done, err2
@@ -162,7 +161,7 @@ func (s *Server) spanStart(ctx context.Context, state *model.WorkflowState) erro
 func (s *Server) spanEnd(ctx context.Context, name string, state *model.WorkflowState) error {
 	log := slog.FromContext(ctx)
 	oldState := model.WorkflowState{}
-	if err := common.LoadObj(s.spanKV, common.TrackingID(state.Id).ID(), &oldState); err != nil {
+	if err := common.LoadObj(ctx, s.spanKV, common.TrackingID(state.Id).ID(), &oldState); err != nil {
 		log.Error("Failed to load span state:", err, slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
 		return abandon(err)
 	}

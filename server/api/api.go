@@ -27,7 +27,7 @@ import (
 type SharServer struct {
 	ns            *services.NatsService
 	engine        *workflow.Engine
-	subs          map[*nats.Subscription]struct{}
+	subs          *sync.Map
 	panicRecovery bool
 }
 
@@ -44,7 +44,7 @@ func New(ns *services.NatsService, panicRecovery bool) (*SharServer, error) {
 		ns:            ns,
 		engine:        engine,
 		panicRecovery: panicRecovery,
-		subs:          make(map[*nats.Subscription]struct{}),
+		subs:          &sync.Map{},
 	}, nil
 }
 
@@ -56,16 +56,16 @@ func (s *SharServer) storeWorkflow(ctx context.Context, wf *model.Workflow) (*wr
 	return &wrapperspb.StringValue{Value: res}, nil
 }
 
-func (s *SharServer) getServiceTaskRoutingID(_ context.Context, taskName *wrapperspb.StringValue) (*wrapperspb.StringValue, error) {
-	res, err := s.ns.GetServiceTaskRoutingKey(taskName.Value)
+func (s *SharServer) getServiceTaskRoutingID(ctx context.Context, taskName *wrapperspb.StringValue) (*wrapperspb.StringValue, error) {
+	res, err := s.ns.GetServiceTaskRoutingKey(ctx, taskName.Value)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service task routing id: %w", err)
 	}
 	return &wrapperspb.StringValue{Value: res}, nil
 }
 
-func (s *SharServer) getMessageSenderRoutingID(_ context.Context, req *model.GetMessageSenderRoutingIdRequest) (*wrapperspb.StringValue, error) {
-	res, err := s.ns.GetMessageSenderRoutingKey(req.WorkflowName, req.MessageName)
+func (s *SharServer) getMessageSenderRoutingID(ctx context.Context, req *model.GetMessageSenderRoutingIdRequest) (*wrapperspb.StringValue, error) {
+	res, err := s.ns.GetMessageSenderRoutingKey(ctx, req.WorkflowName, req.MessageName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get message sender routing id: %w", err)
 	}
@@ -163,11 +163,14 @@ var shutdownOnce sync.Once
 func (s *SharServer) Shutdown() {
 	slog.Info("stopping shar api listener")
 	shutdownOnce.Do(func() {
-		for sub := range s.subs {
+		s.subs.Range(func(key, _ any) bool {
+			sub := key.(*nats.Subscription)
 			if err := sub.Drain(); err != nil {
 				slog.Error("Could not drain subscription for "+sub.Subject, err)
+				return false
 			}
-		}
+			return true
+		})
 		s.engine.Shutdown()
 		slog.Info("shar api listener stopped")
 	})
@@ -235,12 +238,12 @@ func (s *SharServer) Listen() error {
 	return nil
 }
 
-func (s *SharServer) listUserTaskIDs(_ context.Context, req *model.ListUserTasksRequest) (*model.UserTasks, error) {
+func (s *SharServer) listUserTaskIDs(ctx context.Context, req *model.ListUserTasksRequest) (*model.UserTasks, error) {
 	oid, err := s.ns.OwnerID(req.Owner)
 	if err != nil {
 		return nil, err
 	}
-	ut, err := s.ns.GetUserTaskIDs(oid)
+	ut, err := s.ns.GetUserTaskIDs(ctx, oid)
 	if errors.Is(err, nats.ErrKeyNotFound) {
 		return &model.UserTasks{Id: []string{}}, nil
 	}
@@ -337,7 +340,7 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 	// Get the target workflow activity
 	target := els[caughtError.Target]
 
-	oldState, err := s.ns.GetOldState(common.TrackingID(job.Id).Pop().ID())
+	oldState, err := s.ns.GetOldState(ctx, common.TrackingID(job.Id).Pop().ID())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get old state for handle workflow error: %w", err)
 	}
@@ -380,9 +383,9 @@ func (s *SharServer) getServerInstanceStats(_ context.Context, _ *emptypb.Empty)
 	return &ret, nil
 }
 
-func listen[T proto.Message, U proto.Message](con common.NatsConn, panicRecovery bool, subList map[*nats.Subscription]struct{}, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
+func listen[T proto.Message, U proto.Message](con common.NatsConn, panicRecovery bool, subList *sync.Map, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
 	sub, err := con.QueueSubscribe(subject, subject, func(msg *nats.Msg) {
-		ctx, log := logx.LoggingEntrypoint(context.Background(), "server", msg.Header.Get("cid"))
+		ctx, log := logx.LoggingEntrypoint(context.Background(), "server", msg.Header.Get(logx.CorrelationHeader))
 		if err := callAPI(ctx, panicRecovery, req, msg, fn); err != nil {
 			log.Error("API call for "+subject+" failed", err)
 		}
@@ -390,7 +393,7 @@ func listen[T proto.Message, U proto.Message](con common.NatsConn, panicRecovery
 	if err != nil {
 		return nil, fmt.Errorf("failed to subscribe to %s: %w", subject, err)
 	}
-	subList[sub] = struct{}{}
+	subList.Store(sub, struct{}{})
 	return sub, nil
 }
 
@@ -402,12 +405,13 @@ func callAPI[T proto.Message, U proto.Message](ctx context.Context, panicRecover
 		errorResponse(msg, codes.InvalidArgument, err.Error())
 		return err
 	}
-	cid := msg.Header.Get("cid")
+	cid := msg.Header.Get(logx.CorrelationHeader)
 	if cid == "" {
 		err := errors.New("no correlation key found")
 		errorResponse(msg, codes.InvalidArgument, err.Error())
 		return err
 	}
+	ctx = context.WithValue(ctx, logx.CorrelationContextKey, cid)
 	resMsg, err := fn(ctx, container)
 	if err != nil {
 		c := codes.Unknown

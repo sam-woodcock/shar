@@ -129,7 +129,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 	})
 
 	if vErr != nil {
-		return "", fmt.Errorf("failed to initialize all workflow start events: %w", err)
+		return "", fmt.Errorf("failed to initialize all workflow start events: %w", vErr)
 	}
 
 	// Start all timed start events.
@@ -428,7 +428,7 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 			return err
 		}
 	case "serviceTask":
-		stID, err := c.ns.GetServiceTaskRoutingKey(el.Execute)
+		stID, err := c.ns.GetServiceTaskRoutingKey(ctx, el.Execute)
 		if err != nil {
 			return err
 		}
@@ -459,7 +459,7 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 			// TODO: Fatal workflow error - we shouldn't allow to send unknown messages in parser
 			return fmt.Errorf("unknown workflow message name: %s", el.Execute)
 		}
-		sendMsgID, err := c.ns.GetMessageSenderRoutingKey(wf.Name, wf.Messages[ix].Name)
+		sendMsgID, err := c.ns.GetMessageSenderRoutingKey(ctx, wf.Name, wf.Messages[ix].Name)
 		if err != nil {
 			return err
 		}
@@ -587,7 +587,7 @@ func (c *Engine) completeJobProcessor(ctx context.Context, job *model.WorkflowSt
 	ctx, log := logx.ContextWith(ctx, "engine.completeJobProcessor")
 	// Validate if it safe to end this job
 	// Get the saved job state
-	if _, err := c.ns.GetOldState(common.TrackingID(job.Id).ParentID()); err == errors.ErrStateNotFound {
+	if _, err := c.ns.GetOldState(ctx, common.TrackingID(job.Id).ParentID()); err == errors.ErrStateNotFound {
 		// We can't find the job's saved state
 		return nil
 	} else if err != nil {
@@ -622,7 +622,7 @@ func (c *Engine) completeJobProcessor(ctx context.Context, job *model.WorkflowSt
 	els := common.ElementTable(wf)
 	el := els[job.ElementId]
 	newID := common.TrackingID(job.Id).Pop()
-	oldState, err := c.ns.GetOldState(newID.ID())
+	oldState, err := c.ns.GetOldState(ctx, newID.ID())
 	if err == errors.ErrStateNotFound {
 		return nil
 	}
@@ -822,7 +822,7 @@ func (c *Engine) CompleteServiceTask(ctx context.Context, trackingID string, new
 	if err != nil {
 		return err
 	}
-	if _, err := c.ns.GetOldState(common.TrackingID(job.Id).ParentID()); err == errors.ErrStateNotFound {
+	if _, err := c.ns.GetOldState(ctx, common.TrackingID(job.Id).ParentID()); err == errors.ErrStateNotFound {
 		if err := c.ns.PublishWorkflowState(ctx, subj.NS(messages.WorkflowJobServiceTaskAbort, "default"), job); err != nil {
 			return err
 		}
@@ -890,7 +890,7 @@ func (c *Engine) CompleteUserTask(ctx context.Context, trackingID string, newvar
 
 func (c *Engine) activityCompleteProcessor(ctx context.Context, state *model.WorkflowState) error {
 	ctx, log := logx.ContextWith(ctx, "engine.activityCompleteProcessor")
-	if old, err := c.ns.GetOldState(common.TrackingID(state.Id).ID()); err == errors.ErrStateNotFound {
+	if old, err := c.ns.GetOldState(ctx, common.TrackingID(state.Id).ID()); err == errors.ErrStateNotFound {
 		return nil
 	} else if err != nil {
 		return err

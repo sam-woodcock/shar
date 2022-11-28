@@ -10,7 +10,6 @@ import (
 	"golang.org/x/exp/slog"
 	gogrpc "google.golang.org/grpc"
 	grpcHealth "google.golang.org/grpc/health/grpc_health_v1"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -86,7 +85,8 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 	select {
 	case err := <-errs:
 		if err != nil {
-			log.Fatal("fatal error", err)
+			slog.Error("fatal error", err)
+			panic("fatal error")
 		}
 	case <-s.sig:
 		s.Shutdown()

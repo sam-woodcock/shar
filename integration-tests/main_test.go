@@ -7,9 +7,11 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/model"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
 	zensvr "gitlab.com/shar-workflow/shar/zen-shar/server"
+	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
 	"sync"
 	"testing"
@@ -30,8 +32,13 @@ type integration struct {
 	cooldown       time.Duration
 }
 
+func init() {
+	logx.SetDefault(slog.ErrorLevel, false, "shar-integration-tests")
+}
+
 //goland:noinspection GoNilness
 func (s *integration) setup(t *testing.T) {
+
 	s.cooldown = 2 * time.Second
 	s.test = t
 	s.finalVars = make(map[string]interface{})
