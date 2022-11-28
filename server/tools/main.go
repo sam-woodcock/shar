@@ -6,17 +6,14 @@ import (
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
-	"go.uber.org/zap"
 	"time"
 )
 
 func main() {
 	ctx := context.Background()
-	// Create logger
-	log, _ := zap.NewDevelopment()
 
 	// Dial shar
-	cl := client.New(log, client.WithEphemeralStorage())
+	cl := client.New(client.WithEphemeralStorage())
 	err := cl.Dial("nats://127.0.0.1:4222")
 	if err != nil {
 		panic(err)

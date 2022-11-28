@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
+	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
 	"strings"
 	"time"
@@ -27,7 +27,6 @@ import (
 
 // Server is the shar server type responsible for hosting the telemetry server.
 type Server struct {
-	log    *zap.Logger
 	js     nats.JetStreamContext
 	spanKV nats.KeyValue
 	res    *resource.Resource
@@ -36,10 +35,9 @@ type Server struct {
 }
 
 // New creates a new telemetry server.
-func New(js nats.JetStreamContext, logger *zap.Logger, res *resource.Resource, exp *jaeger.Exporter) *Server {
+func New(ctx context.Context, js nats.JetStreamContext, res *resource.Resource, exp *jaeger.Exporter) *Server {
 	return &Server{
 		js:  js,
-		log: logger,
 		res: res,
 		exp: exp,
 	}
@@ -60,7 +58,7 @@ func (s *Server) Listen() error {
 		return err
 	}
 	s.wfi = kv
-	err = common.Process(ctx, s.js, s.log, "telemetry", closer, subj.NS(messages.WorkflowStateAll, "*"), "Tracing", 1, s.workflowTrace)
+	err = common.Process(ctx, s.js, "telemetry", closer, subj.NS(messages.WorkflowStateAll, "*"), "Tracing", 1, s.workflowTrace)
 	if err != nil {
 		return err
 	}
@@ -69,9 +67,8 @@ func (s *Server) Listen() error {
 
 var empty8 = [8]byte{}
 
-func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error) {
-
-	state, done, err2 := s.decodeState(msg)
+func (s *Server) workflowTrace(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
+	state, done, err2 := s.decodeState(ctx, msg)
 	if done {
 		return done, err2
 	}
@@ -99,10 +96,10 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 		if err := s.spanEnd(ctx, "Activity: "+state.ElementId, state); err != nil {
 			var escape *AbandonOpError
 			if errors.As(err, &escape) {
-				s.log.Error("saving Activity.Complete operation abandoned", zap.Error(err),
-					zap.String(keys.WorkflowInstanceID, state.WorkflowInstanceId),
-					zap.String(keys.TrackingID, common.TrackingID(state.Id).ID()),
-					zap.String(keys.ParentTrackingID, common.TrackingID(state.Id).ParentID()),
+				log.Error("saving Activity.Complete operation abandoned", err,
+					slog.String(keys.WorkflowInstanceID, state.WorkflowInstanceId),
+					slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()),
+					slog.String(keys.ParentTrackingID, common.TrackingID(state.Id).ParentID()),
 				)
 				return true, err
 			}
@@ -116,10 +113,10 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 		if err := s.spanEnd(ctx, "Job: "+state.ElementType, state); err != nil {
 			var escape *AbandonOpError
 			if errors.As(err, &escape) {
-				s.log.Error("saving Job.Complete operation abandoned", zap.Error(err),
-					zap.String(keys.WorkflowInstanceID, state.WorkflowInstanceId),
-					zap.String(keys.TrackingID, common.TrackingID(state.Id).ID()),
-					zap.String(keys.ParentTrackingID, common.TrackingID(state.Id).ParentID()),
+				log.Error("saving Job.Complete operation abandoned", err,
+					slog.String(keys.WorkflowInstanceID, state.WorkflowInstanceId),
+					slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()),
+					slog.String(keys.ParentTrackingID, common.TrackingID(state.Id).ParentID()),
 				)
 				return true, err
 			}
@@ -136,11 +133,12 @@ func (s *Server) workflowTrace(ctx context.Context, msg *nats.Msg) (bool, error)
 	return true, nil
 }
 
-func (s *Server) decodeState(msg *nats.Msg) (*model.WorkflowState, bool, error) {
+func (s *Server) decodeState(ctx context.Context, msg *nats.Msg) (*model.WorkflowState, bool, error) {
+	log := slog.FromContext(ctx)
 	state := &model.WorkflowState{}
 	err := proto.Unmarshal(msg.Data, state)
 	if err != nil {
-		s.log.Error("unable to unmarshal span", zap.Error(err))
+		log.Error("unable to unmarshal span", err)
 		return &model.WorkflowState{}, true, abandon(err)
 	}
 
@@ -161,9 +159,10 @@ func (s *Server) spanStart(ctx context.Context, state *model.WorkflowState) erro
 }
 
 func (s *Server) spanEnd(ctx context.Context, name string, state *model.WorkflowState) error {
+	log := slog.FromContext(ctx)
 	oldState := model.WorkflowState{}
-	if err := common.LoadObj(s.spanKV, common.TrackingID(state.Id).ID(), &oldState); err != nil {
-		s.log.Error("Failed to load span state:", zap.Error(err), zap.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
+	if err := common.LoadObj(ctx, s.spanKV, common.TrackingID(state.Id).ID(), &oldState); err != nil {
+		log.Error("Failed to load span state:", err, slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
 		return abandon(err)
 	}
 	state.WorkflowInstanceId = oldState.WorkflowInstanceId
@@ -175,13 +174,14 @@ func (s *Server) spanEnd(ctx context.Context, name string, state *model.Workflow
 	state.ElementType = oldState.ElementType
 	state.State = oldState.State
 	if err := s.saveSpan(ctx, name, &oldState, state); err != nil {
-		s.log.Error("Failed to record span:", zap.Error(err), zap.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
+		log.Error("Failed to record span:", err, slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
 		return err
 	}
 	return nil
 }
 
 func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.WorkflowState, newState *model.WorkflowState) error {
+	log := slog.FromContext(ctx)
 	traceID := common.KSuidTo128bit(oldState.WorkflowInstanceId)
 	spanID := common.KSuidTo64bit(common.TrackingID(oldState.Id).ID())
 	parentID := common.KSuidTo64bit(common.TrackingID(oldState.Id).ParentID())
@@ -207,7 +207,7 @@ func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.Work
 		"parentTrId":            &pid,
 	}
 
-	kv, err := vars.Decode(s.log, newState.Vars)
+	kv, err := vars.Decode(ctx, newState.Vars)
 	if err != nil {
 		return abandon(err)
 	}
@@ -256,7 +256,7 @@ func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.Work
 	err = s.spanKV.Delete(common.TrackingID(oldState.Id).ID())
 	if err != nil {
 		id := common.TrackingID(oldState.Id).ID()
-		s.log.Warn("Could not delete the cached span", zap.Error(err), zap.String(keys.TrackingID, id))
+		log.Warn("Could not delete the cached span", err, slog.String(keys.TrackingID, id))
 	}
 	return nil
 }
