@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common/logx"
-	"gitlab.com/shar-workflow/shar/common/setup"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"golang.org/x/exp/slog"
@@ -162,8 +161,11 @@ func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names
 // Process processes messages from a nats consumer and executes a function against each one.
 func Process(ctx context.Context, js nats.JetStreamContext, traceName string, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error)) error {
 	log := slog.FromContext(ctx)
-	if _, ok := setup.ConsumerDurableNames[durable]; !strings.HasPrefix(durable, "ServiceTask_") && !ok {
-		return fmt.Errorf("durable consumer '%s' is not explicity configured", durable)
+	if !strings.HasPrefix(durable, "ServiceTask_") {
+		conInfo, err := js.ConsumerInfo("WORKFLOW", durable)
+		if conInfo.Config.Durable == "" || err != nil {
+			return fmt.Errorf("durable consumer '%s' is not explicity configured", durable)
+		}
 	}
 	for i := 0; i < concurrency; i++ {
 		go func() {
