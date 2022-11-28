@@ -1,16 +1,15 @@
 package server
 
 import (
-	"fmt"
 	"github.com/nats-io/nats-server/v2/server"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
-	"go.uber.org/zap"
+	"golang.org/x/exp/slog"
 	"strconv"
 	"time"
 )
 
 // GetServers returns a test NATS and SHAR server.
-func GetServers(natsHost string, natsPort int, logger *zap.Logger) (*sharsvr.Server, *server.Server, error) {
+func GetServers(natsHost string, natsPort int) (*sharsvr.Server, *server.Server, error) {
 	nsvr, err := server.NewServer(&server.Options{
 		ConfigFile:            "",
 		ServerName:            "TestNatsServer",
@@ -110,9 +109,9 @@ func GetServers(natsHost string, natsPort int, logger *zap.Logger) (*sharsvr.Ser
 	if err != nil {
 		return nil, nil, err
 	}
-	nl := &NatsLogger{l: logger}
+	nl := &NatsLogger{}
 	nsvr.SetLogger(nl, false, false)
-	l, err := zap.NewProduction()
+
 	if err != nil {
 		return nil, nil, err
 	}
@@ -121,17 +120,17 @@ func GetServers(natsHost string, natsPort int, logger *zap.Logger) (*sharsvr.Ser
 	if !nsvr.ReadyForConnections(5 * time.Second) {
 		panic("could not start NATS")
 	}
-	logger.Info("NATS started")
+	slog.Info("NATS started")
 
-	ssvr := sharsvr.New(l, sharsvr.EphemeralStorage(), sharsvr.PanicRecovery(false))
+	ssvr := sharsvr.New(sharsvr.EphemeralStorage(), sharsvr.PanicRecovery(false))
 	go ssvr.Listen(natsHost+":"+strconv.Itoa(natsPort), 55000)
 	for {
 		if ssvr.Ready() {
 			break
 		}
-		fmt.Println("waiting for shar")
+		slog.Info("waiting for shar")
 		time.Sleep(500 * time.Millisecond)
 	}
-	l.Info("Setup completed")
+	slog.Info("Setup completed")
 	return ssvr, nsvr, err
 }

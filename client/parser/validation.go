@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gitlab.com/shar-workflow/shar/common/expression"
 	"gitlab.com/shar-workflow/shar/model"
+	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"regexp"
 )
 
@@ -102,12 +103,12 @@ func checkVariables(process *model.Process) error {
 	//Test that inputs are all defined
 	for i := range inputVars {
 		if _, ok := outputVars[i]; !ok {
-			return fmt.Errorf("the undefined variable \"%s\" is referred to as input", i)
+			return fmt.Errorf("the undefined variable \"%s\" is referred to as input: %w", i, errors2.ErrUndefinedVariable)
 		}
 	}
 	for i := range condVars {
 		if _, ok := outputVars[i]; !ok {
-			return fmt.Errorf("the undefined variable \"%s\" is referred to in a condition", i)
+			return fmt.Errorf("the undefined variable \"%s\" is referred to in a condition: %w", i, errors2.ErrUndefinedVariable)
 		}
 	}
 	return nil

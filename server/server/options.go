@@ -11,7 +11,8 @@ func EphemeralStorage() ephemeralStorageOption { //nolint
 	return ephemeralStorageOption{}
 }
 
-type ephemeralStorageOption struct{}
+type ephemeralStorageOption struct {
+}
 
 func (o ephemeralStorageOption) configure(server *Server) {
 	server.ephemeralStorage = true

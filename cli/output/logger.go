@@ -1,6 +1,8 @@
 package output
 
-import "go.uber.org/zap"
+import (
+	"golang.org/x/exp/slog"
+)
 
 // Logger is the global logger for the SHAR CLI.
-var Logger *zap.Logger
+var Logger *slog.Logger

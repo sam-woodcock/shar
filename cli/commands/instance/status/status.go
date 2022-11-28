@@ -24,7 +24,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	ctx := context.Background()
 	instanceID := args[0]
-	shar := client.New(output.Logger)
+	shar := client.New()
 	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}

@@ -8,7 +8,6 @@ import (
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/messages"
-	"go.uber.org/zap"
 	"os"
 	"sync"
 	"testing"
@@ -24,12 +23,10 @@ func TestMessaging(t *testing.T) {
 	// Create a starting context
 	ctx := context.Background()
 
-	// Create logger
-	log, _ := zap.NewDevelopment()
-	handlers := &testMessagingHandlerDef{log: log, wg: sync.WaitGroup{}, tst: tst}
+	handlers := &testMessagingHandlerDef{wg: sync.WaitGroup{}, tst: tst}
 
 	// Dial shar
-	cl := client.New(log, client.WithEphemeralStorage())
+	cl := client.New(client.WithEphemeralStorage())
 	err := cl.Dial(natsURL)
 	require.NoError(t, err)
 
@@ -77,7 +74,6 @@ func TestMessaging(t *testing.T) {
 }
 
 type testMessagingHandlerDef struct {
-	log *zap.Logger
 	wg  sync.WaitGroup
 	tst *integration
 }

@@ -7,11 +7,9 @@ import (
 	"gitlab.com/shar-workflow/shar/server/api"
 	"gitlab.com/shar-workflow/shar/server/health"
 	"gitlab.com/shar-workflow/shar/server/services"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"golang.org/x/exp/slog"
 	gogrpc "google.golang.org/grpc"
 	grpcHealth "google.golang.org/grpc/health/grpc_health_v1"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -22,7 +20,6 @@ import (
 type Server struct {
 	sig                     chan os.Signal
 	healthService           *health.Checker
-	log                     *zap.Logger
 	grpcServer              *gogrpc.Server
 	api                     *api.SharServer
 	ephemeralStorage        bool
@@ -32,10 +29,9 @@ type Server struct {
 
 // New creates a new SHAR server.
 // Leave the exporter nil if telemetry is not required
-func New(log *zap.Logger, options ...Option) *Server {
+func New(options ...Option) *Server {
 	s := &Server{
 		sig:                     make(chan os.Signal, 10),
-		log:                     log,
 		healthService:           health.New(),
 		panicRecovery:           true,
 		allowOrphanServiceTasks: true,
@@ -43,7 +39,6 @@ func New(log *zap.Logger, options ...Option) *Server {
 	for _, i := range options {
 		i.configure(s)
 	}
-
 	return s
 }
 
@@ -58,12 +53,14 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 	// Create health server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
 	if err != nil {
-		log.Fatal("failed to listen", zap.Field{Key: "grpcPort", Type: zapcore.Int64Type, Integer: int64(grpcPort)}, zap.Error(err))
+		slog.Error("failed to listen", err, slog.Int64("grpcPort", int64(grpcPort)))
+		panic(err)
 	}
 
 	s.grpcServer = gogrpc.NewServer()
 	if err := registerServer(s.grpcServer, s.healthService); err != nil {
-		log.Fatal("failed to register grpc health server", zap.Field{Key: "grpcPort", Type: zapcore.Int64Type, Integer: int64(grpcPort)}, zap.Error(err))
+		slog.Error("failed to register grpc health server", err, slog.Int64("grpcPort", int64(grpcPort)))
+		panic(err)
 	}
 
 	// Start health server
@@ -73,10 +70,10 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 		}
 		close(errs)
 	}()
-	s.log.Info("shar grpc health started")
+	slog.Info("shar grpc health started")
 
-	ns := s.createServices(natsURL, s.log, s.ephemeralStorage, s.allowOrphanServiceTasks)
-	s.api, err = api.New(s.log, ns, s.panicRecovery)
+	ns := s.createServices(natsURL, s.ephemeralStorage, s.allowOrphanServiceTasks)
+	s.api, err = api.New(ns, s.panicRecovery)
 	if err != nil {
 		panic(err)
 	}
@@ -88,7 +85,8 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 	select {
 	case err := <-errs:
 		if err != nil {
-			log.Fatal("fatal error", zap.Error(err))
+			slog.Error("fatal error", err)
+			panic("fatal error")
 		}
 	case <-s.sig:
 		s.Shutdown()
@@ -101,18 +99,20 @@ func (s *Server) Shutdown() {
 	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
 	s.api.Shutdown()
 	s.grpcServer.GracefulStop()
-	s.log.Info("shar grpc health stopped")
+	slog.Info("shar grpc health stopped")
 
 }
 
-func (s *Server) createServices(natsURL string, log *zap.Logger, ephemeral bool, allowOrphanServiceTasks bool) *services.NatsService {
+func (s *Server) createServices(natsURL string, ephemeral bool, allowOrphanServiceTasks bool) *services.NatsService {
 	conn, err := nats.Connect(natsURL)
 	if err != nil {
-		log.Fatal("could not connect to NATS", zap.Error(err), zap.String("url", natsURL))
+		slog.Error("could not connect to NATS", err, slog.String("url", natsURL))
+		panic(err)
 	}
 	txConn, err := nats.Connect(natsURL)
 	if err != nil {
-		log.Fatal("could not connect to NATS", zap.Error(err), zap.String("url", natsURL))
+		slog.Error("could not connect to NATS", err, slog.String("url", natsURL))
+		panic(err)
 	}
 
 	if js, err := conn.JetStream(); err != nil {
@@ -127,9 +127,10 @@ func (s *Server) createServices(natsURL string, log *zap.Logger, ephemeral bool,
 	if ephemeral {
 		store = nats.MemoryStorage
 	}
-	ns, err := services.NewNatsService(log, conn, txConn, store, 6, allowOrphanServiceTasks)
+	ns, err := services.NewNatsService(conn, txConn, store, 6, allowOrphanServiceTasks)
 	if err != nil {
-		log.Fatal("failed to create NATS KV store", zap.Error(err))
+		slog.Error("failed to create NATS KV store", err)
+		panic(err)
 	}
 	return ns
 }

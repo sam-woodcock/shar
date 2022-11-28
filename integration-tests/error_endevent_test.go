@@ -8,7 +8,6 @@ import (
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/messages"
-	"go.uber.org/zap"
 	"os"
 	"testing"
 )
@@ -21,11 +20,8 @@ func TestEndEventError(t *testing.T) {
 	// Create a starting context
 	ctx := context.Background()
 
-	// Create logger
-	log, _ := zap.NewDevelopment()
-
 	// Dial shar
-	cl := client.New(log)
+	cl := client.New()
 	if err := cl.Dial(natsURL); err != nil {
 		panic(err)
 	}
