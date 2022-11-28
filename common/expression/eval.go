@@ -1,17 +1,18 @@
 package expression
 
 import (
+	"context"
 	"fmt"
 	"github.com/antonmedv/expr"
 	"github.com/antonmedv/expr/ast"
 	"github.com/antonmedv/expr/parser"
+	"gitlab.com/shar-workflow/shar/common/logx"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
-	"go.uber.org/zap"
 	"strings"
 )
 
 // Eval evaluates an expression given a set of variables and returns a generic type.
-func Eval[T any](log *zap.Logger, exp string, vars map[string]interface{}) (retval T, reterr error) { //nolint:ireturn
+func Eval[T any](ctx context.Context, exp string, vars map[string]interface{}) (retval T, reterr error) { //nolint:ireturn
 	ex, err := expr.Compile(exp)
 	if err != nil {
 		return *new(T), fmt.Errorf(err.Error()+": %w", &errors2.ErrWorkflowFatal{Err: err})
@@ -24,10 +25,8 @@ func Eval[T any](log *zap.Logger, exp string, vars map[string]interface{}) (retv
 
 	defer func() {
 		if err := recover(); err != nil {
-			errex := fmt.Errorf("error evaluating expression: %+v: %+v: %w", exp, err, &errors2.ErrWorkflowFatal{Err: err.(error)})
-			log.Error(errex.Error())
 			retval = *new(T)
-			reterr = errex
+			reterr = logx.Err(ctx, "error evaluating expression", &errors2.ErrWorkflowFatal{Err: err.(error)}, "expression", exp)
 		}
 	}()
 
@@ -35,7 +34,7 @@ func Eval[T any](log *zap.Logger, exp string, vars map[string]interface{}) (retv
 }
 
 // EvalAny evaluates an expression given a set of variables and returns a 'boxed' interface type.
-func EvalAny(log *zap.Logger, exp string, vars map[string]interface{}) (retval interface{}, reterr error) { //nolint:ireturn
+func EvalAny(ctx context.Context, exp string, vars map[string]interface{}) (retval interface{}, reterr error) { //nolint:ireturn
 	exp = strings.TrimSpace(exp)
 	if len(exp) == 0 {
 		return "", nil
@@ -47,7 +46,7 @@ func EvalAny(log *zap.Logger, exp string, vars map[string]interface{}) (retval i
 	}
 	ex, err := expr.Compile(exp)
 	if err != nil {
-		return nil, fmt.Errorf(err.Error()+": %w", &errors2.ErrWorkflowFatal{Err: err})
+		return nil, logx.Err(ctx, "error compiling expression", &errors2.ErrWorkflowFatal{Err: err}, "expression", exp)
 	}
 
 	res, err := expr.Run(ex, vars)
@@ -57,10 +56,8 @@ func EvalAny(log *zap.Logger, exp string, vars map[string]interface{}) (retval i
 
 	defer func() {
 		if err := recover(); err != nil {
-			errex := fmt.Errorf("error evaluating expression: %+v: %+v: %w", exp, err, &errors2.ErrWorkflowFatal{Err: err.(error)})
-			log.Error(errex.Error())
 			retval = nil
-			reterr = errex
+			reterr = logx.Err(ctx, "error evaluating expression", &errors2.ErrWorkflowFatal{Err: err.(error)}, "expression", exp)
 		}
 	}()
 

@@ -1,9 +1,10 @@
 package main
 
 import (
+	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/server/config"
 	"gitlab.com/shar-workflow/shar/server/server"
-	"go.uber.org/zap"
+	"golang.org/x/exp/slog"
 	"log"
 )
 
@@ -12,11 +13,23 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	l, err := zap.NewDevelopment()
+	var lev slog.Level
+	var addSource bool
+	switch cfg.LogLevel {
+	case "debug":
+		lev = slog.DebugLevel
+		addSource = true
+	case "info":
+		lev = slog.InfoLevel
+	case "warn":
+		lev = slog.WarnLevel
+	default:
+		lev = slog.ErrorLevel
+	}
+	logx.SetDefault(lev, addSource, "shar")
 	if err != nil {
 		panic(err)
 	}
-	svr := server.New(l)
+	svr := server.New()
 	svr.Listen(cfg.NatsURL, cfg.Port)
 }

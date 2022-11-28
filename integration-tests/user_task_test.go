@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
-	"go.uber.org/zap"
 	"os"
 	"sync"
 	"testing"
@@ -22,11 +21,8 @@ func TestUserTasks(t *testing.T) {
 	// Create a starting context
 	ctx := context.Background()
 
-	// Create logger
-	log, _ := zap.NewDevelopment()
-
 	// Dial shar
-	cl := client.New(log)
+	cl := client.New()
 	if err := cl.Dial(natsURL); err != nil {
 		panic(err)
 	}
