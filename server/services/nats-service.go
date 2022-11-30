@@ -14,6 +14,7 @@ import (
 	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/setup"
 	"gitlab.com/shar-workflow/shar/common/subj"
+	"gitlab.com/shar-workflow/shar/internal"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/errors/keys"
@@ -440,7 +441,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 			err := s.wfMsgSub.Delete(subs.List[i])
 			if err != nil {
 				log.Debug("could not delete instance subscriber",
-					slog.String("inst.id", subs.List[i]),
+					slog.String(keys.WorkflowInstanceID, subs.List[i]),
 				)
 			}
 		}
@@ -661,7 +662,7 @@ func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string
 	}
 	state.UnixTimeNano = time.Now().UnixNano()
 	msg := nats.NewMsg(subj.NS(stateName, "default"))
-	msg.Header.Set("embargo", strconv.Itoa(c.Embargo))
+	msg.Header.Set(internal.EmbargoNatsHeader, strconv.Itoa(c.Embargo))
 	if cid := ctx.Value(logx.CorrelationContextKey); cid == nil {
 		return errors.ErrMissingCorrelation
 	}
@@ -1104,7 +1105,7 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 				m := msg[0]
 				//				log.Debug("Process:"+traceName, slog.String("subject", msg[0].Subject))
 				cancel()
-				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
+				if embargo := m.Header.Get(internal.EmbargoNatsHeader); embargo != "" && embargo != "0" {
 					e, err := strconv.Atoi(embargo)
 					if err != nil {
 						log.Error("bad embargo value", err)

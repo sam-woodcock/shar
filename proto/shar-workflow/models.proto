@@ -5,134 +5,145 @@ option go_package = "gitlab.com/shar-workflow/shar/model";
 //import "google/protobuf/duration.proto";
 //import "google/protobuf/any.proto";
 
+// Workflow describes a number of processes that interact together.  It also contains all messages and errors used by the processes.
 message Workflow {
-  string Name = 1;
-  map<string,Process> Process = 2;
-  repeated Element messages = 3;
-  repeated Error errors = 4;
+  string Name = 1; // Name defines the common name that describes the workflow.
+  map<string, Process> Process = 2; // Process is a map of process names to workflow state machines.
+  repeated Element messages = 3; // Messages define the messages that can be sent by the workflow.
+  repeated Error errors = 4; // Errors define the errors used by the workflow.
 }
 
+// Process describes a single workflow state machine.
 message Process {
-  repeated Element elements = 1;
-  string Name      = 2;
+  repeated Element elements = 1; // Elements describes each state in the state machine.
+  string Name = 2; // Name - the common name of the state machine.
 }
 
+// WorkflowVersions describes the version history.
 message WorkflowVersions {
-  repeated WorkflowVersion version = 1;
+  repeated WorkflowVersion version = 1; // WorkflowVersion - a single version of a workflow
 }
 
+// WorkflowVersion contains the metadata for a single workflow version
 message WorkflowVersion {
-  string id = 1;
-  bytes sha256 = 2;
-  int32 number = 3;
+  string id = 1; // Id - the launchable ID for the workflow.
+  bytes sha256 = 2; // Sha256 - the hash of the workflow configuration.
+  int32 number = 3; // Number - the version number of the workflow
 }
 
+// Element describes a single state machine state.
 message Element {
-  string id = 1;
-  string name = 2;
-  string type = 3;
-  string documentation =4;
-  string execute =5;
-  Targets outbound = 6;
-  Process process = 7;
-  string msg = 8;
-  string retries = 9;
-  string candidates = 10;
-  string candidateGroups = 11;
-  repeated CatchError errors = 12;
-  Error error = 13;
-  map<string, string> inputTransform = 14;
-  map<string, string> outputTransform = 15;
-  WorkflowTimerDefinition timer = 16;
-  repeated Timer boundaryTimer = 17;
+  string id = 1; // Id - the unique identifier for the workflow state machine element.
+  string name = 2; // Name - the name of the state machine element.
+  string type = 3; // Type - the type of state machine element
+  string documentation = 4; // Documentation - any documentation describing the state machine element.
+  string execute = 5;  // Execute - describes the execution parameter,  This is used for diffrerent purposes depending on the type.
+  Targets outbound = 6; // Outbound - a number of possible transitions to other state machine state elements.s
+  Process process = 7; // Process - defines any subprocesses contained within this state machine.
+  string msg = 8; // TODO: Document
+  string retries = 9; // Retries - how many times this state machine element should retry in the case of a non-workflow error.
+  string candidates = 10; // Candidates - used for user related state machgine types to define users that may complete the task.
+  string candidateGroups = 11; // CandidateGroups - used for user related state machine types to define groups that may complete a task.
+  repeated CatchError errors = 12; // Errors - a number of catchable errors for this state machine element.
+  Error error = 13; // Error - an error that may be thrown.
+  map<string, string> inputTransform = 14; // InputTransform - a transformation to poerform between variable names when calling a state machine task.
+  map<string, string> outputTransform = 15; // OutputTransform - a transformation to poerform between variable names when exiting a state machine task.
+  WorkflowTimerDefinition timer = 16; // Timer - a time to wait before execution for timer tasks.
+  repeated Timer boundaryTimer = 17; // BoundaryTimer - a number of timed transitions between this and another state.
 }
 
+// Timer specifies a timed transition to another state.
 message Timer {
-  string id = 1;
-  string duration = 2;
-  string target = 3;
-  map<string, string> outputTransform = 4;
+  string id = 1; // Id - the unique identifier for the timer.
+  string duration = 2; // Duration - the duration of the timer.
+  string target = 3; // Target - state machine element ID to transition to.
+  map<string, string> outputTransform = 4; // OutputTransform - The transformation to apply to variables during the transition.
 }
 
-
+// Target specifies the target for a state transition.
 message Target {
-  string id          = 1;
-  repeated string conditions =2;
-  string target     =3;
+  string id = 1; // Id for the transition.
+  repeated string conditions = 2; // Conditions -to apply to the transition specified as Expr.
+  string target = 3; // Target ID for the transition.
 }
 
+// Error represents a known error name and code which may be thrown by the state machine.
 message Error {
-  string id = 1;
-  string name = 2;
-  string code = 3;
+  string id = 1; // Id - the unique id for the error.
+  string name = 2; // Name - the error unique name.
+  string code = 3; // Code - the unique code for the error.
 }
 
+// CatchError specifies an error transition to another state.
 message CatchError {
-  string id      = 1;
-  string errorId = 2;
-  string target  = 3;
-  map<string, string> outputTransform = 4;
+  string id = 1; // Id - the unique id.
+  string errorId = 2; // Id - the id of the error.
+  string target = 3; // Target ID for the transition.
+  map<string, string> outputTransform = 4; // OutputTransform - The transformation to apply to variables during the transition.
 }
 
+// Targets defines a set of targets for transition and as to whether only the first match should be executed.
 message Targets {
-  repeated Target target = 1;
-  bool exclusive = 2;
+  repeated Target target = 1; // Target - the target for a state transition.
+  bool exclusive = 2; // Exclusive - specifies that only the first match should be traversed.
 }
 
-message Messages {
-  string name = 1;
-}
-
+// WorkflowState describes a current executing state inside a workflow state machine.
 message WorkflowState {
-  string workflowId = 1;
-  string workflowInstanceId = 2;
-  string elementId = 3;
-  string elementType = 4;
-  repeated string id = 5;
-  optional string execute = 7;
-  CancellationState state = 8;
-  optional string condition = 9;
-  int64 unixTimeNano = 10;
-  bytes vars = 11;
-  repeated string owners = 12;
-  repeated string groups = 13;
-  Error error = 14;
-  WorkflowTimer timer = 16;
+  string workflowId = 1; // WorkflowId - the ID of the workflow version that provides the template for execution.
+  string workflowInstanceId = 2; // WorkflowInstanceId - the workflow instance that this state belongs to.
+  string elementId = 3; // ElementId - the currently executing element withing the workflow state machine.
+  string elementType = 4; // ElementType - the currently executing element type, cached here to reduce lookups.
+  repeated string id = 5; // Id - a stack of IDs that descibe the state and its parents up to the original workflow instance ID.
+  optional string execute = 7; // Execute - additional information required to execute depending on the element type.
+  CancellationState state = 8; // State - the current execution state of the state machine.
+  optional string condition = 9; // Condition - a message condition that needs to be fulfilled before proceeding.
+  int64 unixTimeNano = 10; // UnixTimeNano - the time this state was observed.
+  bytes vars = 11; // Vars - A go binary encoded map[string]interface{} of variables.
+  repeated string owners = 12; // Owners - a list of user owners for this state that may be responsible for completing tasks
+  repeated string groups = 13; // Groups - a list of user groups for this state that may be responsible for completing tasks
+  Error error = 14; // Error - an error being carried by the state if it has faulted.
+  WorkflowTimer timer = 16; // Timer - a time needed to transition to the next state.
 }
 
+// WorkflowTimerDefinition defines a workflow timer that can be used to trigger an event.
 message WorkflowTimerDefinition {
-  WorkflowTimerType type = 1;
-  int64 value = 2;
-  int64 repeat = 3;
-  bool dropEvents = 4;
+  WorkflowTimerType type = 1; // Type - whether the workflow timer is relative or absolute.
+  int64 value = 2; // Value - the time parameter.
+  int64 repeat = 3; // Repeat - the repeat interval for the timer.
+  bool dropEvents = 4; // DropEvents - unused.
 }
 
+// WorkflowTimer holds the last execution state of a timer.
 message WorkflowTimer {
-  int64 lastFired = 1;
-  int64 count = 2;
+  int64 lastFired = 1; // LastFired - the time in UNIX nanoseconds since the timer was last executed.
+  int64 count = 2; // Count - the number of times the timer has fired.
 }
 
+// WorkflowTimerType describes whether a timer is relative or absolute
 enum WorkflowTimerType {
-  duration = 0;
-  fixed = 1;
+  duration = 0; // Duration - a relative timer
+  fixed = 1; // Fixed - an absolute timer
 }
 
+// WorkflowInstance contains all of the metadata for a currently running workflow instance.
 message WorkflowInstance {
-  string workflowInstanceId = 1;
-  optional string parentWorkflowInstanceId = 2;
-  optional string parentElementId = 3;
-  string workflowId = 4;
-  map<string, bool> inFlight = 6;
+  string workflowInstanceId = 1; // WorkflowInstanceId - the unique ID for the workflow instance.
+  optional string parentWorkflowInstanceId = 2; // ParentWorkflowInstanceId - the workflow instance ID of the workflow that launched this instance.
+  optional string parentElementId = 3; // ParentElementId - the ID of the element in the parent workflow that triggered the launch of this instance.
+  string workflowId = 4; // WorkflowId - the workflow version ID that this instance is executing.
+  map<string, bool> inFlight = 6; // InFlight - active state machine states inside the workflow instance.
 }
 
+// MessageInstance represents a workflow message.
 message MessageInstance {
-  string messageId = 1;
-  string correlationKey = 2;
-  bytes vars = 3;
+  string messageId = 1; // MessageId - the unique messageId for the message.
+  string correlationKey = 2; // CorrelationKey - a receiving key to correlate this message to.
+  bytes vars = 3; // Vars - A go binary encoded map[string]interface{} of variables.
 }
 
 message WorkflowInstanceSubscribers {
-  repeated string list = 1; // stateId
+  repeated string list = 1;
 }
 
 message UserTasks {
@@ -146,11 +157,11 @@ message LaunchWorkflowRequest {
 }
 
 enum CancellationState {
-  executing = 0;  // The state machine is executing
-  completed = 1;  // The state machine has completed successfully
-  terminated = 2; // The state machine instance was terminated
-  errored = 3;    // An error occured during state machine execution
-  obsolete = 4;   // This state is obsolete due to an alternate flow
+  executing = 0;  // CancellationState_executing - the state machine is executing
+  completed = 1;  // CancellationState_completed - the state machine has completed successfully
+  terminated = 2; // CancellationState_terminated - the state machine instance was terminated
+  errored = 3;    // CancellationState_errored - an error occured during state machine execution
+  obsolete = 4;   // CancellationState_obsolete - this state is obsolete due to an alternate flow
 }
 
 message CancelWorkflowInstanceRequest {
@@ -272,7 +283,7 @@ message WorkflowStats {
 
 message TelemetryState {
   WorkflowState state = 1;
-  map<int64,TelemetryLogEntry> log = 2;
+  map<int64, TelemetryLogEntry> log = 2;
 }
 
 message TelemetryLogEntry {
@@ -280,7 +291,7 @@ message TelemetryLogEntry {
   LogSource source = 2;
   string message = 3;
   int32 code = 4;
-  map<string,string> attributes = 5;
+  map<string, string> attributes = 5;
 }
 
 enum LogSource {
