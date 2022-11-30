@@ -8,6 +8,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/workflow"
+	"gitlab.com/shar-workflow/shar/internal"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
@@ -195,7 +196,7 @@ func Process(ctx context.Context, js nats.JetStreamContext, traceName string, cl
 				m := msg[0]
 				//				log.Debug("Process:"+traceName, slog.String("subject", msg[0].Subject))
 				cancel()
-				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
+				if embargo := m.Header.Get(internal.EmbargoNatsHeader); embargo != "" && embargo != "0" {
 					e, err := strconv.Atoi(embargo)
 					if err != nil {
 						log.Error("bad embargo value", err)
