@@ -20,11 +20,12 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// WorkflowTimerType describes whether a timer is relative or absolute
 type WorkflowTimerType int32
 
 const (
-	WorkflowTimerType_duration WorkflowTimerType = 0
-	WorkflowTimerType_fixed    WorkflowTimerType = 1
+	WorkflowTimerType_duration WorkflowTimerType = 0 // Duration - a relative timer
+	WorkflowTimerType_fixed    WorkflowTimerType = 1 // Fixed - an absolute timer
 )
 
 // Enum value maps for WorkflowTimerType.
@@ -69,11 +70,11 @@ func (WorkflowTimerType) EnumDescriptor() ([]byte, []int) {
 type CancellationState int32
 
 const (
-	CancellationState_executing  CancellationState = 0 // The state machine is executing
-	CancellationState_completed  CancellationState = 1 // The state machine has completed successfully
-	CancellationState_terminated CancellationState = 2 // The state machine instance was terminated
-	CancellationState_errored    CancellationState = 3 // An error occured during state machine execution
-	CancellationState_obsolete   CancellationState = 4 // This state is obsolete due to an alternate flow
+	CancellationState_executing  CancellationState = 0 // CancellationState_executing - the state machine is executing
+	CancellationState_completed  CancellationState = 1 // CancellationState_completed - the state machine has completed successfully
+	CancellationState_terminated CancellationState = 2 // CancellationState_terminated - the state machine instance was terminated
+	CancellationState_errored    CancellationState = 3 // CancellationState_errored - an error occured during state machine execution
+	CancellationState_obsolete   CancellationState = 4 // CancellationState_obsolete - this state is obsolete due to an alternate flow
 )
 
 // Enum value maps for CancellationState.
@@ -173,15 +174,16 @@ func (LogSource) EnumDescriptor() ([]byte, []int) {
 	return file_shar_workflow_models_proto_rawDescGZIP(), []int{2}
 }
 
+// Workflow describes a number of processes that interact together.  It also contains all messages and errors used by the processes.
 type Workflow struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name     string              `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
-	Process  map[string]*Process `protobuf:"bytes,2,rep,name=Process,proto3" json:"Process,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	Messages []*Element          `protobuf:"bytes,3,rep,name=messages,proto3" json:"messages,omitempty"`
-	Errors   []*Error            `protobuf:"bytes,4,rep,name=errors,proto3" json:"errors,omitempty"`
+	Name     string              `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`                                                                                               // Name defines the common name that describes the workflow.
+	Process  map[string]*Process `protobuf:"bytes,2,rep,name=Process,proto3" json:"Process,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // Process is a map of process names to workflow state machines.
+	Messages []*Element          `protobuf:"bytes,3,rep,name=messages,proto3" json:"messages,omitempty"`                                                                                       // Messages define the messages that can be sent by the workflow.
+	Errors   []*Error            `protobuf:"bytes,4,rep,name=errors,proto3" json:"errors,omitempty"`                                                                                           // Errors define the errors used by the workflow.
 }
 
 func (x *Workflow) Reset() {
@@ -244,13 +246,14 @@ func (x *Workflow) GetErrors() []*Error {
 	return nil
 }
 
+// Process describes a single workflow state machine.
 type Process struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Elements []*Element `protobuf:"bytes,1,rep,name=elements,proto3" json:"elements,omitempty"`
-	Name     string     `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
+	Elements []*Element `protobuf:"bytes,1,rep,name=elements,proto3" json:"elements,omitempty"` // Elements describes each state in the state machine.
+	Name     string     `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`         // Name - the common name of the state machine.
 }
 
 func (x *Process) Reset() {
@@ -299,12 +302,13 @@ func (x *Process) GetName() string {
 	return ""
 }
 
+// WorkflowVersions describes the version history.
 type WorkflowVersions struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Version []*WorkflowVersion `protobuf:"bytes,1,rep,name=version,proto3" json:"version,omitempty"`
+	Version []*WorkflowVersion `protobuf:"bytes,1,rep,name=version,proto3" json:"version,omitempty"` // WorkflowVersion - a single version of a workflow
 }
 
 func (x *WorkflowVersions) Reset() {
@@ -346,14 +350,15 @@ func (x *WorkflowVersions) GetVersion() []*WorkflowVersion {
 	return nil
 }
 
+// WorkflowVersion contains the metadata for a single workflow version
 type WorkflowVersion struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id     string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Sha256 []byte `protobuf:"bytes,2,opt,name=sha256,proto3" json:"sha256,omitempty"`
-	Number int32  `protobuf:"varint,3,opt,name=number,proto3" json:"number,omitempty"`
+	Id     string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`          // Id - the launchable ID for the workflow.
+	Sha256 []byte `protobuf:"bytes,2,opt,name=sha256,proto3" json:"sha256,omitempty"`  // Sha256 - the hash of the workflow configuration.
+	Number int32  `protobuf:"varint,3,opt,name=number,proto3" json:"number,omitempty"` // Number - the version number of the workflow
 }
 
 func (x *WorkflowVersion) Reset() {
@@ -409,28 +414,29 @@ func (x *WorkflowVersion) GetNumber() int32 {
 	return 0
 }
 
+// Element describes a single state machine state.
 type Element struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id              string                   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name            string                   `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Type            string                   `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
-	Documentation   string                   `protobuf:"bytes,4,opt,name=documentation,proto3" json:"documentation,omitempty"`
-	Execute         string                   `protobuf:"bytes,5,opt,name=execute,proto3" json:"execute,omitempty"`
-	Outbound        *Targets                 `protobuf:"bytes,6,opt,name=outbound,proto3" json:"outbound,omitempty"`
-	Process         *Process                 `protobuf:"bytes,7,opt,name=process,proto3" json:"process,omitempty"`
-	Msg             string                   `protobuf:"bytes,8,opt,name=msg,proto3" json:"msg,omitempty"`
-	Retries         string                   `protobuf:"bytes,9,opt,name=retries,proto3" json:"retries,omitempty"`
-	Candidates      string                   `protobuf:"bytes,10,opt,name=candidates,proto3" json:"candidates,omitempty"`
-	CandidateGroups string                   `protobuf:"bytes,11,opt,name=candidateGroups,proto3" json:"candidateGroups,omitempty"`
-	Errors          []*CatchError            `protobuf:"bytes,12,rep,name=errors,proto3" json:"errors,omitempty"`
-	Error           *Error                   `protobuf:"bytes,13,opt,name=error,proto3" json:"error,omitempty"`
-	InputTransform  map[string]string        `protobuf:"bytes,14,rep,name=inputTransform,proto3" json:"inputTransform,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	OutputTransform map[string]string        `protobuf:"bytes,15,rep,name=outputTransform,proto3" json:"outputTransform,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	Timer           *WorkflowTimerDefinition `protobuf:"bytes,16,opt,name=timer,proto3" json:"timer,omitempty"`
-	BoundaryTimer   []*Timer                 `protobuf:"bytes,17,rep,name=boundaryTimer,proto3" json:"boundaryTimer,omitempty"`
+	Id              string                   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                                                                                                    // Id - the unique identifier for the workflow state machine element.
+	Name            string                   `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                                                                                                // Name - the name of the state machine element.
+	Type            string                   `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`                                                                                                                // Type - the type of state machine element
+	Documentation   string                   `protobuf:"bytes,4,opt,name=documentation,proto3" json:"documentation,omitempty"`                                                                                              // Documentation - any documentation describing the state machine element.
+	Execute         string                   `protobuf:"bytes,5,opt,name=execute,proto3" json:"execute,omitempty"`                                                                                                          // Execute - describes the execution parameter,  This is used for diffrerent purposes depending on the type.
+	Outbound        *Targets                 `protobuf:"bytes,6,opt,name=outbound,proto3" json:"outbound,omitempty"`                                                                                                        // Outbound - a number of possible transitions to other state machine state elements.s
+	Process         *Process                 `protobuf:"bytes,7,opt,name=process,proto3" json:"process,omitempty"`                                                                                                          // Process - defines any subprocesses contained within this state machine.
+	Msg             string                   `protobuf:"bytes,8,opt,name=msg,proto3" json:"msg,omitempty"`                                                                                                                  // TODO: Document
+	Retries         string                   `protobuf:"bytes,9,opt,name=retries,proto3" json:"retries,omitempty"`                                                                                                          // Retries - how many times this state machine element should retry in the case of a non-workflow error.
+	Candidates      string                   `protobuf:"bytes,10,opt,name=candidates,proto3" json:"candidates,omitempty"`                                                                                                   // Candidates - used for user related state machgine types to define users that may complete the task.
+	CandidateGroups string                   `protobuf:"bytes,11,opt,name=candidateGroups,proto3" json:"candidateGroups,omitempty"`                                                                                         // CandidateGroups - used for user related state machine types to define groups that may complete a task.
+	Errors          []*CatchError            `protobuf:"bytes,12,rep,name=errors,proto3" json:"errors,omitempty"`                                                                                                           // Errors - a number of catchable errors for this state machine element.
+	Error           *Error                   `protobuf:"bytes,13,opt,name=error,proto3" json:"error,omitempty"`                                                                                                             // Error - an error that may be thrown.
+	InputTransform  map[string]string        `protobuf:"bytes,14,rep,name=inputTransform,proto3" json:"inputTransform,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`   // InputTransform - a transformation to poerform between variable names when calling a state machine task.
+	OutputTransform map[string]string        `protobuf:"bytes,15,rep,name=outputTransform,proto3" json:"outputTransform,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // OutputTransform - a transformation to poerform between variable names when exiting a state machine task.
+	Timer           *WorkflowTimerDefinition `protobuf:"bytes,16,opt,name=timer,proto3" json:"timer,omitempty"`                                                                                                             // Timer - a time to wait before execution for timer tasks.
+	BoundaryTimer   []*Timer                 `protobuf:"bytes,17,rep,name=boundaryTimer,proto3" json:"boundaryTimer,omitempty"`                                                                                             // BoundaryTimer - a number of timed transitions between this and another state.
 }
 
 func (x *Element) Reset() {
@@ -584,15 +590,16 @@ func (x *Element) GetBoundaryTimer() []*Timer {
 	return nil
 }
 
+// Timer specifies a timed transition to another state.
 type Timer struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id              string            `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Duration        string            `protobuf:"bytes,2,opt,name=duration,proto3" json:"duration,omitempty"`
-	Target          string            `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
-	OutputTransform map[string]string `protobuf:"bytes,4,rep,name=outputTransform,proto3" json:"outputTransform,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Id              string            `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                                                                                                   // Id - the unique identifier for the timer.
+	Duration        string            `protobuf:"bytes,2,opt,name=duration,proto3" json:"duration,omitempty"`                                                                                                       // Duration - the duration of the timer.
+	Target          string            `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`                                                                                                           // Target - state machine element ID to transition to.
+	OutputTransform map[string]string `protobuf:"bytes,4,rep,name=outputTransform,proto3" json:"outputTransform,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // OutputTransform - The transformation to apply to variables during the transition.
 }
 
 func (x *Timer) Reset() {
@@ -655,14 +662,15 @@ func (x *Timer) GetOutputTransform() map[string]string {
 	return nil
 }
 
+// Target specifies the target for a state transition.
 type Target struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id         string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Conditions []string `protobuf:"bytes,2,rep,name=conditions,proto3" json:"conditions,omitempty"`
-	Target     string   `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
+	Id         string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                 // Id for the transition.
+	Conditions []string `protobuf:"bytes,2,rep,name=conditions,proto3" json:"conditions,omitempty"` // Conditions -to apply to the transition specified as Expr.
+	Target     string   `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`         // Target ID for the transition.
 }
 
 func (x *Target) Reset() {
@@ -718,14 +726,15 @@ func (x *Target) GetTarget() string {
 	return ""
 }
 
+// Error represents a known error name and code which may be thrown by the state machine.
 type Error struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id   string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Code string `protobuf:"bytes,3,opt,name=code,proto3" json:"code,omitempty"`
+	Id   string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`     // Id - the unique id for the error.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"` // Name - the error unique name.
+	Code string `protobuf:"bytes,3,opt,name=code,proto3" json:"code,omitempty"` // Code - the unique code for the error.
 }
 
 func (x *Error) Reset() {
@@ -781,15 +790,16 @@ func (x *Error) GetCode() string {
 	return ""
 }
 
+// CatchError specifies an error transition to another state.
 type CatchError struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id              string            `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ErrorId         string            `protobuf:"bytes,2,opt,name=errorId,proto3" json:"errorId,omitempty"`
-	Target          string            `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
-	OutputTransform map[string]string `protobuf:"bytes,4,rep,name=outputTransform,proto3" json:"outputTransform,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Id              string            `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                                                                                                   // Id - the unique id.
+	ErrorId         string            `protobuf:"bytes,2,opt,name=errorId,proto3" json:"errorId,omitempty"`                                                                                                         // Id - the id of the error.
+	Target          string            `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`                                                                                                           // Target ID for the transition.
+	OutputTransform map[string]string `protobuf:"bytes,4,rep,name=outputTransform,proto3" json:"outputTransform,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // OutputTransform - The transformation to apply to variables during the transition.
 }
 
 func (x *CatchError) Reset() {
@@ -852,13 +862,14 @@ func (x *CatchError) GetOutputTransform() map[string]string {
 	return nil
 }
 
+// Targets defines a set of targets for transition and as to whether only the first match should be executed.
 type Targets struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Target    []*Target `protobuf:"bytes,1,rep,name=target,proto3" json:"target,omitempty"`
-	Exclusive bool      `protobuf:"varint,2,opt,name=exclusive,proto3" json:"exclusive,omitempty"`
+	Target    []*Target `protobuf:"bytes,1,rep,name=target,proto3" json:"target,omitempty"`        // Target - the target for a state transition.
+	Exclusive bool      `protobuf:"varint,2,opt,name=exclusive,proto3" json:"exclusive,omitempty"` // Exclusive - specifies that only the first match should be traversed.
 }
 
 func (x *Targets) Reset() {
@@ -907,78 +918,32 @@ func (x *Targets) GetExclusive() bool {
 	return false
 }
 
-type Messages struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-}
-
-func (x *Messages) Reset() {
-	*x = Messages{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[10]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *Messages) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Messages) ProtoMessage() {}
-
-func (x *Messages) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[10]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Messages.ProtoReflect.Descriptor instead.
-func (*Messages) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *Messages) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
+// WorkflowState describes a current executing state inside a workflow state machine.
 type WorkflowState struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	WorkflowId         string            `protobuf:"bytes,1,opt,name=workflowId,proto3" json:"workflowId,omitempty"`
-	WorkflowInstanceId string            `protobuf:"bytes,2,opt,name=workflowInstanceId,proto3" json:"workflowInstanceId,omitempty"`
-	ElementId          string            `protobuf:"bytes,3,opt,name=elementId,proto3" json:"elementId,omitempty"`
-	ElementType        string            `protobuf:"bytes,4,opt,name=elementType,proto3" json:"elementType,omitempty"`
-	Id                 []string          `protobuf:"bytes,5,rep,name=id,proto3" json:"id,omitempty"`
-	Execute            *string           `protobuf:"bytes,7,opt,name=execute,proto3,oneof" json:"execute,omitempty"`
-	State              CancellationState `protobuf:"varint,8,opt,name=state,proto3,enum=CancellationState" json:"state,omitempty"`
-	Condition          *string           `protobuf:"bytes,9,opt,name=condition,proto3,oneof" json:"condition,omitempty"`
-	UnixTimeNano       int64             `protobuf:"varint,10,opt,name=unixTimeNano,proto3" json:"unixTimeNano,omitempty"`
-	Vars               []byte            `protobuf:"bytes,11,opt,name=vars,proto3" json:"vars,omitempty"`
-	Owners             []string          `protobuf:"bytes,12,rep,name=owners,proto3" json:"owners,omitempty"`
-	Groups             []string          `protobuf:"bytes,13,rep,name=groups,proto3" json:"groups,omitempty"`
-	Error              *Error            `protobuf:"bytes,14,opt,name=error,proto3" json:"error,omitempty"`
-	Timer              *WorkflowTimer    `protobuf:"bytes,16,opt,name=timer,proto3" json:"timer,omitempty"`
+	WorkflowId         string            `protobuf:"bytes,1,opt,name=workflowId,proto3" json:"workflowId,omitempty"`                 // WorkflowId - the ID of the workflow version that provides the template for execution.
+	WorkflowInstanceId string            `protobuf:"bytes,2,opt,name=workflowInstanceId,proto3" json:"workflowInstanceId,omitempty"` // WorkflowInstanceId - the workflow instance that this state belongs to.
+	ElementId          string            `protobuf:"bytes,3,opt,name=elementId,proto3" json:"elementId,omitempty"`                   // ElementId - the currently executing element withing the workflow state machine.
+	ElementType        string            `protobuf:"bytes,4,opt,name=elementType,proto3" json:"elementType,omitempty"`               // ElementType - the currently executing element type, cached here to reduce lookups.
+	Id                 []string          `protobuf:"bytes,5,rep,name=id,proto3" json:"id,omitempty"`                                 // Id - a stack of IDs that descibe the state and its parents up to the original workflow instance ID.
+	Execute            *string           `protobuf:"bytes,7,opt,name=execute,proto3,oneof" json:"execute,omitempty"`                 // Execute - additional information required to execute depending on the element type.
+	State              CancellationState `protobuf:"varint,8,opt,name=state,proto3,enum=CancellationState" json:"state,omitempty"`   // State - the current execution state of the state machine.
+	Condition          *string           `protobuf:"bytes,9,opt,name=condition,proto3,oneof" json:"condition,omitempty"`             // Condition - a message condition that needs to be fulfilled before proceeding.
+	UnixTimeNano       int64             `protobuf:"varint,10,opt,name=unixTimeNano,proto3" json:"unixTimeNano,omitempty"`           // UnixTimeNano - the time this state was observed.
+	Vars               []byte            `protobuf:"bytes,11,opt,name=vars,proto3" json:"vars,omitempty"`                            // Vars - A go binary encoded map[string]interface{} of variables.
+	Owners             []string          `protobuf:"bytes,12,rep,name=owners,proto3" json:"owners,omitempty"`                        // Owners - a list of user owners for this state that may be responsible for completing tasks
+	Groups             []string          `protobuf:"bytes,13,rep,name=groups,proto3" json:"groups,omitempty"`                        // Groups - a list of user groups for this state that may be responsible for completing tasks
+	Error              *Error            `protobuf:"bytes,14,opt,name=error,proto3" json:"error,omitempty"`                          // Error - an error being carried by the state if it has faulted.
+	Timer              *WorkflowTimer    `protobuf:"bytes,16,opt,name=timer,proto3" json:"timer,omitempty"`                          // Timer - a time needed to transition to the next state.
 }
 
 func (x *WorkflowState) Reset() {
 	*x = WorkflowState{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[11]
+		mi := &file_shar_workflow_models_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -991,7 +956,7 @@ func (x *WorkflowState) String() string {
 func (*WorkflowState) ProtoMessage() {}
 
 func (x *WorkflowState) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[11]
+	mi := &file_shar_workflow_models_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1004,7 +969,7 @@ func (x *WorkflowState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowState.ProtoReflect.Descriptor instead.
 func (*WorkflowState) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{11}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *WorkflowState) GetWorkflowId() string {
@@ -1105,21 +1070,22 @@ func (x *WorkflowState) GetTimer() *WorkflowTimer {
 	return nil
 }
 
+// WorkflowTimerDefinition defines a workflow timer that can be used to trigger an event.
 type WorkflowTimerDefinition struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Type       WorkflowTimerType `protobuf:"varint,1,opt,name=type,proto3,enum=WorkflowTimerType" json:"type,omitempty"`
-	Value      int64             `protobuf:"varint,2,opt,name=value,proto3" json:"value,omitempty"`
-	Repeat     int64             `protobuf:"varint,3,opt,name=repeat,proto3" json:"repeat,omitempty"`
-	DropEvents bool              `protobuf:"varint,4,opt,name=dropEvents,proto3" json:"dropEvents,omitempty"`
+	Type       WorkflowTimerType `protobuf:"varint,1,opt,name=type,proto3,enum=WorkflowTimerType" json:"type,omitempty"` // Type - whether the workflow timer is relative or absolute.
+	Value      int64             `protobuf:"varint,2,opt,name=value,proto3" json:"value,omitempty"`                      // Value - the time parameter.
+	Repeat     int64             `protobuf:"varint,3,opt,name=repeat,proto3" json:"repeat,omitempty"`                    // Repeat - the repeat interval for the timer.
+	DropEvents bool              `protobuf:"varint,4,opt,name=dropEvents,proto3" json:"dropEvents,omitempty"`            // DropEvents - unused.
 }
 
 func (x *WorkflowTimerDefinition) Reset() {
 	*x = WorkflowTimerDefinition{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[12]
+		mi := &file_shar_workflow_models_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1132,7 +1098,7 @@ func (x *WorkflowTimerDefinition) String() string {
 func (*WorkflowTimerDefinition) ProtoMessage() {}
 
 func (x *WorkflowTimerDefinition) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[12]
+	mi := &file_shar_workflow_models_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1145,7 +1111,7 @@ func (x *WorkflowTimerDefinition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowTimerDefinition.ProtoReflect.Descriptor instead.
 func (*WorkflowTimerDefinition) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{12}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *WorkflowTimerDefinition) GetType() WorkflowTimerType {
@@ -1176,19 +1142,20 @@ func (x *WorkflowTimerDefinition) GetDropEvents() bool {
 	return false
 }
 
+// WorkflowTimer holds the last execution state of a timer.
 type WorkflowTimer struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	LastFired int64 `protobuf:"varint,1,opt,name=lastFired,proto3" json:"lastFired,omitempty"`
-	Count     int64 `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
+	LastFired int64 `protobuf:"varint,1,opt,name=lastFired,proto3" json:"lastFired,omitempty"` // LastFired - the time in UNIX nanoseconds since the timer was last executed.
+	Count     int64 `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`         // Count - the number of times the timer has fired.
 }
 
 func (x *WorkflowTimer) Reset() {
 	*x = WorkflowTimer{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[13]
+		mi := &file_shar_workflow_models_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1201,7 +1168,7 @@ func (x *WorkflowTimer) String() string {
 func (*WorkflowTimer) ProtoMessage() {}
 
 func (x *WorkflowTimer) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[13]
+	mi := &file_shar_workflow_models_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1214,7 +1181,7 @@ func (x *WorkflowTimer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowTimer.ProtoReflect.Descriptor instead.
 func (*WorkflowTimer) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{13}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *WorkflowTimer) GetLastFired() int64 {
@@ -1231,22 +1198,23 @@ func (x *WorkflowTimer) GetCount() int64 {
 	return 0
 }
 
+// WorkflowInstance contains all of the metadata for a currently running workflow instance.
 type WorkflowInstance struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	WorkflowInstanceId       string          `protobuf:"bytes,1,opt,name=workflowInstanceId,proto3" json:"workflowInstanceId,omitempty"`
-	ParentWorkflowInstanceId *string         `protobuf:"bytes,2,opt,name=parentWorkflowInstanceId,proto3,oneof" json:"parentWorkflowInstanceId,omitempty"`
-	ParentElementId          *string         `protobuf:"bytes,3,opt,name=parentElementId,proto3,oneof" json:"parentElementId,omitempty"`
-	WorkflowId               string          `protobuf:"bytes,4,opt,name=workflowId,proto3" json:"workflowId,omitempty"`
-	InFlight                 map[string]bool `protobuf:"bytes,6,rep,name=inFlight,proto3" json:"inFlight,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
+	WorkflowInstanceId       string          `protobuf:"bytes,1,opt,name=workflowInstanceId,proto3" json:"workflowInstanceId,omitempty"`                                                                      // WorkflowInstanceId - the unique ID for the workflow instance.
+	ParentWorkflowInstanceId *string         `protobuf:"bytes,2,opt,name=parentWorkflowInstanceId,proto3,oneof" json:"parentWorkflowInstanceId,omitempty"`                                                    // ParentWorkflowInstanceId - the workflow instance ID of the workflow that launched this instance.
+	ParentElementId          *string         `protobuf:"bytes,3,opt,name=parentElementId,proto3,oneof" json:"parentElementId,omitempty"`                                                                      // ParentElementId - the ID of the element in the parent workflow that triggered the launch of this instance.
+	WorkflowId               string          `protobuf:"bytes,4,opt,name=workflowId,proto3" json:"workflowId,omitempty"`                                                                                      // WorkflowId - the workflow version ID that this instance is executing.
+	InFlight                 map[string]bool `protobuf:"bytes,6,rep,name=inFlight,proto3" json:"inFlight,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"` // InFlight - active state machine states inside the workflow instance.
 }
 
 func (x *WorkflowInstance) Reset() {
 	*x = WorkflowInstance{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[14]
+		mi := &file_shar_workflow_models_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1259,7 +1227,7 @@ func (x *WorkflowInstance) String() string {
 func (*WorkflowInstance) ProtoMessage() {}
 
 func (x *WorkflowInstance) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[14]
+	mi := &file_shar_workflow_models_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1272,7 +1240,7 @@ func (x *WorkflowInstance) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowInstance.ProtoReflect.Descriptor instead.
 func (*WorkflowInstance) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{14}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *WorkflowInstance) GetWorkflowInstanceId() string {
@@ -1310,20 +1278,21 @@ func (x *WorkflowInstance) GetInFlight() map[string]bool {
 	return nil
 }
 
+// MessageInstance represents a workflow message.
 type MessageInstance struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	MessageId      string `protobuf:"bytes,1,opt,name=messageId,proto3" json:"messageId,omitempty"`
-	CorrelationKey string `protobuf:"bytes,2,opt,name=correlationKey,proto3" json:"correlationKey,omitempty"`
-	Vars           []byte `protobuf:"bytes,3,opt,name=vars,proto3" json:"vars,omitempty"`
+	MessageId      string `protobuf:"bytes,1,opt,name=messageId,proto3" json:"messageId,omitempty"`           // MessageId - the unique messageId for the message.
+	CorrelationKey string `protobuf:"bytes,2,opt,name=correlationKey,proto3" json:"correlationKey,omitempty"` // CorrelationKey - a receiving key to correlate this message to.
+	Vars           []byte `protobuf:"bytes,3,opt,name=vars,proto3" json:"vars,omitempty"`                     // Vars - A go binary encoded map[string]interface{} of variables.
 }
 
 func (x *MessageInstance) Reset() {
 	*x = MessageInstance{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[15]
+		mi := &file_shar_workflow_models_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1336,7 +1305,7 @@ func (x *MessageInstance) String() string {
 func (*MessageInstance) ProtoMessage() {}
 
 func (x *MessageInstance) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[15]
+	mi := &file_shar_workflow_models_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1349,7 +1318,7 @@ func (x *MessageInstance) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageInstance.ProtoReflect.Descriptor instead.
 func (*MessageInstance) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{15}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *MessageInstance) GetMessageId() string {
@@ -1378,13 +1347,13 @@ type WorkflowInstanceSubscribers struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	List []string `protobuf:"bytes,1,rep,name=list,proto3" json:"list,omitempty"` // stateId
+	List []string `protobuf:"bytes,1,rep,name=list,proto3" json:"list,omitempty"`
 }
 
 func (x *WorkflowInstanceSubscribers) Reset() {
 	*x = WorkflowInstanceSubscribers{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[16]
+		mi := &file_shar_workflow_models_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1397,7 +1366,7 @@ func (x *WorkflowInstanceSubscribers) String() string {
 func (*WorkflowInstanceSubscribers) ProtoMessage() {}
 
 func (x *WorkflowInstanceSubscribers) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[16]
+	mi := &file_shar_workflow_models_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1410,7 +1379,7 @@ func (x *WorkflowInstanceSubscribers) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowInstanceSubscribers.ProtoReflect.Descriptor instead.
 func (*WorkflowInstanceSubscribers) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{16}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *WorkflowInstanceSubscribers) GetList() []string {
@@ -1431,7 +1400,7 @@ type UserTasks struct {
 func (x *UserTasks) Reset() {
 	*x = UserTasks{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[17]
+		mi := &file_shar_workflow_models_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1444,7 +1413,7 @@ func (x *UserTasks) String() string {
 func (*UserTasks) ProtoMessage() {}
 
 func (x *UserTasks) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[17]
+	mi := &file_shar_workflow_models_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1457,7 +1426,7 @@ func (x *UserTasks) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserTasks.ProtoReflect.Descriptor instead.
 func (*UserTasks) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{17}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UserTasks) GetId() []string {
@@ -1479,7 +1448,7 @@ type LaunchWorkflowRequest struct {
 func (x *LaunchWorkflowRequest) Reset() {
 	*x = LaunchWorkflowRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[18]
+		mi := &file_shar_workflow_models_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1492,7 +1461,7 @@ func (x *LaunchWorkflowRequest) String() string {
 func (*LaunchWorkflowRequest) ProtoMessage() {}
 
 func (x *LaunchWorkflowRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[18]
+	mi := &file_shar_workflow_models_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1505,7 +1474,7 @@ func (x *LaunchWorkflowRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LaunchWorkflowRequest.ProtoReflect.Descriptor instead.
 func (*LaunchWorkflowRequest) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{18}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *LaunchWorkflowRequest) GetName() string {
@@ -1535,7 +1504,7 @@ type CancelWorkflowInstanceRequest struct {
 func (x *CancelWorkflowInstanceRequest) Reset() {
 	*x = CancelWorkflowInstanceRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[19]
+		mi := &file_shar_workflow_models_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1548,7 +1517,7 @@ func (x *CancelWorkflowInstanceRequest) String() string {
 func (*CancelWorkflowInstanceRequest) ProtoMessage() {}
 
 func (x *CancelWorkflowInstanceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[19]
+	mi := &file_shar_workflow_models_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1561,7 +1530,7 @@ func (x *CancelWorkflowInstanceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelWorkflowInstanceRequest.ProtoReflect.Descriptor instead.
 func (*CancelWorkflowInstanceRequest) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{19}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *CancelWorkflowInstanceRequest) GetId() string {
@@ -1596,7 +1565,7 @@ type GetWorkflowInstanceStatusRequest struct {
 func (x *GetWorkflowInstanceStatusRequest) Reset() {
 	*x = GetWorkflowInstanceStatusRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[20]
+		mi := &file_shar_workflow_models_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1609,7 +1578,7 @@ func (x *GetWorkflowInstanceStatusRequest) String() string {
 func (*GetWorkflowInstanceStatusRequest) ProtoMessage() {}
 
 func (x *GetWorkflowInstanceStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[20]
+	mi := &file_shar_workflow_models_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1622,7 +1591,7 @@ func (x *GetWorkflowInstanceStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorkflowInstanceStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetWorkflowInstanceStatusRequest) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{20}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetWorkflowInstanceStatusRequest) GetId() string {
@@ -1643,7 +1612,7 @@ type ListWorkflowInstanceRequest struct {
 func (x *ListWorkflowInstanceRequest) Reset() {
 	*x = ListWorkflowInstanceRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[21]
+		mi := &file_shar_workflow_models_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1656,7 +1625,7 @@ func (x *ListWorkflowInstanceRequest) String() string {
 func (*ListWorkflowInstanceRequest) ProtoMessage() {}
 
 func (x *ListWorkflowInstanceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[21]
+	mi := &file_shar_workflow_models_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1669,7 +1638,7 @@ func (x *ListWorkflowInstanceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListWorkflowInstanceRequest.ProtoReflect.Descriptor instead.
 func (*ListWorkflowInstanceRequest) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{21}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListWorkflowInstanceRequest) GetWorkflowName() string {
@@ -1690,7 +1659,7 @@ type ListWorkflowInstanceResponse struct {
 func (x *ListWorkflowInstanceResponse) Reset() {
 	*x = ListWorkflowInstanceResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[22]
+		mi := &file_shar_workflow_models_proto_msgTypes[21]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1703,7 +1672,7 @@ func (x *ListWorkflowInstanceResponse) String() string {
 func (*ListWorkflowInstanceResponse) ProtoMessage() {}
 
 func (x *ListWorkflowInstanceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[22]
+	mi := &file_shar_workflow_models_proto_msgTypes[21]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1716,7 +1685,7 @@ func (x *ListWorkflowInstanceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListWorkflowInstanceResponse.ProtoReflect.Descriptor instead.
 func (*ListWorkflowInstanceResponse) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{22}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ListWorkflowInstanceResponse) GetResult() []*ListWorkflowInstanceResult {
@@ -1738,7 +1707,7 @@ type ListWorkflowInstanceResult struct {
 func (x *ListWorkflowInstanceResult) Reset() {
 	*x = ListWorkflowInstanceResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[23]
+		mi := &file_shar_workflow_models_proto_msgTypes[22]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1751,7 +1720,7 @@ func (x *ListWorkflowInstanceResult) String() string {
 func (*ListWorkflowInstanceResult) ProtoMessage() {}
 
 func (x *ListWorkflowInstanceResult) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[23]
+	mi := &file_shar_workflow_models_proto_msgTypes[22]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1764,7 +1733,7 @@ func (x *ListWorkflowInstanceResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListWorkflowInstanceResult.ProtoReflect.Descriptor instead.
 func (*ListWorkflowInstanceResult) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{23}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ListWorkflowInstanceResult) GetId() string {
@@ -1793,7 +1762,7 @@ type WorkflowInstanceInfo struct {
 func (x *WorkflowInstanceInfo) Reset() {
 	*x = WorkflowInstanceInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[24]
+		mi := &file_shar_workflow_models_proto_msgTypes[23]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1806,7 +1775,7 @@ func (x *WorkflowInstanceInfo) String() string {
 func (*WorkflowInstanceInfo) ProtoMessage() {}
 
 func (x *WorkflowInstanceInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[24]
+	mi := &file_shar_workflow_models_proto_msgTypes[23]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1819,7 +1788,7 @@ func (x *WorkflowInstanceInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowInstanceInfo.ProtoReflect.Descriptor instead.
 func (*WorkflowInstanceInfo) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{24}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *WorkflowInstanceInfo) GetId() string {
@@ -1847,7 +1816,7 @@ type WorkflowInstanceStatus struct {
 func (x *WorkflowInstanceStatus) Reset() {
 	*x = WorkflowInstanceStatus{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[25]
+		mi := &file_shar_workflow_models_proto_msgTypes[24]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1860,7 +1829,7 @@ func (x *WorkflowInstanceStatus) String() string {
 func (*WorkflowInstanceStatus) ProtoMessage() {}
 
 func (x *WorkflowInstanceStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[25]
+	mi := &file_shar_workflow_models_proto_msgTypes[24]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1873,7 +1842,7 @@ func (x *WorkflowInstanceStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowInstanceStatus.ProtoReflect.Descriptor instead.
 func (*WorkflowInstanceStatus) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{25}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *WorkflowInstanceStatus) GetState() []*WorkflowState {
@@ -1894,7 +1863,7 @@ type ListWorkflowsResponse struct {
 func (x *ListWorkflowsResponse) Reset() {
 	*x = ListWorkflowsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[26]
+		mi := &file_shar_workflow_models_proto_msgTypes[25]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1907,7 +1876,7 @@ func (x *ListWorkflowsResponse) String() string {
 func (*ListWorkflowsResponse) ProtoMessage() {}
 
 func (x *ListWorkflowsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[26]
+	mi := &file_shar_workflow_models_proto_msgTypes[25]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1920,7 +1889,7 @@ func (x *ListWorkflowsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListWorkflowsResponse.ProtoReflect.Descriptor instead.
 func (*ListWorkflowsResponse) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{26}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ListWorkflowsResponse) GetResult() []*ListWorkflowResult {
@@ -1942,7 +1911,7 @@ type ListWorkflowResult struct {
 func (x *ListWorkflowResult) Reset() {
 	*x = ListWorkflowResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[27]
+		mi := &file_shar_workflow_models_proto_msgTypes[26]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1955,7 +1924,7 @@ func (x *ListWorkflowResult) String() string {
 func (*ListWorkflowResult) ProtoMessage() {}
 
 func (x *ListWorkflowResult) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[27]
+	mi := &file_shar_workflow_models_proto_msgTypes[26]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1968,7 +1937,7 @@ func (x *ListWorkflowResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListWorkflowResult.ProtoReflect.Descriptor instead.
 func (*ListWorkflowResult) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{27}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ListWorkflowResult) GetName() string {
@@ -1999,7 +1968,7 @@ type SendMessageRequest struct {
 func (x *SendMessageRequest) Reset() {
 	*x = SendMessageRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[28]
+		mi := &file_shar_workflow_models_proto_msgTypes[27]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2012,7 +1981,7 @@ func (x *SendMessageRequest) String() string {
 func (*SendMessageRequest) ProtoMessage() {}
 
 func (x *SendMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[28]
+	mi := &file_shar_workflow_models_proto_msgTypes[27]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2025,7 +1994,7 @@ func (x *SendMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendMessageRequest.ProtoReflect.Descriptor instead.
 func (*SendMessageRequest) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{28}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *SendMessageRequest) GetName() string {
@@ -2071,7 +2040,7 @@ type WorkflowInstanceComplete struct {
 func (x *WorkflowInstanceComplete) Reset() {
 	*x = WorkflowInstanceComplete{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[29]
+		mi := &file_shar_workflow_models_proto_msgTypes[28]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2084,7 +2053,7 @@ func (x *WorkflowInstanceComplete) String() string {
 func (*WorkflowInstanceComplete) ProtoMessage() {}
 
 func (x *WorkflowInstanceComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[29]
+	mi := &file_shar_workflow_models_proto_msgTypes[28]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2097,7 +2066,7 @@ func (x *WorkflowInstanceComplete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowInstanceComplete.ProtoReflect.Descriptor instead.
 func (*WorkflowInstanceComplete) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{29}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *WorkflowInstanceComplete) GetWorkflowName() string {
@@ -2147,7 +2116,7 @@ type CompleteManualTaskRequest struct {
 func (x *CompleteManualTaskRequest) Reset() {
 	*x = CompleteManualTaskRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[30]
+		mi := &file_shar_workflow_models_proto_msgTypes[29]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2160,7 +2129,7 @@ func (x *CompleteManualTaskRequest) String() string {
 func (*CompleteManualTaskRequest) ProtoMessage() {}
 
 func (x *CompleteManualTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[30]
+	mi := &file_shar_workflow_models_proto_msgTypes[29]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2173,7 +2142,7 @@ func (x *CompleteManualTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteManualTaskRequest.ProtoReflect.Descriptor instead.
 func (*CompleteManualTaskRequest) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{30}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *CompleteManualTaskRequest) GetTrackingId() string {
@@ -2202,7 +2171,7 @@ type CompleteServiceTaskRequest struct {
 func (x *CompleteServiceTaskRequest) Reset() {
 	*x = CompleteServiceTaskRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[31]
+		mi := &file_shar_workflow_models_proto_msgTypes[30]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2215,7 +2184,7 @@ func (x *CompleteServiceTaskRequest) String() string {
 func (*CompleteServiceTaskRequest) ProtoMessage() {}
 
 func (x *CompleteServiceTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[31]
+	mi := &file_shar_workflow_models_proto_msgTypes[30]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2228,7 +2197,7 @@ func (x *CompleteServiceTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteServiceTaskRequest.ProtoReflect.Descriptor instead.
 func (*CompleteServiceTaskRequest) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{31}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *CompleteServiceTaskRequest) GetTrackingId() string {
@@ -2257,7 +2226,7 @@ type CompleteSendMessageRequest struct {
 func (x *CompleteSendMessageRequest) Reset() {
 	*x = CompleteSendMessageRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[32]
+		mi := &file_shar_workflow_models_proto_msgTypes[31]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2270,7 +2239,7 @@ func (x *CompleteSendMessageRequest) String() string {
 func (*CompleteSendMessageRequest) ProtoMessage() {}
 
 func (x *CompleteSendMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[32]
+	mi := &file_shar_workflow_models_proto_msgTypes[31]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2283,7 +2252,7 @@ func (x *CompleteSendMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteSendMessageRequest.ProtoReflect.Descriptor instead.
 func (*CompleteSendMessageRequest) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{32}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *CompleteSendMessageRequest) GetTrackingId() string {
@@ -2313,7 +2282,7 @@ type CompleteUserTaskRequest struct {
 func (x *CompleteUserTaskRequest) Reset() {
 	*x = CompleteUserTaskRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[33]
+		mi := &file_shar_workflow_models_proto_msgTypes[32]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2326,7 +2295,7 @@ func (x *CompleteUserTaskRequest) String() string {
 func (*CompleteUserTaskRequest) ProtoMessage() {}
 
 func (x *CompleteUserTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[33]
+	mi := &file_shar_workflow_models_proto_msgTypes[32]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2339,7 +2308,7 @@ func (x *CompleteUserTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteUserTaskRequest.ProtoReflect.Descriptor instead.
 func (*CompleteUserTaskRequest) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{33}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *CompleteUserTaskRequest) GetTrackingId() string {
@@ -2374,7 +2343,7 @@ type ListUserTasksRequest struct {
 func (x *ListUserTasksRequest) Reset() {
 	*x = ListUserTasksRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[34]
+		mi := &file_shar_workflow_models_proto_msgTypes[33]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2387,7 +2356,7 @@ func (x *ListUserTasksRequest) String() string {
 func (*ListUserTasksRequest) ProtoMessage() {}
 
 func (x *ListUserTasksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[34]
+	mi := &file_shar_workflow_models_proto_msgTypes[33]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2400,7 +2369,7 @@ func (x *ListUserTasksRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUserTasksRequest.ProtoReflect.Descriptor instead.
 func (*ListUserTasksRequest) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{34}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ListUserTasksRequest) GetOwner() string {
@@ -2422,7 +2391,7 @@ type GetUserTaskRequest struct {
 func (x *GetUserTaskRequest) Reset() {
 	*x = GetUserTaskRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[35]
+		mi := &file_shar_workflow_models_proto_msgTypes[34]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2435,7 +2404,7 @@ func (x *GetUserTaskRequest) String() string {
 func (*GetUserTaskRequest) ProtoMessage() {}
 
 func (x *GetUserTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[35]
+	mi := &file_shar_workflow_models_proto_msgTypes[34]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2448,7 +2417,7 @@ func (x *GetUserTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserTaskRequest.ProtoReflect.Descriptor instead.
 func (*GetUserTaskRequest) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{35}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *GetUserTaskRequest) GetOwner() string {
@@ -2477,7 +2446,7 @@ type GetMessageSenderRoutingIdRequest struct {
 func (x *GetMessageSenderRoutingIdRequest) Reset() {
 	*x = GetMessageSenderRoutingIdRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[36]
+		mi := &file_shar_workflow_models_proto_msgTypes[35]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2490,7 +2459,7 @@ func (x *GetMessageSenderRoutingIdRequest) String() string {
 func (*GetMessageSenderRoutingIdRequest) ProtoMessage() {}
 
 func (x *GetMessageSenderRoutingIdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[36]
+	mi := &file_shar_workflow_models_proto_msgTypes[35]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2503,7 +2472,7 @@ func (x *GetMessageSenderRoutingIdRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMessageSenderRoutingIdRequest.ProtoReflect.Descriptor instead.
 func (*GetMessageSenderRoutingIdRequest) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{36}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *GetMessageSenderRoutingIdRequest) GetWorkflowName() string {
@@ -2535,7 +2504,7 @@ type GetUserTaskResponse struct {
 func (x *GetUserTaskResponse) Reset() {
 	*x = GetUserTaskResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[37]
+		mi := &file_shar_workflow_models_proto_msgTypes[36]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2548,7 +2517,7 @@ func (x *GetUserTaskResponse) String() string {
 func (*GetUserTaskResponse) ProtoMessage() {}
 
 func (x *GetUserTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[37]
+	mi := &file_shar_workflow_models_proto_msgTypes[36]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2561,7 +2530,7 @@ func (x *GetUserTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserTaskResponse.ProtoReflect.Descriptor instead.
 func (*GetUserTaskResponse) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{37}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *GetUserTaskResponse) GetTrackingId() string {
@@ -2613,7 +2582,7 @@ type HandleWorkflowErrorRequest struct {
 func (x *HandleWorkflowErrorRequest) Reset() {
 	*x = HandleWorkflowErrorRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[38]
+		mi := &file_shar_workflow_models_proto_msgTypes[37]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2626,7 +2595,7 @@ func (x *HandleWorkflowErrorRequest) String() string {
 func (*HandleWorkflowErrorRequest) ProtoMessage() {}
 
 func (x *HandleWorkflowErrorRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[38]
+	mi := &file_shar_workflow_models_proto_msgTypes[37]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2639,7 +2608,7 @@ func (x *HandleWorkflowErrorRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandleWorkflowErrorRequest.ProtoReflect.Descriptor instead.
 func (*HandleWorkflowErrorRequest) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{38}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *HandleWorkflowErrorRequest) GetTrackingId() string {
@@ -2681,7 +2650,7 @@ type HandleWorkflowErrorResponse struct {
 func (x *HandleWorkflowErrorResponse) Reset() {
 	*x = HandleWorkflowErrorResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[39]
+		mi := &file_shar_workflow_models_proto_msgTypes[38]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2694,7 +2663,7 @@ func (x *HandleWorkflowErrorResponse) String() string {
 func (*HandleWorkflowErrorResponse) ProtoMessage() {}
 
 func (x *HandleWorkflowErrorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[39]
+	mi := &file_shar_workflow_models_proto_msgTypes[38]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2707,7 +2676,7 @@ func (x *HandleWorkflowErrorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandleWorkflowErrorResponse.ProtoReflect.Descriptor instead.
 func (*HandleWorkflowErrorResponse) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{39}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *HandleWorkflowErrorResponse) GetHandled() bool {
@@ -2730,7 +2699,7 @@ type WorkflowStats struct {
 func (x *WorkflowStats) Reset() {
 	*x = WorkflowStats{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[40]
+		mi := &file_shar_workflow_models_proto_msgTypes[39]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2743,7 +2712,7 @@ func (x *WorkflowStats) String() string {
 func (*WorkflowStats) ProtoMessage() {}
 
 func (x *WorkflowStats) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[40]
+	mi := &file_shar_workflow_models_proto_msgTypes[39]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2756,7 +2725,7 @@ func (x *WorkflowStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowStats.ProtoReflect.Descriptor instead.
 func (*WorkflowStats) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{40}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *WorkflowStats) GetWorkflows() int64 {
@@ -2792,7 +2761,7 @@ type TelemetryState struct {
 func (x *TelemetryState) Reset() {
 	*x = TelemetryState{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[41]
+		mi := &file_shar_workflow_models_proto_msgTypes[40]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2805,7 +2774,7 @@ func (x *TelemetryState) String() string {
 func (*TelemetryState) ProtoMessage() {}
 
 func (x *TelemetryState) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[41]
+	mi := &file_shar_workflow_models_proto_msgTypes[40]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2818,7 +2787,7 @@ func (x *TelemetryState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelemetryState.ProtoReflect.Descriptor instead.
 func (*TelemetryState) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{41}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *TelemetryState) GetState() *WorkflowState {
@@ -2850,7 +2819,7 @@ type TelemetryLogEntry struct {
 func (x *TelemetryLogEntry) Reset() {
 	*x = TelemetryLogEntry{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_shar_workflow_models_proto_msgTypes[42]
+		mi := &file_shar_workflow_models_proto_msgTypes[41]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2863,7 +2832,7 @@ func (x *TelemetryLogEntry) String() string {
 func (*TelemetryLogEntry) ProtoMessage() {}
 
 func (x *TelemetryLogEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_shar_workflow_models_proto_msgTypes[42]
+	mi := &file_shar_workflow_models_proto_msgTypes[41]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2876,7 +2845,7 @@ func (x *TelemetryLogEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelemetryLogEntry.ProtoReflect.Descriptor instead.
 func (*TelemetryLogEntry) Descriptor() ([]byte, []int) {
-	return file_shar_workflow_models_proto_rawDescGZIP(), []int{42}
+	return file_shar_workflow_models_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *TelemetryLogEntry) GetTrackingID() string {
@@ -3035,9 +3004,7 @@ var file_shar_workflow_models_proto_rawDesc = []byte{
 	0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x07, 0x2e, 0x54, 0x61, 0x72, 0x67, 0x65, 0x74, 0x52,
 	0x06, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x12, 0x1c, 0x0a, 0x09, 0x65, 0x78, 0x63, 0x6c, 0x75,
 	0x73, 0x69, 0x76, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x09, 0x65, 0x78, 0x63, 0x6c,
-	0x75, 0x73, 0x69, 0x76, 0x65, 0x22, 0x1e, 0x0a, 0x08, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65,
-	0x73, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0xe1, 0x03, 0x0a, 0x0d, 0x57, 0x6f, 0x72, 0x6b, 0x66, 0x6c,
+	0x75, 0x73, 0x69, 0x76, 0x65, 0x22, 0xe1, 0x03, 0x0a, 0x0d, 0x57, 0x6f, 0x72, 0x6b, 0x66, 0x6c,
 	0x6f, 0x77, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x1e, 0x0a, 0x0a, 0x77, 0x6f, 0x72, 0x6b, 0x66,
 	0x6c, 0x6f, 0x77, 0x49, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x77, 0x6f, 0x72,
 	0x6b, 0x66, 0x6c, 0x6f, 0x77, 0x49, 0x64, 0x12, 0x2e, 0x0a, 0x12, 0x77, 0x6f, 0x72, 0x6b, 0x66,
@@ -3313,7 +3280,7 @@ func file_shar_workflow_models_proto_rawDescGZIP() []byte {
 }
 
 var file_shar_workflow_models_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_shar_workflow_models_proto_msgTypes = make([]protoimpl.MessageInfo, 51)
+var file_shar_workflow_models_proto_msgTypes = make([]protoimpl.MessageInfo, 50)
 var file_shar_workflow_models_proto_goTypes = []interface{}{
 	(WorkflowTimerType)(0),                   // 0: WorkflowTimerType
 	(CancellationState)(0),                   // 1: CancellationState
@@ -3328,50 +3295,49 @@ var file_shar_workflow_models_proto_goTypes = []interface{}{
 	(*Error)(nil),                            // 10: Error
 	(*CatchError)(nil),                       // 11: CatchError
 	(*Targets)(nil),                          // 12: Targets
-	(*Messages)(nil),                         // 13: Messages
-	(*WorkflowState)(nil),                    // 14: WorkflowState
-	(*WorkflowTimerDefinition)(nil),          // 15: WorkflowTimerDefinition
-	(*WorkflowTimer)(nil),                    // 16: WorkflowTimer
-	(*WorkflowInstance)(nil),                 // 17: WorkflowInstance
-	(*MessageInstance)(nil),                  // 18: MessageInstance
-	(*WorkflowInstanceSubscribers)(nil),      // 19: WorkflowInstanceSubscribers
-	(*UserTasks)(nil),                        // 20: UserTasks
-	(*LaunchWorkflowRequest)(nil),            // 21: LaunchWorkflowRequest
-	(*CancelWorkflowInstanceRequest)(nil),    // 22: CancelWorkflowInstanceRequest
-	(*GetWorkflowInstanceStatusRequest)(nil), // 23: GetWorkflowInstanceStatusRequest
-	(*ListWorkflowInstanceRequest)(nil),      // 24: ListWorkflowInstanceRequest
-	(*ListWorkflowInstanceResponse)(nil),     // 25: ListWorkflowInstanceResponse
-	(*ListWorkflowInstanceResult)(nil),       // 26: ListWorkflowInstanceResult
-	(*WorkflowInstanceInfo)(nil),             // 27: WorkflowInstanceInfo
-	(*WorkflowInstanceStatus)(nil),           // 28: WorkflowInstanceStatus
-	(*ListWorkflowsResponse)(nil),            // 29: ListWorkflowsResponse
-	(*ListWorkflowResult)(nil),               // 30: ListWorkflowResult
-	(*SendMessageRequest)(nil),               // 31: SendMessageRequest
-	(*WorkflowInstanceComplete)(nil),         // 32: WorkflowInstanceComplete
-	(*CompleteManualTaskRequest)(nil),        // 33: CompleteManualTaskRequest
-	(*CompleteServiceTaskRequest)(nil),       // 34: CompleteServiceTaskRequest
-	(*CompleteSendMessageRequest)(nil),       // 35: CompleteSendMessageRequest
-	(*CompleteUserTaskRequest)(nil),          // 36: CompleteUserTaskRequest
-	(*ListUserTasksRequest)(nil),             // 37: ListUserTasksRequest
-	(*GetUserTaskRequest)(nil),               // 38: GetUserTaskRequest
-	(*GetMessageSenderRoutingIdRequest)(nil), // 39: GetMessageSenderRoutingIdRequest
-	(*GetUserTaskResponse)(nil),              // 40: GetUserTaskResponse
-	(*HandleWorkflowErrorRequest)(nil),       // 41: HandleWorkflowErrorRequest
-	(*HandleWorkflowErrorResponse)(nil),      // 42: HandleWorkflowErrorResponse
-	(*WorkflowStats)(nil),                    // 43: WorkflowStats
-	(*TelemetryState)(nil),                   // 44: TelemetryState
-	(*TelemetryLogEntry)(nil),                // 45: TelemetryLogEntry
-	nil,                                      // 46: Workflow.ProcessEntry
-	nil,                                      // 47: Element.InputTransformEntry
-	nil,                                      // 48: Element.OutputTransformEntry
-	nil,                                      // 49: Timer.OutputTransformEntry
-	nil,                                      // 50: CatchError.OutputTransformEntry
-	nil,                                      // 51: WorkflowInstance.InFlightEntry
-	nil,                                      // 52: TelemetryState.LogEntry
-	nil,                                      // 53: TelemetryLogEntry.AttributesEntry
+	(*WorkflowState)(nil),                    // 13: WorkflowState
+	(*WorkflowTimerDefinition)(nil),          // 14: WorkflowTimerDefinition
+	(*WorkflowTimer)(nil),                    // 15: WorkflowTimer
+	(*WorkflowInstance)(nil),                 // 16: WorkflowInstance
+	(*MessageInstance)(nil),                  // 17: MessageInstance
+	(*WorkflowInstanceSubscribers)(nil),      // 18: WorkflowInstanceSubscribers
+	(*UserTasks)(nil),                        // 19: UserTasks
+	(*LaunchWorkflowRequest)(nil),            // 20: LaunchWorkflowRequest
+	(*CancelWorkflowInstanceRequest)(nil),    // 21: CancelWorkflowInstanceRequest
+	(*GetWorkflowInstanceStatusRequest)(nil), // 22: GetWorkflowInstanceStatusRequest
+	(*ListWorkflowInstanceRequest)(nil),      // 23: ListWorkflowInstanceRequest
+	(*ListWorkflowInstanceResponse)(nil),     // 24: ListWorkflowInstanceResponse
+	(*ListWorkflowInstanceResult)(nil),       // 25: ListWorkflowInstanceResult
+	(*WorkflowInstanceInfo)(nil),             // 26: WorkflowInstanceInfo
+	(*WorkflowInstanceStatus)(nil),           // 27: WorkflowInstanceStatus
+	(*ListWorkflowsResponse)(nil),            // 28: ListWorkflowsResponse
+	(*ListWorkflowResult)(nil),               // 29: ListWorkflowResult
+	(*SendMessageRequest)(nil),               // 30: SendMessageRequest
+	(*WorkflowInstanceComplete)(nil),         // 31: WorkflowInstanceComplete
+	(*CompleteManualTaskRequest)(nil),        // 32: CompleteManualTaskRequest
+	(*CompleteServiceTaskRequest)(nil),       // 33: CompleteServiceTaskRequest
+	(*CompleteSendMessageRequest)(nil),       // 34: CompleteSendMessageRequest
+	(*CompleteUserTaskRequest)(nil),          // 35: CompleteUserTaskRequest
+	(*ListUserTasksRequest)(nil),             // 36: ListUserTasksRequest
+	(*GetUserTaskRequest)(nil),               // 37: GetUserTaskRequest
+	(*GetMessageSenderRoutingIdRequest)(nil), // 38: GetMessageSenderRoutingIdRequest
+	(*GetUserTaskResponse)(nil),              // 39: GetUserTaskResponse
+	(*HandleWorkflowErrorRequest)(nil),       // 40: HandleWorkflowErrorRequest
+	(*HandleWorkflowErrorResponse)(nil),      // 41: HandleWorkflowErrorResponse
+	(*WorkflowStats)(nil),                    // 42: WorkflowStats
+	(*TelemetryState)(nil),                   // 43: TelemetryState
+	(*TelemetryLogEntry)(nil),                // 44: TelemetryLogEntry
+	nil,                                      // 45: Workflow.ProcessEntry
+	nil,                                      // 46: Element.InputTransformEntry
+	nil,                                      // 47: Element.OutputTransformEntry
+	nil,                                      // 48: Timer.OutputTransformEntry
+	nil,                                      // 49: CatchError.OutputTransformEntry
+	nil,                                      // 50: WorkflowInstance.InFlightEntry
+	nil,                                      // 51: TelemetryState.LogEntry
+	nil,                                      // 52: TelemetryLogEntry.AttributesEntry
 }
 var file_shar_workflow_models_proto_depIdxs = []int32{
-	46, // 0: Workflow.Process:type_name -> Workflow.ProcessEntry
+	45, // 0: Workflow.Process:type_name -> Workflow.ProcessEntry
 	7,  // 1: Workflow.messages:type_name -> Element
 	10, // 2: Workflow.errors:type_name -> Error
 	7,  // 3: Process.elements:type_name -> Element
@@ -3380,31 +3346,31 @@ var file_shar_workflow_models_proto_depIdxs = []int32{
 	4,  // 6: Element.process:type_name -> Process
 	11, // 7: Element.errors:type_name -> CatchError
 	10, // 8: Element.error:type_name -> Error
-	47, // 9: Element.inputTransform:type_name -> Element.InputTransformEntry
-	48, // 10: Element.outputTransform:type_name -> Element.OutputTransformEntry
-	15, // 11: Element.timer:type_name -> WorkflowTimerDefinition
+	46, // 9: Element.inputTransform:type_name -> Element.InputTransformEntry
+	47, // 10: Element.outputTransform:type_name -> Element.OutputTransformEntry
+	14, // 11: Element.timer:type_name -> WorkflowTimerDefinition
 	8,  // 12: Element.boundaryTimer:type_name -> Timer
-	49, // 13: Timer.outputTransform:type_name -> Timer.OutputTransformEntry
-	50, // 14: CatchError.outputTransform:type_name -> CatchError.OutputTransformEntry
+	48, // 13: Timer.outputTransform:type_name -> Timer.OutputTransformEntry
+	49, // 14: CatchError.outputTransform:type_name -> CatchError.OutputTransformEntry
 	9,  // 15: Targets.target:type_name -> Target
 	1,  // 16: WorkflowState.state:type_name -> CancellationState
 	10, // 17: WorkflowState.error:type_name -> Error
-	16, // 18: WorkflowState.timer:type_name -> WorkflowTimer
+	15, // 18: WorkflowState.timer:type_name -> WorkflowTimer
 	0,  // 19: WorkflowTimerDefinition.type:type_name -> WorkflowTimerType
-	51, // 20: WorkflowInstance.inFlight:type_name -> WorkflowInstance.InFlightEntry
+	50, // 20: WorkflowInstance.inFlight:type_name -> WorkflowInstance.InFlightEntry
 	1,  // 21: CancelWorkflowInstanceRequest.state:type_name -> CancellationState
 	10, // 22: CancelWorkflowInstanceRequest.error:type_name -> Error
-	26, // 23: ListWorkflowInstanceResponse.result:type_name -> ListWorkflowInstanceResult
-	14, // 24: WorkflowInstanceStatus.state:type_name -> WorkflowState
-	30, // 25: ListWorkflowsResponse.result:type_name -> ListWorkflowResult
+	25, // 23: ListWorkflowInstanceResponse.result:type_name -> ListWorkflowInstanceResult
+	13, // 24: WorkflowInstanceStatus.state:type_name -> WorkflowState
+	29, // 25: ListWorkflowsResponse.result:type_name -> ListWorkflowResult
 	1,  // 26: WorkflowInstanceComplete.workflowState:type_name -> CancellationState
 	10, // 27: WorkflowInstanceComplete.error:type_name -> Error
-	14, // 28: TelemetryState.state:type_name -> WorkflowState
-	52, // 29: TelemetryState.log:type_name -> TelemetryState.LogEntry
+	13, // 28: TelemetryState.state:type_name -> WorkflowState
+	51, // 29: TelemetryState.log:type_name -> TelemetryState.LogEntry
 	2,  // 30: TelemetryLogEntry.source:type_name -> LogSource
-	53, // 31: TelemetryLogEntry.attributes:type_name -> TelemetryLogEntry.AttributesEntry
+	52, // 31: TelemetryLogEntry.attributes:type_name -> TelemetryLogEntry.AttributesEntry
 	4,  // 32: Workflow.ProcessEntry.value:type_name -> Process
-	45, // 33: TelemetryState.LogEntry.value:type_name -> TelemetryLogEntry
+	44, // 33: TelemetryState.LogEntry.value:type_name -> TelemetryLogEntry
 	34, // [34:34] is the sub-list for method output_type
 	34, // [34:34] is the sub-list for method input_type
 	34, // [34:34] is the sub-list for extension type_name
@@ -3539,18 +3505,6 @@ func file_shar_workflow_models_proto_init() {
 			}
 		}
 		file_shar_workflow_models_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Messages); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_shar_workflow_models_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*WorkflowState); i {
 			case 0:
 				return &v.state
@@ -3562,7 +3516,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*WorkflowTimerDefinition); i {
 			case 0:
 				return &v.state
@@ -3574,7 +3528,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*WorkflowTimer); i {
 			case 0:
 				return &v.state
@@ -3586,7 +3540,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*WorkflowInstance); i {
 			case 0:
 				return &v.state
@@ -3598,7 +3552,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*MessageInstance); i {
 			case 0:
 				return &v.state
@@ -3610,7 +3564,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*WorkflowInstanceSubscribers); i {
 			case 0:
 				return &v.state
@@ -3622,7 +3576,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*UserTasks); i {
 			case 0:
 				return &v.state
@@ -3634,7 +3588,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*LaunchWorkflowRequest); i {
 			case 0:
 				return &v.state
@@ -3646,7 +3600,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CancelWorkflowInstanceRequest); i {
 			case 0:
 				return &v.state
@@ -3658,7 +3612,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetWorkflowInstanceStatusRequest); i {
 			case 0:
 				return &v.state
@@ -3670,7 +3624,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ListWorkflowInstanceRequest); i {
 			case 0:
 				return &v.state
@@ -3682,7 +3636,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ListWorkflowInstanceResponse); i {
 			case 0:
 				return &v.state
@@ -3694,7 +3648,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ListWorkflowInstanceResult); i {
 			case 0:
 				return &v.state
@@ -3706,7 +3660,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*WorkflowInstanceInfo); i {
 			case 0:
 				return &v.state
@@ -3718,7 +3672,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*WorkflowInstanceStatus); i {
 			case 0:
 				return &v.state
@@ -3730,7 +3684,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[26].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ListWorkflowsResponse); i {
 			case 0:
 				return &v.state
@@ -3742,7 +3696,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[26].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ListWorkflowResult); i {
 			case 0:
 				return &v.state
@@ -3754,7 +3708,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[28].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*SendMessageRequest); i {
 			case 0:
 				return &v.state
@@ -3766,7 +3720,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[29].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[28].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*WorkflowInstanceComplete); i {
 			case 0:
 				return &v.state
@@ -3778,7 +3732,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[30].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[29].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CompleteManualTaskRequest); i {
 			case 0:
 				return &v.state
@@ -3790,7 +3744,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[31].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[30].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CompleteServiceTaskRequest); i {
 			case 0:
 				return &v.state
@@ -3802,7 +3756,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[32].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[31].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CompleteSendMessageRequest); i {
 			case 0:
 				return &v.state
@@ -3814,7 +3768,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[33].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[32].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CompleteUserTaskRequest); i {
 			case 0:
 				return &v.state
@@ -3826,7 +3780,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[34].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[33].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ListUserTasksRequest); i {
 			case 0:
 				return &v.state
@@ -3838,7 +3792,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[35].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[34].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetUserTaskRequest); i {
 			case 0:
 				return &v.state
@@ -3850,7 +3804,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[36].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[35].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetMessageSenderRoutingIdRequest); i {
 			case 0:
 				return &v.state
@@ -3862,7 +3816,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[37].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[36].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetUserTaskResponse); i {
 			case 0:
 				return &v.state
@@ -3874,7 +3828,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[38].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[37].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*HandleWorkflowErrorRequest); i {
 			case 0:
 				return &v.state
@@ -3886,7 +3840,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[39].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[38].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*HandleWorkflowErrorResponse); i {
 			case 0:
 				return &v.state
@@ -3898,7 +3852,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[40].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[39].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*WorkflowStats); i {
 			case 0:
 				return &v.state
@@ -3910,7 +3864,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[41].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[40].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TelemetryState); i {
 			case 0:
 				return &v.state
@@ -3922,7 +3876,7 @@ func file_shar_workflow_models_proto_init() {
 				return nil
 			}
 		}
-		file_shar_workflow_models_proto_msgTypes[42].Exporter = func(v interface{}, i int) interface{} {
+		file_shar_workflow_models_proto_msgTypes[41].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TelemetryLogEntry); i {
 			case 0:
 				return &v.state
@@ -3935,15 +3889,15 @@ func file_shar_workflow_models_proto_init() {
 			}
 		}
 	}
-	file_shar_workflow_models_proto_msgTypes[11].OneofWrappers = []interface{}{}
-	file_shar_workflow_models_proto_msgTypes[14].OneofWrappers = []interface{}{}
+	file_shar_workflow_models_proto_msgTypes[10].OneofWrappers = []interface{}{}
+	file_shar_workflow_models_proto_msgTypes[13].OneofWrappers = []interface{}{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_shar_workflow_models_proto_rawDesc,
 			NumEnums:      3,
-			NumMessages:   51,
+			NumMessages:   50,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
