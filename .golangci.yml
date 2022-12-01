@@ -3,13 +3,19 @@ linters:
   enable:
     - revive
     - gosec
-#    - wrapcheck  # conformance in progress
+    - wrapcheck  # conformance in progress
 linters-settings:
   revive:
     rules:
       - name: exported
         arguments:
           - disableStutteringCheck
+  wrapcheck:
+    ignoreSigs:
+      - logx.Err(
+      - fmt.Errorf(
+    ignorePackageGlobs:
+      - intTests
 issues:
   include:
     - EXC0012  # EXC0012 revive: Annoying issue about not having a comment. The rare codebase has such comments

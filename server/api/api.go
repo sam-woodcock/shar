@@ -142,19 +142,31 @@ func (s *SharServer) sendMessage(ctx context.Context, req *model.SendMessageRequ
 }
 
 func (s *SharServer) completeManualTask(ctx context.Context, req *model.CompleteManualTaskRequest) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, s.engine.CompleteManualTask(ctx, req.TrackingId, req.Vars)
+	if err := s.engine.CompleteManualTask(ctx, req.TrackingId, req.Vars); err != nil {
+		return nil, fmt.Errorf("failed to complete manual task: %w", err)
+	}
+	return &emptypb.Empty{}, nil
 }
 
 func (s *SharServer) completeServiceTask(ctx context.Context, req *model.CompleteServiceTaskRequest) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, s.engine.CompleteServiceTask(ctx, req.TrackingId, req.Vars)
+	if err := s.engine.CompleteServiceTask(ctx, req.TrackingId, req.Vars); err != nil {
+		return nil, fmt.Errorf("failed to complete service task: %w", err)
+	}
+	return &emptypb.Empty{}, nil
 }
 
 func (s *SharServer) completeSendMessageTask(ctx context.Context, req *model.CompleteSendMessageRequest) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, s.engine.CompleteSendMessageTask(ctx, req.TrackingId, req.Vars)
+	if err := s.engine.CompleteSendMessageTask(ctx, req.TrackingId, req.Vars); err != nil {
+		return nil, fmt.Errorf("failed to complete send message task: %w", err)
+	}
+	return &emptypb.Empty{}, nil
 }
 
 func (s *SharServer) completeUserTask(ctx context.Context, req *model.CompleteUserTaskRequest) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, s.engine.CompleteUserTask(ctx, req.TrackingId, req.Vars)
+	if err := s.engine.CompleteUserTask(ctx, req.TrackingId, req.Vars); err != nil {
+		return nil, fmt.Errorf("failed to complete user task: %w", err)
+	}
+	return &emptypb.Empty{}, nil
 }
 
 var shutdownOnce sync.Once
@@ -241,14 +253,14 @@ func (s *SharServer) Listen() error {
 func (s *SharServer) listUserTaskIDs(ctx context.Context, req *model.ListUserTasksRequest) (*model.UserTasks, error) {
 	oid, err := s.ns.OwnerID(req.Owner)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get owner ID: %w", err)
 	}
 	ut, err := s.ns.GetUserTaskIDs(ctx, oid)
 	if errors.Is(err, nats.ErrKeyNotFound) {
 		return &model.UserTasks{Id: []string{}}, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get user task IDs: %w", err)
 	}
 	return ut, nil
 }
@@ -256,11 +268,11 @@ func (s *SharServer) listUserTaskIDs(ctx context.Context, req *model.ListUserTas
 func (s *SharServer) getUserTask(ctx context.Context, req *model.GetUserTaskRequest) (*model.GetUserTaskResponse, error) {
 	job, err := s.ns.GetJob(ctx, req.TrackingId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get user task failed to get job: %w", err)
 	}
 	wf, err := s.ns.GetWorkflow(ctx, job.WorkflowId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get user task failed to get workflow: %w", err)
 	}
 	els := make(map[string]*model.Element)
 	for _, v := range wf.Process {
@@ -278,7 +290,7 @@ func (s *SharServer) getUserTask(ctx context.Context, req *model.GetUserTaskRequ
 func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleWorkflowErrorRequest) (*model.HandleWorkflowErrorResponse, error) {
 	// Sanity check
 	if req.ErrorCode == "" {
-		return nil, errors.New("ErrorCode may not be empty")
+		return nil, fmt.Errorf("ErrorCode may not be empty: %w", errors2.ErrMissingErrorCode)
 	}
 
 	// First get the job that the error occurred in
@@ -403,13 +415,12 @@ func callAPI[T proto.Message, U proto.Message](ctx context.Context, panicRecover
 	}
 	if err := proto.Unmarshal(msg.Data, container); err != nil {
 		errorResponse(msg, codes.InvalidArgument, err.Error())
-		return err
+		return fmt.Errorf("failed to unmarshal message data during callAPI: %w", err)
 	}
 	cid := msg.Header.Get(logx.CorrelationHeader)
 	if cid == "" {
-		err := errors.New("no correlation key found")
-		errorResponse(msg, codes.InvalidArgument, err.Error())
-		return err
+		errorResponse(msg, codes.InvalidArgument, errors2.ErrMissingCorrelation)
+		return fmt.Errorf("failed to get correlation key : %w", errors2.ErrMissingCorrelation)
 	}
 	ctx = context.WithValue(ctx, logx.CorrelationContextKey, cid)
 	resMsg, err := fn(ctx, container)
@@ -419,16 +430,16 @@ func callAPI[T proto.Message, U proto.Message](ctx context.Context, panicRecover
 			c = codes.Internal
 		}
 		errorResponse(msg, c, err.Error())
-		return err
+		return fmt.Errorf("failed during API call: %w", err)
 	}
 	res, err := proto.Marshal(resMsg)
 	if err != nil {
 		errorResponse(msg, codes.InvalidArgument, err.Error())
-		return err
+		return fmt.Errorf("failed to unmarshal API response: %w", err)
 	}
 	if err := msg.Respond(res); err != nil {
 		errorResponse(msg, codes.FailedPrecondition, err.Error())
-		return err
+		return fmt.Errorf("failed during API response: %w", err)
 	}
 	return nil
 }

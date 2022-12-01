@@ -1,7 +1,8 @@
 package valueparsing
 
 import (
-	"errors"
+	"fmt"
+	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"regexp"
 	"strconv"
 	"strings"
@@ -15,25 +16,25 @@ func Parse(arr []string) (*model.Vars, error) {
 	for _, elem := range arr {
 		key, varType, value, err := extract(elem)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to extract variables: %w", err)
 		}
 		switch varType {
 		case "int":
 			intVal, err := strconv.Atoi(value)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to parse int: %w", err)
 			}
 			vars[key] = intVal
 		case "float32":
 			float32Value, err := strconv.ParseFloat(value, 32)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to parse float32: %w", err)
 			}
 			vars[key] = float32(float32Value)
 		case "float64":
 			float64Value, err := strconv.ParseFloat(value, 64)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to parse float64: %w", err)
 			}
 			vars[key] = float64Value
 		case "string":
@@ -41,7 +42,7 @@ func Parse(arr []string) (*model.Vars, error) {
 		case "bool":
 			vars[key], err = strconv.ParseBool(value)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to parse bool: %w", err)
 			}
 		}
 	}
@@ -56,10 +57,10 @@ func extract(text string) (string, string, string, error) {
 		value := arr[0][3]
 		varType := arr[0][2]
 		if !strings.HasPrefix(key, "") || !strings.HasSuffix(key, "") {
-			return "", "", "", errors.New("identifier " + text + " not correctly quoted")
+			return "", "", "", fmt.Errorf("identifier %s not correctly quoted: %w", text, errors2.ErrBadlyQuotedIdentifier)
 		}
 		return strings.Trim(key, "\""), varType, value, nil
 	}
-	return "", "", "", errors.New("could not extract var from " + text)
+	return "", "", "", fmt.Errorf("could not extract var from %s: %w", text, errors2.ErrExtractingVar)
 
 }

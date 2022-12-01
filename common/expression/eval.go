@@ -20,7 +20,7 @@ func Eval[T any](ctx context.Context, exp string, vars map[string]interface{}) (
 
 	res, err := expr.Run(ex, vars)
 	if err != nil {
-		return *new(T), err
+		return *new(T), fmt.Errorf("failed to evaluate expression: %w", err)
 	}
 
 	defer func() {
@@ -51,7 +51,7 @@ func EvalAny(ctx context.Context, exp string, vars map[string]interface{}) (retv
 
 	res, err := expr.Run(ex, vars)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed during expression execution: %w", err)
 	}
 
 	defer func() {
@@ -78,7 +78,7 @@ func GetVariables(exp string) (map[string]struct{}, error) {
 	}
 	c, err := parser.Parse(exp)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get variables failed to parse expression %w", err)
 	}
 
 	g := &variableWalker{v: make(map[string]struct{})}

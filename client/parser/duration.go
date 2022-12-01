@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"errors"
 	"fmt"
+	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"regexp"
 	"strconv"
 	"time"
@@ -31,7 +31,7 @@ func ParseISO8601(from string) (Duration, error) {
 	if pattern.MatchString(from) {
 		match = pattern.FindStringSubmatch(from)
 	} else {
-		return d, errors.New("could not parse Duration string")
+		return d, fmt.Errorf("parse duration failed: %w", errors2.ErrFailedToParseISO8601)
 	}
 
 	for i, name := range pattern.SubexpNames() {
@@ -42,7 +42,7 @@ func ParseISO8601(from string) (Duration, error) {
 
 		val, err := strconv.Atoi(part)
 		if err != nil {
-			return d, err
+			return d, fmt.Errorf("could not parse '%s' to integer: %w", part, err)
 		}
 		switch name {
 		case "year":

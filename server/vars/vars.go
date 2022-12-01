@@ -42,18 +42,18 @@ func InputVars(ctx context.Context, oldVarsBin []byte, newVarsBin *[]byte, el *m
 	if el.InputTransform != nil {
 		processVars, err := Decode(ctx, oldVarsBin)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode old input variables: %w", err)
 		}
 		for k, v := range el.InputTransform {
 			res, err := expression.EvalAny(ctx, v, processVars)
 			if err != nil {
-				return err
+				return fmt.Errorf("expression evalutaion failed: %w", err)
 			}
 			localVars[k] = res
 		}
 		b, err := Encode(ctx, localVars)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to encode transofrmed input variables: %w", err)
 		}
 		*newVarsBin = b
 	}
@@ -65,13 +65,13 @@ func OutputVars(ctx context.Context, newVarsBin []byte, mergeVarsBin *[]byte, tr
 	if transform != nil {
 		localVars, err := Decode(ctx, newVarsBin)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode new output variables: %w", err)
 		}
 		var processVars map[string]interface{}
 		if mergeVarsBin == nil || len(*mergeVarsBin) > 0 {
 			pv, err := Decode(ctx, *mergeVarsBin)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to decode merge output variables: %w", err)
 			}
 			processVars = pv
 		} else {
@@ -80,13 +80,13 @@ func OutputVars(ctx context.Context, newVarsBin []byte, mergeVarsBin *[]byte, tr
 		for k, v := range transform {
 			res, err := expression.EvalAny(ctx, v, localVars)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to evaluate output transform expression: %w", err)
 			}
 			processVars[k] = res
 		}
 		b, err := Encode(ctx, processVars)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to encode new output process variables: %w", err)
 		}
 		*mergeVarsBin = b
 	}
@@ -98,12 +98,12 @@ func CheckVars(ctx context.Context, state *model.WorkflowState, el *model.Elemen
 	if el.OutputTransform != nil {
 		vrs, err := Decode(ctx, state.Vars)
 		if err != nil {
-			return err
+			return fmt.Errorf("falied to decode variables to check: %w", err)
 		}
 		for _, v := range el.OutputTransform {
 			list, err := expression.GetVariables(v)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to get the variables to check from output transform: %w", err)
 			}
 			for i := range list {
 				if _, ok := vrs[i]; !ok {

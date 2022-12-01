@@ -50,17 +50,17 @@ func (s *Server) Listen() error {
 
 	kv, err := s.js.KeyValue(messages.KvTracking)
 	if err != nil {
-		return err
+		return fmt.Errorf("listen failed to attach to tracking key value database: %w", err)
 	}
 	s.spanKV = kv
 	kv, err = s.js.KeyValue(messages.KvInstance)
 	if err != nil {
-		return err
+		return fmt.Errorf("listen failed to attach to instance key value database: %w", err)
 	}
 	s.wfi = kv
 	err = common.Process(ctx, s.js, "telemetry", closer, subj.NS(messages.WorkflowStateAll, "*"), "Tracing", 1, s.workflowTrace)
 	if err != nil {
-		return err
+		return fmt.Errorf("listen failed to start telemetry handler: %w", err)
 	}
 	return nil
 }
@@ -153,7 +153,7 @@ func (s *Server) decodeState(ctx context.Context, msg *nats.Msg) (*model.Workflo
 func (s *Server) spanStart(ctx context.Context, state *model.WorkflowState) error {
 	err := common.SaveObj(ctx, s.spanKV, common.TrackingID(state.Id).ID(), state)
 	if err != nil {
-		return err
+		return fmt.Errorf("span-start failed fo save object: %w", err)
 	}
 	return nil
 }
@@ -175,7 +175,7 @@ func (s *Server) spanEnd(ctx context.Context, name string, state *model.Workflow
 	state.State = oldState.State
 	if err := s.saveSpan(ctx, name, &oldState, state); err != nil {
 		log.Error("Failed to record span:", err, slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
-		return err
+		return fmt.Errorf("save span failed: %w", err)
 	}
 	return nil
 }
@@ -251,7 +251,7 @@ func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.Work
 		},
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("export spans failed: %w", err)
 	}
 	err = s.spanKV.Delete(common.TrackingID(oldState.Id).ID())
 	if err != nil {

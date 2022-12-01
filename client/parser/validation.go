@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"errors"
 	"fmt"
 	"gitlab.com/shar-workflow/shar/common/expression"
 	"gitlab.com/shar-workflow/shar/model"
@@ -9,37 +8,32 @@ import (
 	"regexp"
 )
 
-var (
-	errMissingID                    = errors.New("missing id")
-	errMissingServiceTaskDefinition = errors.New("missing service task definition")
-)
-
 func validModel(workflow *model.Workflow) error {
 	// Iterate the processes
 	for _, i := range workflow.Process {
 		// Check the name
 		if err := validName(i.Name); err != nil {
-			return err
+			return fmt.Errorf("invalid process name: %w", err)
 		}
 		// Iterate through the elements
 		for _, j := range i.Elements {
 			if j.Id == "" {
-				return &valError{Err: errMissingID, Context: j.Name}
+				return fmt.Errorf("model validation failed: %w", &valError{Err: errors2.ErrMissingID, Context: j.Name})
 			}
 			switch j.Type {
 			case "serviceTask":
 				if err := validServiceTask(j); err != nil {
-					return err
+					return fmt.Errorf("invalid service task: %w", err)
 				}
 			}
 		}
 		if err := checkVariables(i); err != nil {
-			return err
+			return fmt.Errorf("invalid variable definition: %w", err)
 		}
 	}
 	for _, i := range workflow.Messages {
 		if err := validName(i.Name); err != nil {
-			return err
+			return fmt.Errorf("invalid message name: %w", err)
 		}
 	}
 	return nil
@@ -54,7 +48,7 @@ func checkVariables(process *model.Process) error {
 			for _, exp := range e.InputTransform {
 				v2, err := expression.GetVariables(exp)
 				if err != nil {
-					return err
+					return fmt.Errorf("failed to get input transform variables: %w", err)
 				}
 				for k := range v2 {
 					inputVars[k] = struct{}{}
@@ -65,7 +59,7 @@ func checkVariables(process *model.Process) error {
 			for exp := range e.OutputTransform {
 				v2, err := expression.GetVariables("=" + exp)
 				if err != nil {
-					return err
+					return fmt.Errorf("failed to get output transform variables: %w", err)
 				}
 				for k := range v2 {
 					outputVars[k] = struct{}{}
@@ -77,7 +71,7 @@ func checkVariables(process *model.Process) error {
 				for _, c := range t.Conditions {
 					v2, err := expression.GetVariables(c)
 					if err != nil {
-						return err
+						return fmt.Errorf("falied to get outbound variables: %w", err)
 					}
 					for k := range v2 {
 						condVars[k] = struct{}{}
@@ -90,7 +84,7 @@ func checkVariables(process *model.Process) error {
 				for exp := range t.OutputTransform {
 					v2, err := expression.GetVariables("=" + exp)
 					if err != nil {
-						return err
+						return fmt.Errorf("failed to get error variables: %w", err)
 					}
 					for k := range v2 {
 						outputVars[k] = struct{}{}
@@ -123,9 +117,13 @@ func (e valError) Error() string {
 	return fmt.Sprintf("%s: %s\n", e.Err.Error(), e.Context)
 }
 
+func (e valError) Unwrap() error {
+	return e.Err
+}
+
 func validServiceTask(j *model.Element) error {
 	if j.Execute == "" {
-		return &valError{Err: errMissingServiceTaskDefinition, Context: j.Id}
+		return fmt.Errorf("service task validation failed: %w", &valError{Err: errors2.ErrMissingServiceTaskDefinition, Context: j.Id})
 	}
 	return nil
 }

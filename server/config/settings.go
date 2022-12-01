@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"github.com/caarlos0/env/v6"
 )
 
@@ -16,7 +17,7 @@ type Settings struct {
 func GetEnvironment() (*Settings, error) {
 	cfg := &Settings{}
 	if err := env.Parse(cfg); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse environment variables: %w", err)
 	}
 	return cfg, nil
 }

@@ -121,7 +121,10 @@ func (x *testMultiworkflowMessagingHandlerDef) step2(_ context.Context, _ client
 
 func (x *testMultiworkflowMessagingHandlerDef) sendMessage(ctx context.Context, cmd client.MessageClient, vars model.Vars) error {
 	fmt.Println("Sending Message...")
-	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]})
+	if err := cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]}); err != nil {
+		return fmt.Errorf("failed to send continue message: %w", err)
+	}
+	return nil
 }
 
 // A "Hello World" service task

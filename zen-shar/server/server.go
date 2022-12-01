@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"github.com/nats-io/nats-server/v2/server"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
 	"golang.org/x/exp/slog"
@@ -107,14 +108,10 @@ func GetServers(natsHost string, natsPort int) (*sharsvr.Server, *server.Server,
 		OCSPConfig:                 nil,
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to create a new server instance: %w", err)
 	}
 	nl := &NatsLogger{}
 	nsvr.SetLogger(nl, false, false)
-
-	if err != nil {
-		return nil, nil, err
-	}
 
 	go nsvr.Start()
 	if !nsvr.ReadyForConnections(5 * time.Second) {
@@ -132,5 +129,5 @@ func GetServers(natsHost string, natsPort int) (*sharsvr.Server, *server.Server,
 		time.Sleep(500 * time.Millisecond)
 	}
 	slog.Info("Setup completed")
-	return ssvr, nsvr, err
+	return ssvr, nsvr, nil
 }
