@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/subj"
@@ -94,12 +96,12 @@ func main() {
 
 // EnsureConsumer sets up a new NATS consumer if one does not already exist.
 func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
-	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); err == nats.ErrConsumerNotFound {
+	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); errors.Is(err, nats.ErrConsumerNotFound) {
 		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
 			panic(err)
 		}
 	} else if err != nil {
-		return err
+		return fmt.Errorf("ensure consumer failed to get consumer info: %w", err)
 	}
 	return nil
 }

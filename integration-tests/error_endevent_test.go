@@ -80,7 +80,7 @@ type testErrorEndEventHandlerDef struct {
 // A "Hello World" service task
 func (d *testErrorEndEventHandlerDef) mayFail3(ctx context.Context, client client.JobClient, _ model.Vars) (model.Vars, error) {
 	if err := client.Log(ctx, messages.LogInfo, -1, "service task completed successfully", nil); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("logging failed: %w", err)
 	}
 	return model.Vars{"success": true}, nil
 }

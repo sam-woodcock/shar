@@ -69,7 +69,7 @@ func step1(ctx context.Context, _ client.JobClient, _ model.Vars) (model.Vars, e
 	fmt.Println("Step 1")
 	fmt.Println("Sending Message...")
 	if err := cl.SendMessage(ctx, "", "continueMessage", 57, model.Vars{"success": 32768}); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send continue message failed: %w", err)
 	}
 	return model.Vars{}, nil
 }

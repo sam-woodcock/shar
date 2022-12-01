@@ -23,7 +23,7 @@ const (
 func Err(ctx context.Context, message string, err error, atts ...any) error {
 	l := slog.FromContext(ctx)
 	if !l.Enabled(slog.ErrorLevel) {
-		return err
+		return fmt.Errorf("error: %w", err)
 	}
 	l.Error(message, err, atts)
 	return fmt.Errorf(message+" %s : %w", fmt.Sprint(atts...), err)

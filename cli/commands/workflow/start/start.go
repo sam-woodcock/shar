@@ -2,6 +2,7 @@ package start
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"golang.org/x/exp/slog"
@@ -119,7 +120,7 @@ func init() {
 
 // EnsureConsumer sets up the consumer in NATS if one doesn't exist already
 func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
-	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); err == nats.ErrConsumerNotFound {
+	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); errors.Is(err, nats.ErrConsumerNotFound) {
 		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
 			panic(err)
 		}

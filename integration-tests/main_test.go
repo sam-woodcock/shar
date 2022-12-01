@@ -2,6 +2,7 @@ package intTests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
@@ -61,7 +62,7 @@ func (s *integration) AssertCleanKV() {
 		kvs, err := js.KeyValue(name)
 		require.NoError(s.test, err)
 		keys, err := kvs.Keys()
-		if err != nil && err.Error() == "nats: no keys found" {
+		if err != nil && errors.Is(err, nats.ErrNoKeysFound) {
 			continue
 		}
 		require.NoError(s.test, err)
@@ -82,7 +83,7 @@ func (s *integration) AssertCleanKV() {
 	}
 
 	b, err := js.KeyValue("WORKFLOW_USERTASK")
-	if err != nil && err.Error() != "nats: no keys found" {
+	if err != nil && errors.Is(err, nats.ErrNoKeysFound) {
 		if err != nil {
 			s.test.Error(err)
 			return
@@ -119,7 +120,7 @@ func (s *integration) teardown() {
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		_, err := sub.Fetch(1, nats.Context(ctx))
-		if err == context.DeadlineExceeded {
+		if errors.Is(err, context.DeadlineExceeded) {
 			cancel()
 			break
 		}
@@ -142,11 +143,11 @@ func (s *integration) teardown() {
 func (s *integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:ireturn
 	con, err := s.GetNats()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not get NATS: %w", err)
 	}
 	js, err := con.JetStream()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not obtain JetStream connection: %w", err)
 	}
 	return js, nil
 }
@@ -154,7 +155,7 @@ func (s *integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:i
 func (s *integration) GetNats() (*nats.Conn, error) {
 	con, err := nats.Connect(natsURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
 	}
 	return con, nil
 }

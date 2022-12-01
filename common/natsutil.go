@@ -8,7 +8,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/workflow"
-	"gitlab.com/shar-workflow/shar/internal"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
@@ -34,7 +33,7 @@ func updateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []b
 		rev := entry.Revision()
 		uv, err := updateFn(entry.Value(), msg)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed during update function: %w", err)
 		}
 		_, err = wf.Update(k, uv, rev)
 		// TODO: Horrible workaround for the fact that this is not a typed error
@@ -116,9 +115,9 @@ func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string,
 	if log.Enabled(errors2.TraceLevel) {
 		log.Log(errors2.TraceLevel, "update KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("fn", reflect.TypeOf(updateFn)))
 	}
-	if oldk, err := wf.Get(k); err == nats.ErrKeyNotFound || (err == nil && oldk.Value() == nil) {
+	if oldk, err := wf.Get(k); errors.Is(err, nats.ErrKeyNotFound) || (err == nil && oldk.Value() == nil) {
 		if err := SaveObj(ctx, wf, k, msg); err != nil {
-			return err
+			return fmt.Errorf("failed to save during update object: %w", err)
 		}
 	}
 	return updateKV(wf, k, msg, func(bv []byte, msg proto.Message) ([]byte, error) {
@@ -148,7 +147,7 @@ func Delete(kv nats.KeyValue, key string) error {
 // EnsureBuckets ensures that a list of key value stores exist
 func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names []string) error {
 	for _, i := range names {
-		if _, err := js.KeyValue(i); err == nats.ErrBucketNotFound {
+		if _, err := js.KeyValue(i); errors.Is(err, nats.ErrBucketNotFound) {
 			if _, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: i, Storage: storageType}); err != nil {
 				return fmt.Errorf("failed to ensure buckets: %w", err)
 			}
@@ -184,7 +183,7 @@ func Process(ctx context.Context, js nats.JetStreamContext, traceName string, cl
 				reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 				msg, err := sub.Fetch(1, nats.Context(reqCtx))
 				if err != nil {
-					if err == context.DeadlineExceeded {
+					if errors.Is(err, context.DeadlineExceeded) {
 						cancel()
 						continue
 					}
@@ -196,7 +195,7 @@ func Process(ctx context.Context, js nats.JetStreamContext, traceName string, cl
 				m := msg[0]
 				//				log.Debug("Process:"+traceName, slog.String("subject", msg[0].Subject))
 				cancel()
-				if embargo := m.Header.Get(internal.EmbargoNatsHeader); embargo != "" && embargo != "0" {
+				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
 					e, err := strconv.Atoi(embargo)
 					if err != nil {
 						log.Error("bad embargo value", err)

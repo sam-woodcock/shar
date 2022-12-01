@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"errors"
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common/subj"
@@ -114,18 +115,18 @@ func EnsureWorkflowStream(js nats.JetStreamContext, storageType nats.StorageType
 	}
 
 	if err := ensureStream(js, scfg); err != nil {
-		return err
+		return fmt.Errorf("failed to ensure workflow stream: %w", err)
 	}
 	for _, ccfg := range consumerConfig {
 		if err := ensureConsumer(js, "WORKFLOW", ccfg); err != nil {
-			return err
+			return fmt.Errorf("failed to ensure consumer during ensure workflow stream: %w", err)
 		}
 	}
 	return nil
 }
 
 func ensureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
-	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); err == nats.ErrConsumerNotFound {
+	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); errors.Is(err, nats.ErrConsumerNotFound) {
 		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
 			return fmt.Errorf("cannot ensure consumer '%s' with subject '%s' : %w", consumerConfig.Name, consumerConfig.FilterSubject, err)
 		}
@@ -136,7 +137,7 @@ func ensureConsumer(js nats.JetStreamContext, streamName string, consumerConfig 
 }
 
 func ensureStream(js nats.JetStreamContext, streamConfig *nats.StreamConfig) error {
-	if _, err := js.StreamInfo(streamConfig.Name); err == nats.ErrStreamNotFound {
+	if _, err := js.StreamInfo(streamConfig.Name); errors.Is(err, nats.ErrStreamNotFound) {
 		if _, err := js.AddStream(streamConfig); err != nil {
 			return fmt.Errorf("could not add stream: %w", err)
 		}

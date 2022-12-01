@@ -156,12 +156,10 @@ func (c *Client) Dial(natsURL string, opts ...nats.Option) error {
 func (c *Client) RegisterServiceTask(ctx context.Context, taskName string, fn ServiceFn) error {
 	id, err := c.getServiceTaskRoutingID(ctx, taskName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get service task routing: %w", err)
 	}
 	if _, ok := c.SvcTasks[taskName]; ok {
-		log := slog.FromContext(ctx)
-		log.Error("Terminated", errors.New("Service task "+taskName+" already registered"))
-		return err
+		return fmt.Errorf("service task '%s' already registered: %w", taskName, errors2.ErrServiceTaskAlreadyRegistered)
 	}
 	c.SvcTasks[taskName] = fn
 	c.listenTasks[id] = struct{}{}
@@ -172,11 +170,10 @@ func (c *Client) RegisterServiceTask(ctx context.Context, taskName string, fn Se
 func (c *Client) RegisterMessageSender(ctx context.Context, workflowName string, messageName string, sender SenderFn) error {
 	id, err := c.getMessageSenderRoutingID(ctx, workflowName, messageName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get message sender routing: %w", err)
 	}
 	if _, ok := c.MsgSender[messageName]; ok {
-		err := errors.New("message sender " + messageName + " already registered")
-		return err
+		return fmt.Errorf("message sender '%s' already registered: %w", messageName, errors2.ErrMessageSenderAlreadyRegistered)
 	}
 	c.MsgSender[messageName] = sender
 	c.msgListenTasks[id] = struct{}{}
@@ -531,7 +528,7 @@ func (c *Client) SendMessage(ctx context.Context, workflowInstanceID string, nam
 }
 
 func (c *Client) clientErr(_ context.Context, err error) error {
-	return err
+	return fmt.Errorf("client error: %w", err)
 }
 
 // RegisterWorkflowInstanceComplete registers a function to run when workflow instances complete.
@@ -576,10 +573,10 @@ func callAPI[T proto.Message, U proto.Message](_ context.Context, con *nats.Conn
 	msg.Data = b
 	res, err := con.RequestMsg(msg, time.Second*60)
 	if err != nil {
-		if err == nats.ErrNoResponders {
+		if errors.Is(err, nats.ErrNoResponders) {
 			err = fmt.Errorf("shar-client: shar server is offline or missing from the current nats server")
 		}
-		return err
+		return fmt.Errorf("failed during API call: %w", err)
 	}
 	if len(res.Data) > 4 && string(res.Data[0:4]) == "ERR_" {
 		em := strings.Split(string(res.Data), "_")
