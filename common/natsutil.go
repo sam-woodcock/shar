@@ -167,13 +167,13 @@ func Process(ctx context.Context, js nats.JetStreamContext, traceName string, cl
 			return fmt.Errorf("durable consumer '%s' is not explicity configured", durable)
 		}
 	}
+	sub, err := js.PullSubscribe(subject, durable)
+	if err != nil {
+		log.Error("process pull subscribe error", err, "subject", subject, "durable", durable)
+		return fmt.Errorf("process pull subscribe error subject:%s durable:%s: %w", subject, durable, err)
+	}
 	for i := 0; i < concurrency; i++ {
 		go func() {
-			sub, err := js.PullSubscribe(subject, durable)
-			if err != nil {
-				log.Error("process pull subscribe error", err, "subject", subject, "durable", durable)
-				return
-			}
 			for {
 				select {
 				case <-closer:

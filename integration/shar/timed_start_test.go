@@ -1,4 +1,4 @@
-package intTests
+package intTest
 
 import (
 	"context"
@@ -14,20 +14,20 @@ import (
 )
 
 func TestTimedStart(t *testing.T) {
-	tst := &integration{}
-	tst.setup(t)
-	defer tst.teardown()
+	tst := &Integration{}
+	tst.Setup(t)
+	defer tst.Teardown()
 
 	// Create a starting context
 	ctx := context.Background()
 
 	// Dial shar
-	cl := client.New(client.WithEphemeralStorage())
-	err := cl.Dial(natsURL)
+	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
+	err := cl.Dial(NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("../testdata/timed-start-workflow.bpmn")
+	b, err := os.ReadFile("../../testdata/timed-start-workflow.bpmn")
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TimedStartTest", b)
@@ -61,7 +61,7 @@ func TestTimedStart(t *testing.T) {
 type timedStartHandlerDef struct {
 	mx    sync.Mutex
 	count int
-	tst   *integration
+	tst   *Integration
 }
 
 func (d *timedStartHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {

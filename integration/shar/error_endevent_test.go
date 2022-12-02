@@ -1,5 +1,6 @@
-package intTests
+package intTest
 
+/*
 import (
 	"context"
 	"fmt"
@@ -13,21 +14,21 @@ import (
 )
 
 func TestEndEventError(t *testing.T) {
-	tst := &integration{}
-	tst.setup(t)
-	defer tst.teardown()
+	tst := &Integration{}
+	tst.Setup(t)
+	defer tst.Teardown()
 
 	// Create a starting context
 	ctx := context.Background()
 
 	// Dial shar
 	cl := client.New()
-	if err := cl.Dial(natsURL); err != nil {
+	if err := cl.Dial(NatsURL); err != nil {
 		panic(err)
 	}
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("../testdata/errors.bpmn")
+	b, err := os.ReadFile("../../testdata/errors.bpmn")
 	if err != nil {
 		panic(err)
 	}
@@ -89,4 +90,4 @@ func (d *testErrorEndEventHandlerDef) mayFail3(ctx context.Context, client clien
 func (d *testErrorEndEventHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("carried", vars["carried"])
 	panic("this event should not fire")
-}
+}*/

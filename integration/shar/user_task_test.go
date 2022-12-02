@@ -1,4 +1,4 @@
-package intTests
+package intTest
 
 import (
 	"context"
@@ -14,24 +14,24 @@ import (
 )
 
 func TestUserTasks(t *testing.T) {
-	tst := &integration{}
-	tst.setup(t)
-	defer tst.teardown()
+	tst := &Integration{}
+	tst.Setup(t)
+	defer tst.Teardown()
 
 	// Create a starting context
 	ctx := context.Background()
 
 	// Dial shar
-	cl := client.New()
-	if err := cl.Dial(natsURL); err != nil {
+	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
+	if err := cl.Dial(NatsURL); err != nil {
 		panic(err)
 	}
 
-	//sub := tracer.Trace(natsURL)
+	//sub := tracer.Trace(NatsURL)
 	//defer sub.Drain()
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("../testdata/usertask.bpmn")
+	b, err := os.ReadFile("../../testdata/usertask.bpmn")
 	if err != nil {
 		panic(err)
 	}
