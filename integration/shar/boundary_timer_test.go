@@ -1,4 +1,4 @@
-package intTests
+package intTest
 
 import (
 	"context"
@@ -14,9 +14,9 @@ import (
 )
 
 func TestBoundaryTimer(t *testing.T) {
-	tst := &integration{}
-	tst.setup(t)
-	defer tst.teardown()
+	tst := &Integration{}
+	tst.Setup(t)
+	defer tst.Teardown()
 
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	d := &testBoundaryTimerDef{}
@@ -36,9 +36,9 @@ func TestBoundaryTimer(t *testing.T) {
 }
 
 func TestBoundaryTimerTimeout(t *testing.T) {
-	tst := &integration{}
-	tst.setup(t)
-	defer tst.teardown()
+	tst := &Integration{}
+	tst.Setup(t)
+	defer tst.Teardown()
 
 	//sub := tracer.Trace("nats://127.0.0.1:4459")
 	//defer sub.Drain()
@@ -64,9 +64,9 @@ func TestBoundaryTimerTimeout(t *testing.T) {
 }
 
 func TestExclusiveGateway(t *testing.T) {
-	tst := &integration{}
-	tst.setup(t)
-	defer tst.teardown()
+	tst := &Integration{}
+	tst.Setup(t)
+	defer tst.Teardown()
 
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	d := &testBoundaryTimerDef{
@@ -94,12 +94,12 @@ func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanc
 	ctx := context.Background()
 
 	// Dial shar
-	cl := client.New(client.WithEphemeralStorage())
-	err := cl.Dial(natsURL)
+	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
+	err := cl.Dial(NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("../testdata/possible-timeout-workflow.bpmn")
+	b, err := os.ReadFile("../../testdata/possible-timeout-workflow.bpmn")
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "PossibleTimeout", b)

@@ -30,6 +30,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	svr := server.New()
+	svr := server.New(server.Concurrency(cfg.Concurrency))
 	svr.Listen(cfg.NatsURL, cfg.Port)
 }

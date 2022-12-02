@@ -10,7 +10,7 @@ import (
 )
 
 // GetServers returns a test NATS and SHAR server.
-func GetServers(natsHost string, natsPort int) (*sharsvr.Server, *server.Server, error) {
+func GetServers(natsHost string, natsPort int, sharConcurrency int) (*sharsvr.Server, *server.Server, error) {
 	nsvr, err := server.NewServer(&server.Options{
 		ConfigFile:            "",
 		ServerName:            "TestNatsServer",

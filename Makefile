@@ -47,7 +47,7 @@ clean: .FORCE
 	rm -f telemetry/cmd/shar-telemetry/shar-telemetry
 	rm -f model/*.pb.go
 test: proto server tracing .FORCE
-	go test --short --race ./...
+	go clean -testcache && go test --short --race ./...
 	golangci-lint cache clean
 	golangci-lint run -v -E gosec -E revive -E ireturn --timeout 5m0s
 .FORCE:

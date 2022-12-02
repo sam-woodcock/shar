@@ -1,4 +1,4 @@
-package intTests
+package intTest
 
 import (
 	"context"
@@ -14,9 +14,9 @@ import (
 
 //goland:noinspection GoNilness
 func TestMultiWorkflow(t *testing.T) {
-	tst := &integration{}
-	tst.setup(t)
-	defer tst.teardown()
+	tst := &Integration{}
+	tst.Setup(t)
+	defer tst.Teardown()
 	tst.cooldown = 5 * time.Second
 	handlers := &testMultiworkflowMessagingHandlerDef{}
 
@@ -24,16 +24,16 @@ func TestMultiWorkflow(t *testing.T) {
 	ctx := context.Background()
 
 	// Dial shar
-	cl := client.New(client.WithEphemeralStorage())
-	err := cl.Dial(natsURL)
+	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
+	err := cl.Dial(NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("../testdata/message-workflow.bpmn")
+	b, err := os.ReadFile("../../testdata/message-workflow.bpmn")
 	require.NoError(t, err)
 
 	// Load BPMN workflow 2
-	b2, err := os.ReadFile("../testdata/simple-workflow.bpmn")
+	b2, err := os.ReadFile("../../testdata/simple-workflow.bpmn")
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestMultiWorkflow1", b)

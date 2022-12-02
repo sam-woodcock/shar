@@ -1,4 +1,4 @@
-package intTests
+package intTest
 
 import (
 	"context"
@@ -19,12 +19,12 @@ import (
 	"time"
 )
 
-const natsHost = "127.0.0.1"
-const natsPort = 4459
+const NatsHost = "127.0.0.1"
+const NatsPort = 4459
 
-var natsURL = fmt.Sprintf("nats://%s:%v", natsHost, natsPort)
+var NatsURL = fmt.Sprintf("nats://%s:%v", NatsHost, NatsPort)
 
-type integration struct {
+type Integration struct {
 	testNatsServer *server.Server
 	testSharServer *sharsvr.Server
 	finalVars      map[string]interface{}
@@ -34,16 +34,16 @@ type integration struct {
 }
 
 func init() {
-	logx.SetDefault(slog.ErrorLevel, false, "shar-integration-tests")
+	logx.SetDefault(slog.ErrorLevel, false, "shar-Integration-tests")
 }
 
 //goland:noinspection GoNilness
-func (s *integration) setup(t *testing.T) {
+func (s *Integration) Setup(t *testing.T) {
 
 	s.cooldown = 2 * time.Second
 	s.test = t
 	s.finalVars = make(map[string]interface{})
-	ss, ns, err := zensvr.GetServers(natsHost, natsPort)
+	ss, ns, err := zensvr.GetServers(NatsHost, NatsPort, 10)
 	if err != nil {
 		panic(err)
 	}
@@ -52,7 +52,7 @@ func (s *integration) setup(t *testing.T) {
 	s.test.Logf("\033[1;36m%s\033[0m", "> Setup completed\n")
 }
 
-func (s *integration) AssertCleanKV() {
+func (s *Integration) AssertCleanKV() {
 	time.Sleep(s.cooldown)
 	js, err := s.GetJetstream()
 	require.NoError(s.test, err)
@@ -110,7 +110,7 @@ func (s *integration) AssertCleanKV() {
 	}
 }
 
-func (s *integration) teardown() {
+func (s *Integration) Teardown() {
 
 	n, err := s.GetJetstream()
 	require.NoError(s.test, err)
@@ -140,7 +140,7 @@ func (s *integration) teardown() {
 	s.test.Log("\n")
 }
 
-func (s *integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:ireturn
+func (s *Integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:ireturn
 	con, err := s.GetNats()
 	if err != nil {
 		return nil, fmt.Errorf("could not get NATS: %w", err)
@@ -152,8 +152,8 @@ func (s *integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:i
 	return js, nil
 }
 
-func (s *integration) GetNats() (*nats.Conn, error) {
-	con, err := nats.Connect(natsURL)
+func (s *Integration) GetNats() (*nats.Conn, error) {
+	con, err := nats.Connect(NatsURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
 	}

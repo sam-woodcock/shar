@@ -1,4 +1,4 @@
-package intTests
+package intTest
 
 import (
 	"context"
@@ -15,9 +15,9 @@ import (
 
 //goland:noinspection GoNilness
 func TestConcurrentMessaging(t *testing.T) {
-	tst := &integration{}
-	tst.setup(t)
-	defer tst.teardown()
+	tst := &Integration{}
+	tst.Setup(t)
+	defer tst.Teardown()
 	tst.cooldown = 5 * time.Second
 	//tracer.Trace("127.0.0.1:4459")
 	//defer tracer.Close()
@@ -28,12 +28,12 @@ func TestConcurrentMessaging(t *testing.T) {
 	ctx := context.Background()
 
 	// Dial shar
-	cl := client.New(client.WithEphemeralStorage())
-	err := cl.Dial(natsURL)
+	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
+	err := cl.Dial(NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("../testdata/message-workflow.bpmn")
+	b, err := os.ReadFile("../../testdata/message-workflow.bpmn")
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestConcurrentMessaging", b)
@@ -85,7 +85,7 @@ func TestConcurrentMessaging(t *testing.T) {
 
 type testConcurrentMessagingHandlerDef struct {
 	mx       sync.Mutex
-	tst      *integration
+	tst      *Integration
 	received int
 }
 
