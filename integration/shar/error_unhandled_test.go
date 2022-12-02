@@ -1,9 +1,8 @@
-package intTests
+package intTest
 
 import (
 	"context"
-	"errors"
-	"github.com/stretchr/testify/assert"
+	"fmt"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/common/workflow"
@@ -12,46 +11,45 @@ import (
 	"testing"
 )
 
-func TestHandledError(t *testing.T) {
-	tst := &integration{}
-	tst.setup(t)
-	defer tst.teardown()
+func TestUnhandledError(t *testing.T) {
+	tst := &Integration{}
+	tst.Setup(t)
+	defer tst.Teardown()
 
-	//sub := tracer.Trace("nats://127.0.0.1:4459")
+	//sub := tracer.Trace(NatsURL)
 	//defer sub.Drain()
 
 	// Create a starting context
 	ctx := context.Background()
 
 	// Dial shar
-	cl := client.New()
-	if err := cl.Dial(natsURL); err != nil {
+	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
+	if err := cl.Dial(NatsURL); err != nil {
 		panic(err)
 	}
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("../testdata/errors.bpmn")
+	b, err := os.ReadFile("../../testdata/errors.bpmn")
 	if err != nil {
 		panic(err)
 	}
-	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "TestHandleError", b); err != nil {
+	if _, err := cl.LoadBPMNWorkflowFromBytes(ctx, "TestUnhandledError", b); err != nil {
 		panic(err)
 	}
 
-	d := errorHandledHandlerDef{tst: tst}
+	d := &testErrorUnhandledHandlerDef{}
 
 	// Register a service task
 	err = cl.RegisterServiceTask(ctx, "couldThrowError", d.mayFail)
 	require.NoError(t, err)
 	err = cl.RegisterServiceTask(ctx, "fixSituation", d.fixSituation)
 	require.NoError(t, err)
-
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	wfiID, err := cl.LaunchWorkflow(ctx, "TestHandleError", model.Vars{})
+	wfiID, err := cl.LaunchWorkflow(ctx, "TestUnhandledError", model.Vars{})
 	if err != nil {
 		panic(err)
 	}
@@ -67,27 +65,25 @@ func TestHandledError(t *testing.T) {
 	// wait for the workflow to complete
 	for i := range complete {
 		if i.WorkflowInstanceId == wfiID {
+			fmt.Println("state", i.WorkflowState)
 			break
 		}
 	}
 	tst.AssertCleanKV()
 }
 
-type errorHandledHandlerDef struct {
-	fixed bool
-	tst   *integration
+type testErrorUnhandledHandlerDef struct {
 }
 
 // A "Hello World" service task
-func (d *errorHandledHandlerDef) mayFail(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
-	//Throw handled error
-	return model.Vars{"success": false, "myVar": 69}, workflow.Error{Code: "101", WrappedError: errors.New("things went badly")}
+func (d *testErrorUnhandledHandlerDef) mayFail(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
+	fmt.Println("Throw unhandled error")
+	return model.Vars{"success": false}, workflow.Error{Code: "102"}
 }
 
 // A "Hello World" service task
-func (d *errorHandledHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
-	assert.Equal(d.tst.test, 69, vars["testVal"])
-	assert.Equal(d.tst.test, 32768, vars["carried"])
-	d.fixed = true
+func (d *testErrorUnhandledHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+	fmt.Println("Fixing")
+	fmt.Println("carried", vars["carried"])
 	return model.Vars{}, nil
 }

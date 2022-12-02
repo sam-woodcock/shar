@@ -25,6 +25,7 @@ type Server struct {
 	ephemeralStorage        bool
 	panicRecovery           bool
 	allowOrphanServiceTasks bool
+	concurrency             int
 }
 
 // New creates a new SHAR server.
@@ -35,6 +36,7 @@ func New(options ...Option) *Server {
 		healthService:           health.New(),
 		panicRecovery:           true,
 		allowOrphanServiceTasks: true,
+		concurrency:             6,
 	}
 	for _, i := range options {
 		i.configure(s)
@@ -42,7 +44,7 @@ func New(options ...Option) *Server {
 	return s
 }
 
-// Listen starts the GRPC server for both serving requests, and thw GRPC health endpoint.
+// Listen starts the GRPC server for both serving requests, and the GRPC health endpoint.
 func (s *Server) Listen(natsURL string, grpcPort int) {
 	// Capture errors and cancel signals
 	errs := make(chan error)
@@ -127,7 +129,7 @@ func (s *Server) createServices(natsURL string, ephemeral bool, allowOrphanServi
 	if ephemeral {
 		store = nats.MemoryStorage
 	}
-	ns, err := services.NewNatsService(conn, txConn, store, 6, allowOrphanServiceTasks)
+	ns, err := services.NewNatsService(conn, txConn, store, s.concurrency, allowOrphanServiceTasks)
 	if err != nil {
 		slog.Error("failed to create NATS KV store", err)
 		panic(err)

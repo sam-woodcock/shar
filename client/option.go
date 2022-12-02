@@ -12,3 +12,16 @@ type ephemeralStorage struct{}
 func (o ephemeralStorage) configure(client *Client) {
 	client.storageType = nats.MemoryStorage
 }
+
+// WithConcurrency specifies the number of threads to process each service task.
+func WithConcurrency(n int) concurrency { //nolint
+	return concurrency{val: n}
+}
+
+type concurrency struct {
+	val int
+}
+
+func (o concurrency) configure(client *Client) {
+	client.concurrency = o.val
+}
