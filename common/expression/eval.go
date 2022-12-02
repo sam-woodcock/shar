@@ -13,6 +13,13 @@ import (
 
 // Eval evaluates an expression given a set of variables and returns a generic type.
 func Eval[T any](ctx context.Context, exp string, vars map[string]interface{}) (retval T, reterr error) { //nolint:ireturn
+	if len(exp) == 0 {
+		return *new(T), nil
+	}
+	if exp[0] == '=' {
+		exp = exp[1:]
+	}
+	exp = strings.TrimPrefix(exp, "=")
 	ex, err := expr.Compile(exp)
 	if err != nil {
 		return *new(T), fmt.Errorf(err.Error()+": %w", &errors2.ErrWorkflowFatal{Err: err})
