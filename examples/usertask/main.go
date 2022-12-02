@@ -6,7 +6,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
-	"go.uber.org/zap"
 	"os"
 	"time"
 )
@@ -15,16 +14,8 @@ func main() {
 	// Create a starting context
 	ctx := context.Background()
 
-	// Create logger
-	log, _ := zap.NewDevelopment()
-
-	defer func() {
-		if err := log.Sync(); err != nil {
-		}
-	}()
-
 	// Dial shar
-	cl := client.New(log)
+	cl := client.New()
 	if err := cl.Dial(nats.DefaultURL); err != nil {
 		panic(err)
 	}
@@ -69,7 +60,10 @@ func main() {
 		for {
 			tsk, err := cl.ListUserTaskIDs(ctx, "andrei")
 			if err == nil && tsk.Id != nil {
-				cl.CompleteUserTask(ctx, "andrei", tsk.Id[0], model.Vars{"Forename": "Brangelina", "Surname": "Miggins"})
+				err2 := cl.CompleteUserTask(ctx, "andrei", tsk.Id[0], model.Vars{"Forename": "Brangelina", "Surname": "Miggins"})
+				if err2 != nil {
+					panic(err)
+				}
 				return
 			}
 			time.Sleep(1 * time.Second)
@@ -85,14 +79,14 @@ func main() {
 }
 
 // A "Hello World" service task
-func prepare(_ context.Context, vars model.Vars) (model.Vars, error) {
+func prepare(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Preparing")
 	oid := vars["OrderId"].(int)
 	return model.Vars{"OrderId": oid + 1}, nil
 }
 
 // A "Hello World" service task
-func complete(_ context.Context, vars model.Vars) (model.Vars, error) {
+func complete(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("OrderId", vars["OrderId"])
 	fmt.Println("Forename", vars["Forename"])
 	fmt.Println("Surname", vars["Surname"])

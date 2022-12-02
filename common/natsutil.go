@@ -6,17 +6,19 @@ import (
 	"errors"
 	"fmt"
 	"github.com/nats-io/nats.go"
-	"gitlab.com/shar-workflow/shar/common/setup"
+	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
-	"go.uber.org/zap"
+	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
 	"math/big"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 )
 
+// NatsConn is the trimmad down NATS Connection interface that only emcompasses the methods used by SHAR
 type NatsConn interface {
 	JetStream(opts ...nats.JSOpt) (nats.JetStreamContext, error)
 	QueueSubscribe(subj string, queue string, cb nats.MsgHandler) (*nats.Subscription, error)
@@ -26,12 +28,12 @@ func updateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []b
 	for {
 		entry, err := wf.Get(k)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get value to update: %w", err)
 		}
 		rev := entry.Revision()
 		uv, err := updateFn(entry.Value(), msg)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed during update function: %w", err)
 		}
 		_, err = wf.Update(k, uv, rev)
 		// TODO: Horrible workaround for the fact that this is not a typed error
@@ -46,46 +48,76 @@ func updateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []b
 				time.Sleep(time.Duration(dur.Int64()))
 				continue
 			}
-			return err
+			return fmt.Errorf("failed to update kv: %w", err)
 		}
 		break
 	}
 	return nil
 }
 
-func Save(wf nats.KeyValue, k string, v []byte) error {
-	_, err := wf.Put(k, v)
-	return err
+// Save saves a value to a key value store
+func Save(ctx context.Context, wf nats.KeyValue, k string, v []byte) error {
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.VerboseLevel) {
+		log.Log(errors2.VerboseLevel, "Set KV", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.String("val", string(v)))
+	}
+	if _, err := wf.Put(k, v); err != nil {
+		return fmt.Errorf("failed to save kv: %w", err)
+	}
+	return nil
 }
 
-func Load(wf nats.KeyValue, k string) ([]byte, error) {
-	if b, err := wf.Get(k); err == nil {
+// Load loads a value from a key value store
+func Load(ctx context.Context, wf nats.KeyValue, k string) ([]byte, error) {
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.VerboseLevel) {
+		log.Log(errors2.VerboseLevel, "Get KV", slog.Any("bucket", wf.Bucket()), slog.String("key", k))
+	}
+	b, err := wf.Get(k)
+	if err == nil {
 		return b.Value(), nil
-	} else {
-		return nil, fmt.Errorf("failed to load value from KV: %w", err)
 	}
+	return nil, fmt.Errorf("failed to load value from KV: %w", err)
 }
 
-func SaveObj(_ context.Context, wf nats.KeyValue, k string, v proto.Message) error {
-	if b, err := proto.Marshal(v); err == nil {
-		return Save(wf, k, b)
-	} else {
-		return fmt.Errorf("failed to save object into KV: %w", err)
+// SaveObj save an protobuf message to a key value store
+func SaveObj(ctx context.Context, wf nats.KeyValue, k string, v proto.Message) error {
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.TraceLevel) {
+		log.Log(errors2.TraceLevel, "save KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("val", v))
 	}
+	b, err := proto.Marshal(v)
+	if err == nil {
+		return Save(ctx, wf, k, b)
+	}
+	return fmt.Errorf("failed to save object into KV: %w", err)
 }
 
-func LoadObj(wf nats.KeyValue, k string, v proto.Message) error {
-	if kv, err := Load(wf, k); err == nil {
-		return proto.Unmarshal(kv, v)
-	} else {
+// LoadObj loads a protobuf message from a key value store
+func LoadObj(ctx context.Context, wf nats.KeyValue, k string, v proto.Message) error {
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.TraceLevel) {
+		log.Log(errors2.TraceLevel, "load KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("val", v))
+	}
+	kv, err := Load(ctx, wf, k)
+	if err != nil {
 		return fmt.Errorf("failed to load object from KV %s(%s): %w", wf.Bucket(), k, err)
 	}
+	if err := proto.Unmarshal(kv, v); err != nil {
+		return fmt.Errorf("failed to unmarshal in LoadObj: %w", err)
+	}
+	return nil
 }
 
+// UpdateObj saves an protobuf message to a key value store after using updateFN to update the message.
 func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) error {
-	if oldk, err := wf.Get(k); err == nats.ErrKeyNotFound || (err == nil && oldk.Value() == nil) {
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.TraceLevel) {
+		log.Log(errors2.TraceLevel, "update KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("fn", reflect.TypeOf(updateFn)))
+	}
+	if oldk, err := wf.Get(k); errors.Is(err, nats.ErrKeyNotFound) || (err == nil && oldk.Value() == nil) {
 		if err := SaveObj(ctx, wf, k, msg); err != nil {
-			return err
+			return fmt.Errorf("failed to save during update object: %w", err)
 		}
 	}
 	return updateKV(wf, k, msg, func(bv []byte, msg proto.Message) ([]byte, error) {
@@ -104,13 +136,18 @@ func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string,
 	})
 }
 
+// Delete deletes an item from a key value store.
 func Delete(kv nats.KeyValue, key string) error {
-	return kv.Delete(key)
+	if err := kv.Delete(key); err != nil {
+		return fmt.Errorf("failed to delete key: %w", err)
+	}
+	return nil
 }
 
+// EnsureBuckets ensures that a list of key value stores exist
 func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names []string) error {
 	for _, i := range names {
-		if _, err := js.KeyValue(i); err == nats.ErrBucketNotFound {
+		if _, err := js.KeyValue(i); errors.Is(err, nats.ErrBucketNotFound) {
 			if _, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: i, Storage: storageType}); err != nil {
 				return fmt.Errorf("failed to ensure buckets: %w", err)
 			}
@@ -121,15 +158,20 @@ func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names
 	return nil
 }
 
-func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, traceName string, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, msg *nats.Msg) (bool, error)) error {
-	if _, ok := setup.ConsumerDurableNames[durable]; !strings.HasPrefix(durable, "ServiceTask_") && !ok {
-		return fmt.Errorf("durable consumer '%s' is not explicity configured", durable)
+// Process processes messages from a nats consumer and executes a function against each one.
+func Process(ctx context.Context, js nats.JetStreamContext, traceName string, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error)) error {
+	log := slog.FromContext(ctx)
+	if !strings.HasPrefix(durable, "ServiceTask_") {
+		conInfo, err := js.ConsumerInfo("WORKFLOW", durable)
+		if conInfo.Config.Durable == "" || err != nil {
+			return fmt.Errorf("durable consumer '%s' is not explicity configured", durable)
+		}
 	}
 	for i := 0; i < concurrency; i++ {
 		go func() {
 			sub, err := js.PullSubscribe(subject, durable)
 			if err != nil {
-				log.Error("process pull subscribe error", zap.Error(err), zap.String("subject", subject), zap.String("durable", durable))
+				log.Error("process pull subscribe error", err, "subject", subject, "durable", durable)
 				return
 			}
 			for {
@@ -141,22 +183,22 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, tra
 				reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 				msg, err := sub.Fetch(1, nats.Context(reqCtx))
 				if err != nil {
-					if err == context.DeadlineExceeded {
+					if errors.Is(err, context.DeadlineExceeded) {
 						cancel()
 						continue
 					}
 					// Log Error
-					log.Error("message fetch error", zap.Error(err))
+					log.Error("message fetch error", err)
 					cancel()
 					continue
 				}
 				m := msg[0]
-				//				log.Debug("Process:"+traceName, zap.String("subject", msg[0].Subject))
+				//				log.Debug("Process:"+traceName, slog.String("subject", msg[0].Subject))
 				cancel()
 				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
 					e, err := strconv.Atoi(embargo)
 					if err != nil {
-						log.Error("bad embargo value", zap.Error(err))
+						log.Error("bad embargo value", err)
 						continue
 					}
 					offset := time.Duration(int64(e) - time.Now().UnixNano())
@@ -167,26 +209,27 @@ func Process(ctx context.Context, js nats.JetStreamContext, log *zap.Logger, tra
 						continue
 					}
 				}
-				executeCtx := context.Background()
-				ack, err := fn(executeCtx, msg[0])
+				cid := msg[0].Header.Get(logx.CorrelationHeader)
+				executeCtx, executeLog := logx.LoggingEntrypoint(context.Background(), "server", cid)
+				ack, err := fn(executeCtx, executeLog, msg[0])
 				if err != nil {
 					if errors2.IsWorkflowFatal(err) {
-						log.Error("workflow fatal error occured processing function", zap.Error(err))
+						executeLog.Error("workflow fatal error occured processing function", err)
 						ack = true
 					} else {
 						wfe := &workflow.Error{}
 						if !errors.As(err, wfe) {
-							log.Error("processing error", zap.Error(err), zap.String("name", traceName))
+							executeLog.Error("processing error", err, "name", traceName)
 						}
 					}
 				}
 				if ack {
 					if err := msg[0].Ack(); err != nil {
-						log.Error("processing failed to ack", zap.Error(err))
+						log.Error("processing failed to ack", err)
 					}
 				} else {
 					if err := msg[0].Nak(); err != nil {
-						log.Error("processing failed to nak", zap.Error(err))
+						log.Error("processing failed to nak", err)
 					}
 				}
 			}

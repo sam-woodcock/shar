@@ -6,10 +6,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
-	"go.uber.org/zap"
 	"os"
 	"sync"
 	"testing"
+	"time"
 )
 
 //goland:noinspection GoNilness
@@ -17,17 +17,14 @@ func TestMultiWorkflow(t *testing.T) {
 	tst := &integration{}
 	tst.setup(t)
 	defer tst.teardown()
-
+	tst.cooldown = 5 * time.Second
 	handlers := &testMultiworkflowMessagingHandlerDef{}
 
 	// Create a starting context
 	ctx := context.Background()
 
-	// Create logger
-	log, _ := zap.NewDevelopment()
-
 	// Dial shar
-	cl := client.New(log, client.WithEphemeralStorage())
+	cl := client.New(client.WithEphemeralStorage())
 	err := cl.Dial(natsURL)
 	require.NoError(t, err)
 
@@ -102,19 +99,19 @@ func TestMultiWorkflow(t *testing.T) {
 		}
 	}()
 	wg.Wait()
-	//TODO: tst.AssertCleanKV()
+	tst.AssertCleanKV()
 }
 
 type testMultiworkflowMessagingHandlerDef struct {
 }
 
-func (x *testMultiworkflowMessagingHandlerDef) step1(_ context.Context, _ model.Vars) (model.Vars, error) {
+func (x *testMultiworkflowMessagingHandlerDef) step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Step 1")
 
 	return model.Vars{}, nil
 }
 
-func (x *testMultiworkflowMessagingHandlerDef) step2(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (x *testMultiworkflowMessagingHandlerDef) step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Step 2")
 	fmt.Println("carried", vars["carried"])
 	fmt.Println("carried2", vars["carried2"])
@@ -122,13 +119,16 @@ func (x *testMultiworkflowMessagingHandlerDef) step2(_ context.Context, vars mod
 	return model.Vars{}, nil
 }
 
-func (x *testMultiworkflowMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
+func (x *testMultiworkflowMessagingHandlerDef) sendMessage(ctx context.Context, cmd client.MessageClient, vars model.Vars) error {
 	fmt.Println("Sending Message...")
-	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]})
+	if err := cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]}); err != nil {
+		return fmt.Errorf("failed to send continue message: %w", err)
+	}
+	return nil
 }
 
 // A "Hello World" service task
-func (x *testMultiworkflowMessagingHandlerDef) simpleProcess(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (x *testMultiworkflowMessagingHandlerDef) simpleProcess(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Hello World")
 	fmt.Println("carried", vars["carried"])
 	fmt.Println("carried2", vars["carried2"])

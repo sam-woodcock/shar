@@ -6,6 +6,7 @@ import (
 	"gitlab.com/shar-workflow/shar/cli/commands/workflow/start"
 )
 
+// Cmd is the cobra command object
 var Cmd = &cobra.Command{
 	Use:   "workflow",
 	Short: "Commands for dealing with workflows",

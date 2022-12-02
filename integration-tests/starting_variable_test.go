@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
-	"go.uber.org/zap"
 	"os"
 	"testing"
 )
@@ -20,11 +19,8 @@ func TestStartingVariable(t *testing.T) {
 	// Create a starting context
 	ctx := context.Background()
 
-	// Create logger
-	log, _ := zap.NewDevelopment()
-
 	// Dial shar
-	cl := client.New(log, client.WithEphemeralStorage())
+	cl := client.New(client.WithEphemeralStorage())
 	err := cl.Dial(natsURL)
 	require.NoError(t, err)
 
@@ -54,7 +50,7 @@ func TestStartingVariable(t *testing.T) {
 type testStartingVariableHandlerDef struct {
 }
 
-func (d *testStartingVariableHandlerDef) integrationSimple(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *testStartingVariableHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Hi")
 	fmt.Println("carried", vars["carried"])
 	return vars, nil

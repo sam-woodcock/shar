@@ -9,17 +9,18 @@ import (
 	"gitlab.com/shar-workflow/shar/server/services"
 )
 
+// NatsService is the shar type responsible for interacting with NATS.
 type NatsService interface {
 	AwaitMsg(ctx context.Context, state *model.WorkflowState) error
 	SetTraversalProvider(provider services.TraversalFunc)
 	ListWorkflows(ctx context.Context) (chan *model.ListWorkflowResult, chan error)
 	StoreWorkflow(ctx context.Context, wf *model.Workflow) (string, error)
-	GetWorkflow(ctx context.Context, workflowId string) (*model.Workflow, error)
+	GetWorkflow(ctx context.Context, workflowID string) (*model.Workflow, error)
 	CreateWorkflowInstance(ctx context.Context, wfInstance *model.WorkflowInstance) (*model.WorkflowInstance, error)
-	GetWorkflowInstance(ctx context.Context, workflowInstanceId string) (*model.WorkflowInstance, error)
-	DestroyWorkflowInstance(ctx context.Context, workflowInstanceId string, state model.CancellationState, wfError *model.Error) error
-	GetServiceTaskRoutingKey(taskName string) (string, error)
-	GetMessageSenderRoutingKey(workflowName string, messageName string) (string, error)
+	GetWorkflowInstance(ctx context.Context, workflowInstanceID string) (*model.WorkflowInstance, error)
+	DestroyWorkflowInstance(ctx context.Context, workflowInstanceID string, state model.CancellationState, wfError *model.Error) error
+	GetServiceTaskRoutingKey(ctx context.Context, taskName string) (string, error)
+	GetMessageSenderRoutingKey(ctx context.Context, workflowName string, messageName string) (string, error)
 	GetLatestVersion(ctx context.Context, workflowName string) (string, error)
 	CreateJob(ctx context.Context, job *model.WorkflowState) (string, error)
 	GetJob(ctx context.Context, id string) (*model.WorkflowState, error)
@@ -32,6 +33,7 @@ type NatsService interface {
 	SetMessageProcessor(processor services.MessageProcessorFunc)
 	SetCompleteJobProcessor(processor services.CompleteJobProcessorFunc)
 	SetCompleteActivity(processor services.CompleteActivityFunc)
+	SetAbort(processor services.AbortFunc)
 	DeleteJob(ctx context.Context, trackingID string) error
 	SetCompleteActivityProcessor(processor services.CompleteActivityProcessorFunc)
 	SetLaunchFunc(processor services.LaunchFunc)
@@ -40,7 +42,7 @@ type NatsService interface {
 	Conn() common.NatsConn
 	Shutdown()
 	CloseUserTask(ctx context.Context, trackingID string) error
-	OwnerId(name string) (string, error)
+	OwnerID(name string) (string, error)
 	OwnerName(id string) (string, error)
-	GetOldState(id string) (*model.WorkflowState, error)
+	GetOldState(ctx context.Context, id string) (*model.WorkflowState, error)
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
-	"go.uber.org/zap"
+
 	"os"
 )
 
@@ -14,16 +14,8 @@ func main() {
 	// Create a starting context
 	ctx := context.Background()
 
-	// Create logger
-	log, _ := zap.NewDevelopment()
-
-	defer func() {
-		if err := log.Sync(); err != nil {
-		}
-	}()
-
 	// Dial shar
-	cl := client.New(log)
+	cl := client.New()
 	if err := cl.Dial(nats.DefaultURL); err != nil {
 		panic(err)
 	}
@@ -42,6 +34,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	cl.RegisterWorkflowInstanceComplete(complete)
@@ -69,7 +62,7 @@ func main() {
 }
 
 // A "Hello World" service task
-func simpleProcess(_ context.Context, _ model.Vars) (model.Vars, error) {
+func simpleProcess(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Hello World")
 	return model.Vars{}, nil
 }

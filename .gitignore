@@ -15,6 +15,7 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 .idea
+.vscode
 
 # private tests
 examples/private
@@ -28,3 +29,5 @@ build/
 /server/shar
 /server/shar-telemetry
 /common/version/version.go
+/zen-shar/cmd/zen-shar/zen-shar
+/cli/cmd/shar/shar

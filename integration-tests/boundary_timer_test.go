@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
-	"go.uber.org/zap"
 	"os"
 	"sync"
 	"testing"
@@ -30,9 +29,10 @@ func TestBoundaryTimer(t *testing.T) {
 		assert.Fail(t, "Timed out")
 	}
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
+	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
 	fmt.Println("CheckResult Called:", d.CheckResultCalled)
-	//tst.AssertCleanKV()
+	tst.AssertCleanKV()
 }
 
 func TestBoundaryTimerTimeout(t *testing.T) {
@@ -57,9 +57,10 @@ func TestBoundaryTimerTimeout(t *testing.T) {
 		assert.Fail(t, "Timed out")
 	}
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
+	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
 	fmt.Println("CheckResult Called:", d.CheckResultCalled)
-	//tst.AssertCleanKV()
+	tst.AssertCleanKV()
 }
 
 func TestExclusiveGateway(t *testing.T) {
@@ -81,9 +82,10 @@ func TestExclusiveGateway(t *testing.T) {
 
 	}
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
+	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
 	fmt.Println("CheckResult Called:", d.CheckResultCalled)
-	//tst.AssertCleanKV()
+	tst.AssertCleanKV()
 }
 
 func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanceComplete, d *testBoundaryTimerDef) {
@@ -91,11 +93,8 @@ func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanc
 	// Create a starting context
 	ctx := context.Background()
 
-	// Create logger
-	log, _ := zap.NewDevelopment()
-
 	// Dial shar
-	cl := client.New(log, client.WithEphemeralStorage())
+	cl := client.New(client.WithEphemeralStorage())
 	err := cl.Dial(natsURL)
 	require.NoError(t, err)
 
@@ -113,6 +112,8 @@ func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanc
 	err = cl.RegisterServiceTask(ctx, "TimedOut", d.timedOut)
 	require.NoError(t, err)
 	err = cl.RegisterServiceTask(ctx, "CheckResult", d.checkResult)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "NoTimeout", d.noTimeout)
 	require.NoError(t, err)
 
 	// Launch the workflow
@@ -132,12 +133,13 @@ type testBoundaryTimerDef struct {
 	CheckResultCalled int
 	CanTimeOutCalled  int
 	TimedOutCalled    int
+	NoTimeoutCalled   int
 	CanTimeOutPause   time.Duration
 	CheckResultPause  time.Duration
+	NoTimeoutPause    time.Duration
 }
 
-func (d *testBoundaryTimerDef) canTimeout(ctx context.Context, vars model.Vars) (model.Vars, error) {
-	fmt.Println("Can timeout")
+func (d *testBoundaryTimerDef) canTimeout(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	d.mx.Lock()
 	d.CanTimeOutCalled++
 	d.mx.Unlock()
@@ -145,16 +147,22 @@ func (d *testBoundaryTimerDef) canTimeout(ctx context.Context, vars model.Vars) 
 	return vars, nil
 }
 
-func (d *testBoundaryTimerDef) timedOut(ctx context.Context, vars model.Vars) (model.Vars, error) {
-	fmt.Println("Timed out")
+func (d *testBoundaryTimerDef) noTimeout(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+	d.mx.Lock()
+	d.NoTimeoutCalled++
+	d.mx.Unlock()
+	time.Sleep(d.NoTimeoutPause)
+	return vars, nil
+}
+
+func (d *testBoundaryTimerDef) timedOut(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	d.mx.Lock()
 	d.TimedOutCalled++
 	d.mx.Unlock()
 	return vars, nil
 }
 
-func (d *testBoundaryTimerDef) checkResult(ctx context.Context, vars model.Vars) (model.Vars, error) {
-	fmt.Println("Check result")
+func (d *testBoundaryTimerDef) checkResult(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	d.mx.Lock()
 	d.CheckResultCalled++
 	d.mx.Unlock()

@@ -6,7 +6,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
-	"go.uber.org/zap"
 	"os"
 	"sync"
 	"time"
@@ -15,13 +14,9 @@ import (
 func main() {
 	// Create a starting context
 	ctx := context.Background()
-
-	// Create logger
-	log, _ := zap.NewDevelopment()
-
 	// Dial shar
-	cl1 := client.New(log)
-	cl2 := client.New(log)
+	cl1 := client.New()
+	cl2 := client.New()
 	if err := cl1.Dial(nats.DefaultURL); err != nil {
 		panic(err)
 	}
@@ -133,43 +128,43 @@ func main() {
 	fmt.Println(-time.Until(sw))
 }
 
-func stage1Task(_ context.Context, _ model.Vars) (model.Vars, error) {
+func stage1Task(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	//fmt.Println("stage1")
 	return model.Vars{}, nil
 }
 
-func stage2Task(_ context.Context, _ model.Vars) (model.Vars, error) {
+func stage2Task(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	//fmt.Println("stage2")
 	return model.Vars{}, nil
 }
 
-func readyTask(_ context.Context, _ model.Vars) (model.Vars, error) {
+func readyTask(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	//fmt.Println("ready")
 	time.Sleep(1 * time.Second)
 	return model.Vars{}, nil
 }
 
-func steadyTask(_ context.Context, _ model.Vars) (model.Vars, error) {
+func steadyTask(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	//fmt.Println("steady")
 	return model.Vars{}, nil
 }
 
-func goTask(_ context.Context, _ model.Vars) (model.Vars, error) {
+func goTask(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	//fmt.Println("go")
 	return model.Vars{"IsWinner": true}, nil
 }
 
-func winTask(_ context.Context, _ model.Vars) (model.Vars, error) {
+func winTask(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	//fmt.Println("win")
 	return model.Vars{}, nil
 }
 
-func loseTask(_ context.Context, _ model.Vars) (model.Vars, error) {
+func loseTask(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	//fmt.Println("lose")
 	return model.Vars{}, nil
 }
 
-func sub1Task(_ context.Context, _ model.Vars) (model.Vars, error) {
+func sub1Task(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	time.Sleep(1 * time.Second)
 	//fmt.Println("sub workflow task 1")
 	return model.Vars{}, nil

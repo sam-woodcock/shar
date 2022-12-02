@@ -6,7 +6,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
-	"go.uber.org/zap"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -16,11 +16,8 @@ func main() {
 	// Create a starting context
 	ctx := context.Background()
 
-	// Create logger
-	log, _ := zap.NewDevelopment()
-
 	// Dial shar
-	cl1 := client.New(log)
+	cl1 := client.New()
 
 	if err := cl1.Dial(nats.DefaultURL); err != nil {
 		panic(err)
@@ -82,17 +79,20 @@ func main() {
 	fmt.Println(-time.Until(sw))
 }
 
-func step1(_ context.Context, _ model.Vars) (model.Vars, error) {
+func step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Step 1")
 	return model.Vars{}, nil
 }
 
-func step2(_ context.Context, _ model.Vars) (model.Vars, error) {
+func step2(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Step 2")
 	return model.Vars{}, nil
 }
 
-func sendMessage(ctx context.Context, cmd *client.Command, _ model.Vars) error {
+func sendMessage(ctx context.Context, cmd client.MessageClient, _ model.Vars) error {
 	fmt.Println("Sending Message...")
-	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{})
+	if err := cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{}); err != nil {
+		return fmt.Errorf("failed to send continue message: %w", err)
+	}
+	return nil
 }

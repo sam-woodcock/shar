@@ -7,11 +7,12 @@ type Option interface {
 
 // EphemeralStorage instructs SHAR to use memory rather than disk for storage.
 // This is not recommended for production use.
-func EphemeralStorage() ephemeralStorageOption {
+func EphemeralStorage() ephemeralStorageOption { //nolint
 	return ephemeralStorageOption{}
 }
 
-type ephemeralStorageOption struct{}
+type ephemeralStorageOption struct {
+}
 
 func (o ephemeralStorageOption) configure(server *Server) {
 	server.ephemeralStorage = true
@@ -19,7 +20,7 @@ func (o ephemeralStorageOption) configure(server *Server) {
 
 // PanicRecovery enables or disables SHAR's ability to recover from server panics.
 // This is on by default, and disabling it is not recommended for production use.
-func PanicRecovery(enabled bool) panicOption {
+func PanicRecovery(enabled bool) panicOption { //nolint
 	return panicOption{value: enabled}
 }
 
@@ -30,7 +31,7 @@ func (o panicOption) configure(server *Server) {
 }
 
 // PreventOrphanServiceTasks enables or disables SHAR's validation of service task names againt existing workflows.
-func PreventOrphanServiceTasks() orphanTaskOption {
+func PreventOrphanServiceTasks() orphanTaskOption { //nolint
 	return orphanTaskOption{value: true}
 }
 

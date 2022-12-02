@@ -1,16 +1,18 @@
 package expression
 
 import (
+	"context"
 	"fmt"
 	"github.com/antonmedv/expr"
 	"github.com/antonmedv/expr/ast"
 	"github.com/antonmedv/expr/parser"
+	"gitlab.com/shar-workflow/shar/common/logx"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
-	"go.uber.org/zap"
 	"strings"
 )
 
-func Eval[T any](log *zap.Logger, exp string, vars map[string]interface{}) (retval T, reterr error) { //nolint:ireturn
+// Eval evaluates an expression given a set of variables and returns a generic type.
+func Eval[T any](ctx context.Context, exp string, vars map[string]interface{}) (retval T, reterr error) { //nolint:ireturn
 	ex, err := expr.Compile(exp)
 	if err != nil {
 		return *new(T), fmt.Errorf(err.Error()+": %w", &errors2.ErrWorkflowFatal{Err: err})
@@ -18,22 +20,21 @@ func Eval[T any](log *zap.Logger, exp string, vars map[string]interface{}) (retv
 
 	res, err := expr.Run(ex, vars)
 	if err != nil {
-		return *new(T), err
+		return *new(T), fmt.Errorf("failed to evaluate expression: %w", err)
 	}
 
 	defer func() {
 		if err := recover(); err != nil {
-			errex := fmt.Errorf("error evaluating expression: %+v: %+v: %w", exp, err, &errors2.ErrWorkflowFatal{Err: err.(error)})
-			log.Error(errex.Error())
 			retval = *new(T)
-			reterr = errex
+			reterr = logx.Err(ctx, "error evaluating expression", &errors2.ErrWorkflowFatal{Err: err.(error)}, "expression", exp)
 		}
 	}()
 
 	return res.(T), nil
 }
 
-func EvalAny(log *zap.Logger, exp string, vars map[string]interface{}) (retval interface{}, reterr error) { //nolint:ireturn
+// EvalAny evaluates an expression given a set of variables and returns a 'boxed' interface type.
+func EvalAny(ctx context.Context, exp string, vars map[string]interface{}) (retval interface{}, reterr error) { //nolint:ireturn
 	exp = strings.TrimSpace(exp)
 	if len(exp) == 0 {
 		return "", nil
@@ -45,26 +46,25 @@ func EvalAny(log *zap.Logger, exp string, vars map[string]interface{}) (retval i
 	}
 	ex, err := expr.Compile(exp)
 	if err != nil {
-		return nil, fmt.Errorf(err.Error()+": %w", &errors2.ErrWorkflowFatal{Err: err})
+		return nil, logx.Err(ctx, "error compiling expression", &errors2.ErrWorkflowFatal{Err: err}, "expression", exp)
 	}
 
 	res, err := expr.Run(ex, vars)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed during expression execution: %w", err)
 	}
 
 	defer func() {
 		if err := recover(); err != nil {
-			errex := fmt.Errorf("error evaluating expression: %+v: %+v: %w", exp, err, &errors2.ErrWorkflowFatal{Err: err.(error)})
-			log.Error(errex.Error())
 			retval = nil
-			reterr = errex
+			reterr = logx.Err(ctx, "error evaluating expression", &errors2.ErrWorkflowFatal{Err: err.(error)}, "expression", exp)
 		}
 	}()
 
 	return res, nil
 }
 
+// GetVariables returns a list of variables mentioned in an expression
 func GetVariables(exp string) (map[string]struct{}, error) {
 	ret := make(map[string]struct{})
 	exp = strings.TrimSpace(exp)
@@ -78,7 +78,7 @@ func GetVariables(exp string) (map[string]struct{}, error) {
 	}
 	c, err := parser.Parse(exp)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get variables failed to parse expression %w", err)
 	}
 
 	g := &variableWalker{v: make(map[string]struct{})}
@@ -90,6 +90,7 @@ type variableWalker struct {
 	v map[string]struct{}
 }
 
+// Enter is called from the visitor to iterate all IdentifierNode types
 func (w *variableWalker) Enter(n *ast.Node) {
 	switch t := (*n).(type) {
 	case *ast.IdentifierNode:
@@ -97,4 +98,5 @@ func (w *variableWalker) Enter(n *ast.Node) {
 	}
 }
 
+// Exit is unused in the variableWalker implementation
 func (w *variableWalker) Exit(_ *ast.Node) {}

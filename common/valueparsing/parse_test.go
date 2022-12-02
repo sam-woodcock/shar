@@ -19,7 +19,7 @@ func TestParse(t *testing.T) {
 	args := []string{`"orderId":int(78)`, `"height":float64(103.101)`}
 	vars, err := Parse(args)
 	require.NoError(t, err)
-	expectedOrderID := int(78)
+	expectedOrderID := 78
 	expectedHeight := float64(103.101)
 	assert.Equal(t, expectedOrderID, (*vars)["orderId"], "Parser returned wrong value")
 	assert.Equal(t, expectedHeight, (*vars)["height"], "Parser returned wrong value")

@@ -1,10 +1,10 @@
 package parser
 
 import (
-	"errors"
 	"fmt"
 	"github.com/antchfx/xmlquery"
 	"gitlab.com/shar-workflow/shar/model"
+	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"io"
 	"strconv"
 	"strings"
@@ -15,52 +15,53 @@ import (
 //goland:noinspection HttpUrlsUsage
 const bpmnNS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 
+// Parse parses BPMN, and turns it into a SHAR state machine
 func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 	msgs := make(map[string]string)
 	errs := make(map[string]string)
 	doc, err := xmlquery.Parse(rdr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse xml: %w", err)
 	}
 	prXmls := doc.SelectElements("//bpmn:process")
 	wf := &model.Workflow{
 		Name:    name,
 		Process: make(map[string]*model.Process, len(prXmls)),
 	}
-	for _, prXml := range prXmls {
+	for _, prXML := range prXmls {
 		pr := &model.Process{
 			Elements: make([]*model.Element, 0),
 		}
-		msgXml := doc.SelectElements("//bpmn:message")
-		errXml := doc.SelectElements("//bpmn:error")
-		pr.Name = prXml.SelectAttr("id")
-		if err := parseProcess(doc, wf, prXml, pr, msgXml, errXml, msgs, errs); err != nil {
-			return nil, err
+		msgXML := doc.SelectElements("//bpmn:message")
+		errXML := doc.SelectElements("//bpmn:error")
+		pr.Name = prXML.SelectAttr("id")
+		if err := parseProcess(doc, wf, prXML, pr, msgXML, errXML, msgs, errs); err != nil {
+			return nil, fmt.Errorf("failed to parse process: %w", err)
 		}
 		wf.Process[pr.Name] = pr
 	}
 
 	if err := validModel(wf); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("model is invalid: %w", err)
 	}
 
 	return wf, nil
 }
 
-func parseProcess(doc *xmlquery.Node, wf *model.Workflow, prXml *xmlquery.Node, pr *model.Process, msgXml []*xmlquery.Node, errXml []*xmlquery.Node, msgs map[string]string, errs map[string]string) error {
-	for _, i := range prXml.SelectElements("*") {
+func parseProcess(doc *xmlquery.Node, wf *model.Workflow, prXML *xmlquery.Node, pr *model.Process, msgXML []*xmlquery.Node, errXML []*xmlquery.Node, msgs map[string]string, errs map[string]string) error {
+	for _, i := range prXML.SelectElements("*") {
 		if err := parseElements(doc, wf, pr, i, msgs, errs); err != nil {
-			return err
+			return fmt.Errorf("fasiled to parse elements: %w", err)
 		}
 	}
-	if msgXml != nil {
-		parseMessages(doc, wf, msgXml, msgs)
+	if msgXML != nil {
+		parseMessages(doc, wf, msgXML, msgs)
 	}
-	if errXml != nil {
-		parseErrors(doc, wf, errXml, errs)
+	if errXML != nil {
+		parseErrors(doc, wf, errXML, errs)
 	}
-	for _, i := range prXml.SelectElements("//bpmn:boundaryEvent") {
-		parseBoundaryEvent(i, pr)
+	for _, i := range prXML.SelectElements("//bpmn:boundaryEvent") {
+		parseBoundaryEvent(doc, i, pr)
 	}
 
 	return nil
@@ -108,7 +109,7 @@ func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i 
 
 		if i.Data == "startEvent" {
 			if err := parseStartEvent(i, el); err != nil {
-				return err
+				return fmt.Errorf("failed to parse start events: %w", err)
 			}
 		}
 
@@ -118,10 +119,10 @@ func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i 
 		parseElementErrors(doc, i, el)
 		parseZeebeExtensions(doc, el, i)
 		if err := parseSubprocess(doc, wf, el, i, msgs, errs); err != nil {
-			return err
+			return fmt.Errorf("failed to parse sub-processes: %w", err)
 		}
 		if err := parseSubscription(wf, el, i, msgs, errs); err != nil {
-			return err
+			return fmt.Errorf("failed to parse subscription: %w", err)
 		}
 		pr.Elements = append(pr.Elements, el)
 	}
@@ -133,32 +134,31 @@ func parseStartEvent(n *xmlquery.Node, el *model.Element) error {
 		timeCycle := def.SelectElement("bpmn:timeCycle/text()")
 		timeDate := def.SelectElement("bpmn:timeDate/text()")
 		if timeCycle == nil && timeDate == nil {
-			return errors.New("found timerEventDefinition, but it had no time or Duration specified")
+			return fmt.Errorf("could not parse start event: %w", errors2.ErrBadTimerEventDefinition)
 		}
 		var t *model.WorkflowTimerDefinition
 		if timeDate != nil {
 			tval, err := iso8601.ParseString(timeDate.Data)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to parse ISO8601 duration: %w", err)
 			}
 			t = &model.WorkflowTimerDefinition{
 				Type:  model.WorkflowTimerType_fixed,
 				Value: tval.UnixNano(),
 			}
 		} else {
-			badFormat := errors.New("time cycle was not in the correct format")
 			parts := strings.Split(timeCycle.Data, "/")
 			if len(timeCycle.Data) == 0 || len(parts) > 2 || timeCycle.Data[0] != 'R' || !strings.Contains(timeCycle.Data, "/") {
-				return badFormat
+				return fmt.Errorf("time cycle was malformed: %w", errors2.ErrBadTimeCycle)
 			}
 
 			repeat, err := strconv.Atoi(parts[0][1:])
 			if err != nil {
-				return badFormat
+				return fmt.Errorf("could not parse time cycle repeat: %w", errors2.ErrBadTimeCycle)
 			}
 			dur, err := ParseISO8601(parts[1])
 			if err != nil {
-				return badFormat
+				return fmt.Errorf("parse ISO 8601 failed: %w", err)
 			}
 			t = &model.WorkflowTimerDefinition{
 				Type:       model.WorkflowTimerType_duration,
@@ -184,7 +184,7 @@ func parseElementErrors(doc *xmlquery.Node, i *xmlquery.Node, el *model.Element)
 	}
 }
 
-func parseBoundaryEvent(i *xmlquery.Node, pr *model.Process) {
+func parseBoundaryEvent(doc *xmlquery.Node, i *xmlquery.Node, pr *model.Process) {
 	attach := i.SelectAttr("attachedToRef")
 	var el *model.Element
 	for _, i := range pr.Elements {
@@ -202,11 +202,13 @@ func parseBoundaryEvent(i *xmlquery.Node, pr *model.Process) {
 				target = v.SelectAttr("targetRef")
 			}
 		}
-		el.Errors = append(el.Errors, &model.CatchError{
+		newCatchErr := &model.CatchError{
 			Id:      i.SelectElement("//bpmn:errorEventDefinition/@id").InnerText(),
 			ErrorId: errorRef.InnerText(),
 			Target:  target,
-		})
+		}
+		parseZeebeExtensions(doc, newCatchErr, i)
+		el.Errors = append(el.Errors, newCatchErr)
 	}
 	if timerEvent := i.SelectElement("//bpmn:timerEventDefinition"); timerEvent != nil {
 		fmt.Println(attach, timerEvent.InnerText())
@@ -219,11 +221,13 @@ func parseBoundaryEvent(i *xmlquery.Node, pr *model.Process) {
 			}
 		}
 		durationExpr := i.SelectElement("//bpmn:timeDuration").InnerText()
-		el.BoundaryTimer = append(el.BoundaryTimer, &model.Timer{
+		newTimer := &model.Timer{
 			Id:       i.SelectElement("//bpmn:timerEventDefinition/@id").InnerText(),
 			Duration: durationExpr,
 			Target:   target,
-		})
+		}
+		parseZeebeExtensions(doc, newTimer, i)
+		el.BoundaryTimer = append(el.BoundaryTimer, newTimer)
 	}
 }
 
@@ -244,7 +248,7 @@ func parseSubscription(wf *model.Workflow, el *model.Element, i *xmlquery.Node, 
 			el.Msg = msgs[ref]
 			c, err := getCorrelation(wf.Messages, el.Msg)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to get subscription correlation: %w", err)
 			}
 			el.Execute = c
 			return nil
@@ -254,7 +258,7 @@ func parseSubscription(wf *model.Workflow, el *model.Element, i *xmlquery.Node, 
 			el.Type = "timerIntermediateCatchEvent"
 			dur, err := parseDuration(ref)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to parse duration: %w", err)
 			}
 			el.Execute = dur
 			return nil
@@ -284,7 +288,7 @@ func getCorrelation(messages []*model.Element, msg string) (string, error) {
 			return v.Execute, nil
 		}
 	}
-	return "", errors.New("could not find message: " + msg)
+	return "", fmt.Errorf("could not find message %s: %w", msg, errors2.ErrCorrelationFail)
 }
 
 func parseSubprocess(doc *xmlquery.Node, wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string, errs map[string]string) error {
@@ -293,7 +297,7 @@ func parseSubprocess(doc *xmlquery.Node, wf *model.Workflow, el *model.Element, 
 			Elements: make([]*model.Element, 0),
 		}
 		if err := parseProcess(doc, wf, i, pr, nil, nil, msgs, errs); err != nil {
-			return err
+			return fmt.Errorf("failed to parse process: %w", err)
 		}
 		el.Process = pr
 	}
@@ -316,9 +320,8 @@ func parseConditions(i *xmlquery.Node) []string {
 	}
 	if len(cds) > 0 {
 		return cds
-	} else {
-		return nil
 	}
+	return nil
 }
 
 func parseCoreValues(i *xmlquery.Node, el *model.Element) {

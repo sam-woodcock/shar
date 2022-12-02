@@ -3,12 +3,11 @@ package intTests
 import (
 	"context"
 	"errors"
-	"fmt"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	"gitlab.com/shar-workflow/shar/model"
-	"go.uber.org/zap"
 	"os"
 	"testing"
 )
@@ -18,14 +17,14 @@ func TestHandledError(t *testing.T) {
 	tst.setup(t)
 	defer tst.teardown()
 
+	//sub := tracer.Trace("nats://127.0.0.1:4459")
+	//defer sub.Drain()
+
 	// Create a starting context
 	ctx := context.Background()
 
-	// Create logger
-	log, _ := zap.NewDevelopment()
-
 	// Dial shar
-	cl := client.New(log)
+	cl := client.New()
 	if err := cl.Dial(natsURL); err != nil {
 		panic(err)
 	}
@@ -39,7 +38,7 @@ func TestHandledError(t *testing.T) {
 		panic(err)
 	}
 
-	d := errorHandledHandlerDef{}
+	d := errorHandledHandlerDef{tst: tst}
 
 	// Register a service task
 	err = cl.RegisterServiceTask(ctx, "couldThrowError", d.mayFail)
@@ -71,23 +70,24 @@ func TestHandledError(t *testing.T) {
 			break
 		}
 	}
-	// todo: tst.AssertCleanKV()
+	tst.AssertCleanKV()
 }
 
 type errorHandledHandlerDef struct {
 	fixed bool
+	tst   *integration
 }
 
 // A "Hello World" service task
-func (d *errorHandledHandlerDef) mayFail(_ context.Context, _ model.Vars) (model.Vars, error) {
-	fmt.Println("Throw handled error")
-	return model.Vars{"success": false}, workflow.Error{Code: "101", WrappedError: errors.New("things went badly")}
+func (d *errorHandledHandlerDef) mayFail(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
+	//Throw handled error
+	return model.Vars{"success": false, "myVar": 69}, workflow.Error{Code: "101", WrappedError: errors.New("things went badly")}
 }
 
 // A "Hello World" service task
-func (d *errorHandledHandlerDef) fixSituation(_ context.Context, vars model.Vars) (model.Vars, error) {
-	fmt.Println("Fixing")
-	fmt.Println("carried", vars["carried"])
+func (d *errorHandledHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+	assert.Equal(d.tst.test, 69, vars["testVal"])
+	assert.Equal(d.tst.test, 32768, vars["carried"])
 	d.fixed = true
 	return model.Vars{}, nil
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
-	"go.uber.org/zap"
 	"os"
 	"testing"
 	"time"
@@ -21,11 +20,8 @@ func TestSimple(t *testing.T) {
 	// Create a starting context
 	ctx := context.Background()
 
-	// Create logger
-	log, _ := zap.NewDevelopment()
-
 	// Dial shar
-	cl := client.New(log, client.WithEphemeralStorage())
+	cl := client.New(client.WithEphemeralStorage())
 	err := cl.Dial(natsURL)
 	require.NoError(t, err)
 
@@ -38,7 +34,7 @@ func TestSimple(t *testing.T) {
 
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 
-	d := &testSimpleHandlerDef{}
+	d := &testSimpleHandlerDef{t: t}
 
 	// Register a service task
 	cl.RegisterWorkflowInstanceComplete(complete)
@@ -65,10 +61,12 @@ func TestSimple(t *testing.T) {
 }
 
 type testSimpleHandlerDef struct {
+	t *testing.T
 }
 
-func (d *testSimpleHandlerDef) integrationSimple(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *testSimpleHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Hi")
-	fmt.Println("carried", vars["carried"])
+	assert.Equal(d.t, 32768, vars["carried"].(int))
+	vars["Success"] = true
 	return vars, nil
 }

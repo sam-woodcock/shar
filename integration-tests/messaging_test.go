@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
-	"go.uber.org/zap"
+	"gitlab.com/shar-workflow/shar/server/messages"
 	"os"
 	"sync"
 	"testing"
@@ -23,12 +23,10 @@ func TestMessaging(t *testing.T) {
 	// Create a starting context
 	ctx := context.Background()
 
-	// Create logger
-	log, _ := zap.NewDevelopment()
-	handlers := &testMessagingHandlerDef{log: log, wg: sync.WaitGroup{}, tst: tst}
+	handlers := &testMessagingHandlerDef{wg: sync.WaitGroup{}, tst: tst}
 
 	// Dial shar
-	cl := client.New(log, client.WithEphemeralStorage())
+	cl := client.New(client.WithEphemeralStorage())
 	err := cl.Dial(natsURL)
 	require.NoError(t, err)
 
@@ -51,12 +49,12 @@ func TestMessaging(t *testing.T) {
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	if wfid, err := cl.LaunchWorkflow(ctx, "TestMessaging", model.Vars{"orderId": 57}); err != nil {
+	wfid, err := cl.LaunchWorkflow(ctx, "TestMessaging", model.Vars{"orderId": 57})
+	if err != nil {
 		t.Fatal(err)
 		return
-	} else {
-		fmt.Println("Started", wfid)
 	}
+	fmt.Println("Started", wfid)
 
 	// Listen for service tasks
 	go func() {
@@ -76,25 +74,33 @@ func TestMessaging(t *testing.T) {
 }
 
 type testMessagingHandlerDef struct {
-	log *zap.Logger
 	wg  sync.WaitGroup
 	tst *integration
 }
 
-func (x *testMessagingHandlerDef) step1(_ context.Context, vars model.Vars) (model.Vars, error) {
-	x.log.Info("Step 1")
+func (x *testMessagingHandlerDef) step1(ctx context.Context, client client.JobClient, _ model.Vars) (model.Vars, error) {
+	if err := client.Log(ctx, messages.LogInfo, -1, "Step 1", nil); err != nil {
+		return nil, fmt.Errorf("failed to log: %w", err)
+	}
 	return model.Vars{}, nil
 }
 
-func (x *testMessagingHandlerDef) step2(_ context.Context, vars model.Vars) (model.Vars, error) {
-	x.log.Info("Step 2")
+func (x *testMessagingHandlerDef) step2(ctx context.Context, client client.JobClient, vars model.Vars) (model.Vars, error) {
+	if err := client.Log(ctx, messages.LogInfo, -1, "Step 2", nil); err != nil {
+		return nil, fmt.Errorf("failed to log: %w", err)
+	}
 	x.tst.mx.Lock()
 	x.tst.finalVars = vars
 	x.tst.mx.Unlock()
 	return model.Vars{}, nil
 }
 
-func (x *testMessagingHandlerDef) sendMessage(ctx context.Context, cmd *client.Command, vars model.Vars) error {
-	x.log.Info("Sending Message...")
-	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]})
+func (x *testMessagingHandlerDef) sendMessage(ctx context.Context, client client.MessageClient, vars model.Vars) error {
+	if err := client.Log(ctx, messages.LogDebug, -1, "Sending Message...", nil); err != nil {
+		return fmt.Errorf("failed to log: %w", err)
+	}
+	if err := client.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]}); err != nil {
+		return fmt.Errorf("failed to send continue message: %w", err)
+	}
+	return nil
 }

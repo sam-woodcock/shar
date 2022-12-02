@@ -8,8 +8,8 @@ import (
 	"gitlab.com/shar-workflow/shar/cli/commands/usertask"
 	"gitlab.com/shar-workflow/shar/cli/commands/workflow"
 	"gitlab.com/shar-workflow/shar/cli/flag"
-	"gitlab.com/shar-workflow/shar/cli/output"
-	"go.uber.org/zap"
+	"gitlab.com/shar-workflow/shar/common/logx"
+	"golang.org/x/exp/slog"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -42,20 +42,19 @@ func init() {
 	rootCmd.AddCommand(usertask.Cmd)
 	rootCmd.PersistentFlags().StringVarP(&flag.Value.Server, flag.Server, flag.ServerShort, nats.DefaultURL, "sets the address of a NATS server")
 	rootCmd.PersistentFlags().StringVarP(&flag.Value.LogLevel, flag.LogLevel, flag.LogLevelShort, "error", "sets the logging level for the CLI")
-	var err error
-	lev, err := zap.ParseAtomicLevel(flag.Value.LogLevel)
-	if err != nil {
-		panic("could not parse log level")
+
+	var lev slog.Level
+	var addSource bool
+	switch flag.Value.LogLevel {
+	case "debug":
+		lev = slog.DebugLevel
+		addSource = true
+	case "info":
+		lev = slog.InfoLevel
+	case "warn":
+		lev = slog.WarnLevel
+	default:
+		lev = slog.ErrorLevel
 	}
-	output.Logger, err = zap.Config{
-		Level:            lev,
-		Development:      true,
-		Encoding:         "console",
-		EncoderConfig:    zap.NewDevelopmentEncoderConfig(),
-		OutputPaths:      []string{"stderr"},
-		ErrorOutputPaths: []string{"stderr"},
-	}.Build()
-	if err != nil {
-		panic(err)
-	}
+	logx.SetDefault(lev, addSource, "shar-cli")
 }

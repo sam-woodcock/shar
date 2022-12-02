@@ -7,7 +7,6 @@ import (
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	"gitlab.com/shar-workflow/shar/model"
-	"go.uber.org/zap"
 	"os"
 	"testing"
 )
@@ -17,14 +16,14 @@ func TestUnhandledError(t *testing.T) {
 	tst.setup(t)
 	defer tst.teardown()
 
+	//sub := tracer.Trace(natsURL)
+	//defer sub.Drain()
+
 	// Create a starting context
 	ctx := context.Background()
 
-	// Create logger
-	log, _ := zap.NewDevelopment()
-
 	// Dial shar
-	cl := client.New(log)
+	cl := client.New()
 	if err := cl.Dial(natsURL); err != nil {
 		panic(err)
 	}
@@ -70,20 +69,20 @@ func TestUnhandledError(t *testing.T) {
 			break
 		}
 	}
-	//TODO: tst.AssertCleanKV()
+	tst.AssertCleanKV()
 }
 
 type testErrorUnhandledHandlerDef struct {
 }
 
 // A "Hello World" service task
-func (d *testErrorUnhandledHandlerDef) mayFail(_ context.Context, _ model.Vars) (model.Vars, error) {
+func (d *testErrorUnhandledHandlerDef) mayFail(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Throw unhandled error")
 	return model.Vars{"success": false}, workflow.Error{Code: "102"}
 }
 
 // A "Hello World" service task
-func (d *testErrorUnhandledHandlerDef) fixSituation(_ context.Context, vars model.Vars) (model.Vars, error) {
+func (d *testErrorUnhandledHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Fixing")
 	fmt.Println("carried", vars["carried"])
 	return model.Vars{}, nil

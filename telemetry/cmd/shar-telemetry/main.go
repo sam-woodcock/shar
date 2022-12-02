@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/subj"
@@ -11,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
-	"go.uber.org/zap"
 	"os"
 	"time"
 )
@@ -23,12 +25,6 @@ const (
 )
 
 func main() {
-
-	// Create a logger
-	log, err := zap.NewDevelopment()
-	if err != nil {
-		panic(err)
-	}
 
 	// Get the configuration
 	cfg, err := config.GetEnvironment()
@@ -90,20 +86,22 @@ func main() {
 		panic(err)
 	}
 
-	svr := server.New(js, log, res, exp)
+	ctx := context.Background()
+	svr := server.New(ctx, js, res, exp)
 	if err := svr.Listen(); err != nil {
 		panic(err)
 	}
 	time.Sleep(100 * time.Hour)
 }
 
+// EnsureConsumer sets up a new NATS consumer if one does not already exist.
 func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
-	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); err == nats.ErrConsumerNotFound {
+	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); errors.Is(err, nats.ErrConsumerNotFound) {
 		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
 			panic(err)
 		}
 	} else if err != nil {
-		return err
+		return fmt.Errorf("ensure consumer failed to get consumer info: %w", err)
 	}
 	return nil
 }

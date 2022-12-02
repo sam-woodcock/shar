@@ -2,7 +2,8 @@ package client
 
 import "github.com/nats-io/nats.go"
 
-func WithEphemeralStorage() ephemeralStorage {
+// WithEphemeralStorage specifies a client store the result of all operations in memory.
+func WithEphemeralStorage() ephemeralStorage { //nolint
 	return ephemeralStorage{}
 }
 

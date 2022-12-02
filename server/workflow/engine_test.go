@@ -15,21 +15,21 @@ import (
 func TestLaunchWorkflow(t *testing.T) {
 	ctx := context.Background()
 
-	_, eng, svc, wf := setupTestWorkflow(t, "simple-workflow.bpmn")
+	eng, svc, wf := setupTestWorkflow(t, "simple-workflow.bpmn")
 
 	process := wf.Process["WorkflowDemo"]
 	els := make(map[string]*model.Element)
 	common.IndexProcessElements(process.Elements, els)
 
-	svc.On("GetLatestVersion", mock.AnythingOfType("*context.emptyCtx"), mock.AnythingOfType("string")).
+	svc.On("GetLatestVersion", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string")).
 		Once().
 		Return("test-workflow-id", nil)
 
-	svc.On("GetWorkflow", mock.AnythingOfType("*context.emptyCtx"), "test-workflow-id").
+	svc.On("GetWorkflow", mock.AnythingOfType("*context.valueCtx"), "test-workflow-id").
 		Once().
 		Return(wf, nil)
 
-	svc.On("CreateWorkflowInstance", mock.AnythingOfType("*context.emptyCtx"), mock.AnythingOfType("*model.WorkflowInstance")).
+	svc.On("CreateWorkflowInstance", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.WorkflowInstance")).
 		Once().
 		Return(&model.WorkflowInstance{
 			WorkflowInstanceId:       "test-workflow-instance-id",
@@ -38,7 +38,7 @@ func TestLaunchWorkflow(t *testing.T) {
 			WorkflowId:               "test-workflow-id",
 		}, nil)
 
-	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.emptyCtx"), "WORKFLOW.%s.State.Traversal.Execute", mock.AnythingOfType("*model.WorkflowState")).
+	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.valueCtx"), "WORKFLOW.%s.State.Traversal.Execute", mock.AnythingOfType("*model.WorkflowState")).
 		Once().
 		Run(func(args mock.Arguments) {
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowId, "test-workflow-id")
@@ -48,7 +48,7 @@ func TestLaunchWorkflow(t *testing.T) {
 		}).
 		Return(nil)
 
-	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.emptyCtx"), "WORKFLOW.%s.State.Workflow.Execute", mock.AnythingOfType("*model.WorkflowState")).
+	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.valueCtx"), "WORKFLOW.%s.State.Workflow.Execute", mock.AnythingOfType("*model.WorkflowState")).
 		Once().
 		Run(func(args mock.Arguments) {
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowId, "test-workflow-id")
@@ -66,7 +66,7 @@ func TestLaunchWorkflow(t *testing.T) {
 func TestTraversal(t *testing.T) {
 	ctx := context.Background()
 
-	_, eng, svc, wf := setupTestWorkflow(t, "simple-workflow.bpmn")
+	eng, svc, wf := setupTestWorkflow(t, "simple-workflow.bpmn")
 
 	process := wf.Process["WorkflowDemo"]
 	els := make(map[string]*model.Element)
@@ -79,7 +79,7 @@ func TestTraversal(t *testing.T) {
 		WorkflowId:               "test-workflow-id",
 	}
 
-	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.emptyCtx"), "WORKFLOW.%s.State.Traversal.Execute", mock.AnythingOfType("*model.WorkflowState")).
+	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.valueCtx"), "WORKFLOW.%s.State.Traversal.Execute", mock.AnythingOfType("*model.WorkflowState")).
 		Once().
 		Run(func(args mock.Arguments) {
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowId, "test-workflow-id")
@@ -99,15 +99,15 @@ func TestTraversal(t *testing.T) {
 func TestActivityProcessorServiceTask(t *testing.T) {
 	ctx := context.Background()
 
-	_, eng, svc, wf := setupTestWorkflow(t, "simple-workflow.bpmn")
+	eng, svc, wf := setupTestWorkflow(t, "simple-workflow.bpmn")
 
 	process := wf.Process["WorkflowDemo"]
 	els := make(map[string]*model.Element)
 	common.IndexProcessElements(process.Elements, els)
 	id := "ljksdadlksajkldkjsakl"
-	svc.On("GetServiceTaskRoutingKey", mock.AnythingOfType("string")).Return(id, nil)
+	svc.On("GetServiceTaskRoutingKey", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string")).Return(id, nil)
 
-	svc.On("GetWorkflowInstance", mock.AnythingOfType("*context.emptyCtx"), "test-workflow-instance-id").
+	svc.On("GetWorkflowInstance", mock.AnythingOfType("*context.valueCtx"), "test-workflow-instance-id").
 		Once().
 		Return(&model.WorkflowInstance{
 			WorkflowInstanceId:       "test-workflow-instance-id",
@@ -116,11 +116,11 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 			WorkflowId:               "test-workflow-id",
 		}, nil)
 
-	svc.On("GetWorkflow", mock.AnythingOfType("*context.emptyCtx"), "test-workflow-id").
+	svc.On("GetWorkflow", mock.AnythingOfType("*context.valueCtx"), "test-workflow-id").
 		Once().
 		Return(wf, nil)
 
-	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.emptyCtx"), "WORKFLOW.%s.State.Activity.Execute", mock.AnythingOfType("*model.WorkflowState")).
+	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.valueCtx"), "WORKFLOW.%s.State.Activity.Execute", mock.AnythingOfType("*model.WorkflowState")).
 		Once().
 		Run(func(args mock.Arguments) {
 			assert.Equal(t, args[2].(*model.WorkflowState).ElementId, "Step1")
@@ -128,7 +128,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 		}).
 		Return(nil)
 
-	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.emptyCtx"), "WORKFLOW.%s.State.Traversal.Complete", mock.AnythingOfType("*model.WorkflowState")).
+	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.valueCtx"), "WORKFLOW.%s.State.Traversal.Complete", mock.AnythingOfType("*model.WorkflowState")).
 		Once().
 		Run(func(args mock.Arguments) {
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowId, "test-workflow-id")
@@ -139,7 +139,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 		}).
 		Return(nil)
 
-	svc.On("CreateJob", mock.AnythingOfType("*context.emptyCtx"), mock.AnythingOfType("*model.WorkflowState")).
+	svc.On("CreateJob", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.WorkflowState")).
 		Once().
 		Run(func(args mock.Arguments) {
 			assert.Equal(t, args[1].(*model.WorkflowState).WorkflowId, "test-workflow-id")
@@ -149,7 +149,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 		}).
 		Return("test-job-id", nil)
 
-	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.emptyCtx"), "WORKFLOW.default.State.Job.Execute.ServiceTask."+id, mock.AnythingOfType("*model.WorkflowState")).
+	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.valueCtx"), "WORKFLOW.default.State.Job.Execute.ServiceTask."+id, mock.AnythingOfType("*model.WorkflowState")).
 		Once().
 		Run(func(args mock.Arguments) {
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowId, "test-workflow-id")
@@ -160,7 +160,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 		}).
 		Return(nil)
 	trackingID := ksuid.New().String()
-	v, err := vars.Encode(nil, model.Vars{})
+	v, err := vars.Encode(context.Background(), model.Vars{})
 	require.NoError(t, err)
 	err = eng.activityStartProcessor(ctx, "", &model.WorkflowState{
 		WorkflowInstanceId: "test-workflow-instance-id",
@@ -194,7 +194,7 @@ func TestCompleteJobProcessor(t *testing.T) {
 			ElementType:        "serviceTask",
 			Id:                 []string{trackingID},
 			Execute:            nil,
-			State:              model.CancellationState_Executing,
+			State:              model.CancellationState_executing,
 			Condition:          nil,
 			UnixTimeNano:       0,
 			Vars:               []byte{},

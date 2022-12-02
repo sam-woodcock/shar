@@ -2,8 +2,10 @@ package start
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"gitlab.com/shar-workflow/shar/common/subj"
+	"golang.org/x/exp/slog"
 
 	"github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
@@ -14,30 +16,33 @@ import (
 	"gitlab.com/shar-workflow/shar/common/valueparsing"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/messages"
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
 
+// Cmd is the cobra command object
 var Cmd = &cobra.Command{
 	Use:   "start",
 	Short: "Starts a new workflow instance",
 	Long:  `shar workflow start "WorkflowName"`,
 	RunE:  run,
-	Args:  cobra.ExactValidArgs(1),
+	Args:  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 }
 
-func run(_ *cobra.Command, args []string) error {
+func run(cmd *cobra.Command, args []string) error {
+	if err := cmd.ValidateArgs(args); err != nil {
+		return fmt.Errorf("invalid arguments: %w", err)
+	}
 	vars := &model.Vars{}
 	var err error
 	if len(flag.Value.Vars) > 0 {
 		vars, err = valueparsing.Parse(flag.Value.Vars)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to parse flags: %w", err)
 		}
 	}
 
 	ctx := context.Background()
-	shar := client.New(output.Logger)
+	shar := client.New()
 	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
@@ -48,9 +53,6 @@ func run(_ *cobra.Command, args []string) error {
 	fmt.Println("workflow instance started. instance-id:", wfiID)
 
 	if flag.Value.DebugTrace {
-		// Create logger
-		log, _ := zap.NewDevelopment()
-
 		// Connect to a server
 		nc, _ := nats.Connect(nats.DefaultURL)
 
@@ -78,12 +80,12 @@ func run(_ *cobra.Command, args []string) error {
 		closer := make(chan struct{})
 		workflowMessages := make(chan *nats.Msg)
 
-		err = common.Process(ctx, js, log, "trace", closer, subj.NS(messages.WorkflowStateAll, "*"), "Tracing", 1, func(ctx context.Context, msg *nats.Msg) (bool, error) {
+		err = common.Process(ctx, js, "trace", closer, subj.NS(messages.WorkflowStateAll, "*"), "Tracing", 1, func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
 			workflowMessages <- msg
 			return true, nil
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("error starting debug trace processing: %w", err)
 		}
 
 		c := output.Console{}
@@ -91,13 +93,14 @@ func run(_ *cobra.Command, args []string) error {
 			var state = model.WorkflowState{}
 			err := proto.Unmarshal(msg.Data, &state)
 			if err != nil {
-				log.Error("unable to unmarshal message", zap.Error(err))
-				return err
+				log := slog.FromContext(ctx)
+				log.Error("unable to unmarshal message", err)
+				return fmt.Errorf("failed to unmarshal status trace message: %w", err)
 			}
 			if state.WorkflowInstanceId == wfiID {
 				err := c.OutputWorkflowInstanceStatus([]*model.WorkflowState{&state})
 				if err != nil {
-					return err
+					return fmt.Errorf("error outputting workflow instance status: %w", err)
 				}
 			}
 			// Check end states once they are implemented
@@ -115,13 +118,14 @@ func init() {
 	Cmd.PersistentFlags().StringSliceVarP(&flag.Value.Vars, flag.Vars, flag.VarsShort, []string{}, "pass variables to given workflow, eg --vars \"orderId:int(78),serviceId:string(hello)\"")
 }
 
+// EnsureConsumer sets up the consumer in NATS if one doesn't exist already
 func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
-	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); err == nats.ErrConsumerNotFound {
+	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); errors.Is(err, nats.ErrConsumerNotFound) {
 		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
 			panic(err)
 		}
 	} else if err != nil {
-		return err
+		return fmt.Errorf("error ensuring consumer: %w", err)
 	}
 	return nil
 }
