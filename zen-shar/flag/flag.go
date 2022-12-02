@@ -9,11 +9,12 @@ const (
 
 // Set is a container for all of the flag messages used by zen-shar
 type Set struct {
-	Server         string   // Server is the NATS server URL setting
-	LogLevel       string   // LogLevel is the Log level setting
-	CorrelationKey string   // CorrelationKey is the correlation key setting.
-	DebugTrace     bool     // DebugTrace is the debug trace enabled setting.
-	Vars           []string // Vars is the workflow variables setting.
+	Server         string   // Server - the NATS server URL setting
+	LogLevel       string   // LogLevel - the Log level setting
+	CorrelationKey string   // CorrelationKey - the correlation key setting.
+	DebugTrace     bool     // DebugTrace - the debug trace enabled setting.
+	Vars           []string // Vars - the workflow variables setting.
+	Concurrency    int      // Concurrency - the number of concurrent threads processing each message type.
 }
 
 var Value Set // Value contains the runtime values for flags

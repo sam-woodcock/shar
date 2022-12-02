@@ -1,4 +1,4 @@
-package intTests
+package intTest
 
 import (
 	"context"
@@ -16,9 +16,9 @@ import (
 
 //goland:noinspection GoNilness
 func TestMessaging(t *testing.T) {
-	tst := &integration{}
-	tst.setup(t)
-	defer tst.teardown()
+	tst := &Integration{}
+	tst.Setup(t)
+	defer tst.Teardown()
 
 	// Create a starting context
 	ctx := context.Background()
@@ -26,12 +26,12 @@ func TestMessaging(t *testing.T) {
 	handlers := &testMessagingHandlerDef{wg: sync.WaitGroup{}, tst: tst}
 
 	// Dial shar
-	cl := client.New(client.WithEphemeralStorage())
-	err := cl.Dial(natsURL)
+	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
+	err := cl.Dial(NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("../testdata/message-workflow.bpmn")
+	b, err := os.ReadFile("../../testdata/message-workflow.bpmn")
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestMessaging", b)
@@ -75,7 +75,7 @@ func TestMessaging(t *testing.T) {
 
 type testMessagingHandlerDef struct {
 	wg  sync.WaitGroup
-	tst *integration
+	tst *Integration
 }
 
 func (x *testMessagingHandlerDef) step1(ctx context.Context, client client.JobClient, _ model.Vars) (model.Vars, error) {
