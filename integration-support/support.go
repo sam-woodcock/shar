@@ -1,4 +1,4 @@
-package intTest
+package integration_support
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/model"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
+	server2 "gitlab.com/shar-workflow/shar/telemetry/server"
 	zensvr "gitlab.com/shar-workflow/shar/zen-shar/server"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
@@ -27,48 +28,62 @@ var NatsURL = fmt.Sprintf("nats://%s:%v", NatsHost, NatsPort)
 type Integration struct {
 	testNatsServer *server.Server
 	testSharServer *sharsvr.Server
-	finalVars      map[string]interface{}
-	test           *testing.T
-	mx             sync.Mutex
-	cooldown       time.Duration
+	FinalVars      map[string]interface{}
+	Test           *testing.T
+	Mx             sync.Mutex
+	Cooldown       time.Duration
+	WithTelemetry  server2.Exporter
+	testTelemetry  *server2.Server
 }
 
 func init() {
-	logx.SetDefault(slog.ErrorLevel, false, "shar-Integration-tests")
+	logx.SetDefault(slog.DebugLevel, false, "shar-Integration-tests")
 }
 
 //goland:noinspection GoNilness
 func (s *Integration) Setup(t *testing.T) {
 
-	s.cooldown = 2 * time.Second
-	s.test = t
-	s.finalVars = make(map[string]interface{})
+	s.Cooldown = 2 * time.Second
+	s.Test = t
+	s.FinalVars = make(map[string]interface{})
 	ss, ns, err := zensvr.GetServers(NatsHost, NatsPort, 10)
 	if err != nil {
 		panic(err)
 	}
+	if s.WithTelemetry != nil {
+		ctx := context.Background()
+		n, err := nats.Connect(NatsURL)
+		require.NoError(t, err)
+		js, err := n.JetStream()
+		require.NoError(t, err)
+		s.testTelemetry = server2.New(ctx, js, s.WithTelemetry)
+		err = s.testTelemetry.Listen()
+		require.NoError(t, err)
+	}
 	s.testSharServer = ss
 	s.testNatsServer = ns
-	s.test.Logf("\033[1;36m%s\033[0m", "> Setup completed\n")
+	s.Test.Logf("\033[1;36m%s\033[0m", "> Setup completed\n")
 }
 
 func (s *Integration) AssertCleanKV() {
-	time.Sleep(s.cooldown)
+	time.Sleep(s.Cooldown)
 	js, err := s.GetJetstream()
-	require.NoError(s.test, err)
+	require.NoError(s.Test, err)
 
 	for n := range js.KeyValueStores() {
 		name := n.Bucket()
 		kvs, err := js.KeyValue(name)
-		require.NoError(s.test, err)
+		require.NoError(s.Test, err)
 		keys, err := kvs.Keys()
 		if err != nil && errors.Is(err, nats.ErrNoKeysFound) {
 			continue
 		}
-		require.NoError(s.test, err)
+		require.NoError(s.Test, err)
 		switch name {
 		case "WORKFLOW_DEF",
 			"WORKFLOW_NAME",
+			"WORKFLOW_JOB",
+			"WORKFLOW_INSTANCE",
 			"WORKFLOW_VERSION",
 			"WORKFLOW_CLIENTTASK",
 			"WORKFLOW_MSGID",
@@ -78,34 +93,34 @@ func (s *Integration) AssertCleanKV() {
 			"WORKFLOW_USERTASK":
 			//noop
 		default:
-			assert.Len(s.test, keys, 0, n.Bucket())
+			assert.Len(s.Test, keys, 0, n.Bucket())
 		}
 	}
 
 	b, err := js.KeyValue("WORKFLOW_USERTASK")
 	if err != nil && errors.Is(err, nats.ErrNoKeysFound) {
 		if err != nil {
-			s.test.Error(err)
+			s.Test.Error(err)
 			return
 		}
 		keys, err := b.Keys()
 		if err != nil {
-			s.test.Error(err)
+			s.Test.Error(err)
 			return
 		}
 		for _, k := range keys {
 			bts, err := b.Get(k)
 			if err != nil {
-				s.test.Error(err)
+				s.Test.Error(err)
 				return
 			}
 			msg := &model.UserTasks{}
 			err = proto.Unmarshal(bts.Value(), msg)
 			if err != nil {
-				s.test.Error(err)
+				s.Test.Error(err)
 				return
 			}
-			assert.Len(s.test, msg.Id, 0)
+			assert.Len(s.Test, msg.Id, 0)
 		}
 	}
 }
@@ -113,10 +128,10 @@ func (s *Integration) AssertCleanKV() {
 func (s *Integration) Teardown() {
 
 	n, err := s.GetJetstream()
-	require.NoError(s.test, err)
+	require.NoError(s.Test, err)
 
 	sub, err := n.PullSubscribe("WORKFLOW.>", "fin")
-	require.NoError(s.test, err)
+	require.NoError(s.Test, err)
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		_, err := sub.Fetch(1, nats.Context(ctx))
@@ -126,18 +141,18 @@ func (s *Integration) Teardown() {
 		}
 		if err != nil {
 			cancel()
-			s.test.Fatal(err)
+			s.Test.Fatal(err)
 		}
 
 		cancel()
 	}
-	s.test.Log("TEARDOWN")
+	s.Test.Log("TEARDOWN")
 	s.testSharServer.Shutdown()
 	s.testNatsServer.Shutdown()
 	s.testNatsServer.WaitForShutdown()
-	s.test.Log("NATS shut down")
-	s.test.Logf("\033[1;36m%s\033[0m", "> Teardown completed")
-	s.test.Log("\n")
+	s.Test.Log("NATS shut down")
+	s.Test.Logf("\033[1;36m%s\033[0m", "> Teardown completed")
+	s.Test.Log("\n")
 }
 
 func (s *Integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:ireturn

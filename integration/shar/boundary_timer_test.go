@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
+	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"sync"
@@ -14,7 +15,7 @@ import (
 )
 
 func TestBoundaryTimer(t *testing.T) {
-	tst := &Integration{}
+	tst := &support.Integration{}
 	tst.Setup(t)
 	defer tst.Teardown()
 
@@ -36,7 +37,7 @@ func TestBoundaryTimer(t *testing.T) {
 }
 
 func TestBoundaryTimerTimeout(t *testing.T) {
-	tst := &Integration{}
+	tst := &support.Integration{}
 	tst.Setup(t)
 	defer tst.Teardown()
 
@@ -64,7 +65,7 @@ func TestBoundaryTimerTimeout(t *testing.T) {
 }
 
 func TestExclusiveGateway(t *testing.T) {
-	tst := &Integration{}
+	tst := &support.Integration{}
 	tst.Setup(t)
 	defer tst.Teardown()
 
@@ -95,7 +96,7 @@ func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanc
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(NatsURL)
+	err := cl.Dial(support.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow

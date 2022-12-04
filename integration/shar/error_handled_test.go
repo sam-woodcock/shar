@@ -7,13 +7,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/common/workflow"
+	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"testing"
 )
 
 func TestHandledError(t *testing.T) {
-	tst := &Integration{}
+	tst := &support.Integration{}
 	tst.Setup(t)
 	defer tst.Teardown()
 
@@ -25,7 +26,7 @@ func TestHandledError(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	if err := cl.Dial(NatsURL); err != nil {
+	if err := cl.Dial(support.NatsURL); err != nil {
 		panic(err)
 	}
 
@@ -75,7 +76,7 @@ func TestHandledError(t *testing.T) {
 
 type errorHandledHandlerDef struct {
 	fixed bool
-	tst   *Integration
+	tst   *support.Integration
 }
 
 // A "Hello World" service task
@@ -86,8 +87,8 @@ func (d *errorHandledHandlerDef) mayFail(_ context.Context, _ client.JobClient, 
 
 // A "Hello World" service task
 func (d *errorHandledHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
-	assert.Equal(d.tst.test, 69, vars["testVal"])
-	assert.Equal(d.tst.test, 32768, vars["carried"])
+	assert.Equal(d.tst.Test, 69, vars["testVal"])
+	assert.Equal(d.tst.Test, 32768, vars["carried"])
 	d.fixed = true
 	return model.Vars{}, nil
 }

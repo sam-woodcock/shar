@@ -4,19 +4,30 @@ import (
 	"context"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"golang.org/x/exp/slog"
 	"os"
 	"testing"
 	"time"
 )
 
-func TestSimple(t *testing.T) {
-	tst := &support.Integration{}
+func TestSimpleTelemetry(t *testing.T) {
+	tel := &MockTelemetry{}
+	tst := &support.Integration{WithTelemetry: tel}
 	tst.Setup(t)
 	defer tst.Teardown()
+
+	tel.On("ExportSpans", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("[]trace.ReadOnlySpan")).
+		Run(func(args mock.Arguments) {
+			sp := args.Get(1).([]trace.ReadOnlySpan)
+			slog.Debug(fmt.Sprintf("%v", sp[0].Name()))
+		}).
+		Return(nil).Times(5)
 
 	// Create a starting context
 	ctx := context.Background()
@@ -35,7 +46,7 @@ func TestSimple(t *testing.T) {
 
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 
-	d := &testSimpleHandlerDef{t: t}
+	d := &testTelSimpleHandlerDef{t: t}
 
 	// Register a service task
 	cl.RegisterWorkflowInstanceComplete(complete)
@@ -58,14 +69,15 @@ func TestSimple(t *testing.T) {
 	case <-time.After(20 * time.Second):
 		assert.Fail(t, "Timed out")
 	}
+	tel.AssertExpectations(t)
 	tst.AssertCleanKV()
 }
 
-type testSimpleHandlerDef struct {
+type testTelSimpleHandlerDef struct {
 	t *testing.T
 }
 
-func (d *testSimpleHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testTelSimpleHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Hi")
 	assert.Equal(d.t, 32768, vars["carried"].(int))
 	vars["Success"] = true

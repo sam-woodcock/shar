@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
+	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"sync"
@@ -14,7 +15,7 @@ import (
 )
 
 func TestUserTasks(t *testing.T) {
-	tst := &Integration{}
+	tst := &support.Integration{}
 	tst.Setup(t)
 	defer tst.Teardown()
 
@@ -23,7 +24,7 @@ func TestUserTasks(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	if err := cl.Dial(NatsURL); err != nil {
+	if err := cl.Dial(support.NatsURL); err != nil {
 		panic(err)
 	}
 
