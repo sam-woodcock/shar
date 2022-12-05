@@ -41,13 +41,9 @@ type Integration struct {
 	testTelemetry  *server2.Server
 }
 
-func init() {
-	logx.SetDefault(slog.DebugLevel, false, "shar-Integration-tests")
-}
-
 // Setup - sets up the test NATS and SHAR servers.
 func (s *Integration) Setup(t *testing.T) {
-
+	logx.SetDefault(slog.DebugLevel, false, "shar-Integration-tests")
 	s.Cooldown = 2 * time.Second
 	s.Test = t
 	s.FinalVars = make(map[string]interface{})
