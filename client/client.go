@@ -94,6 +94,7 @@ type Client struct {
 	wfInstance     nats.KeyValue
 	wf             nats.KeyValue
 	job            nats.KeyValue
+	concurrency    int
 }
 
 // Option represents a configuration changer for the client.
@@ -201,7 +202,7 @@ func (c *Client) listen(ctx context.Context) error {
 		tasks[i] = subj.NS(messages.WorkflowJobSendMessageExecute+"."+i, c.ns)
 	}
 	for k, v := range tasks {
-		err := common.Process(ctx, c.js, "jobExecute", closer, v, "ServiceTask_"+k, 200, func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
+		err := common.Process(ctx, c.js, "jobExecute", closer, v, "ServiceTask_"+k, c.concurrency, func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
 			ut := &model.WorkflowState{}
 			if err := proto.Unmarshal(msg.Data, ut); err != nil {
 				log.Error("error unmarshaling", err)

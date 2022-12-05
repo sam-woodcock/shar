@@ -40,3 +40,14 @@ type orphanTaskOption struct{ value bool }
 func (o orphanTaskOption) configure(server *Server) {
 	server.allowOrphanServiceTasks = o.value
 }
+
+// Concurrency specifies the number of threads for each of SHAR's queue listeneres.
+func Concurrency(n int) concurrencyOption { //nolint
+	return concurrencyOption{value: n}
+}
+
+type concurrencyOption struct{ value int }
+
+func (o concurrencyOption) configure(server *Server) {
+	server.concurrency = o.value
+}

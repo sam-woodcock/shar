@@ -1,4 +1,4 @@
-package intTests
+package intTest
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
+	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"os"
@@ -16,9 +17,9 @@ import (
 
 //goland:noinspection GoNilness
 func TestMessaging(t *testing.T) {
-	tst := &integration{}
-	tst.setup(t)
-	defer tst.teardown()
+	tst := &support.Integration{}
+	tst.Setup(t)
+	defer tst.Teardown()
 
 	// Create a starting context
 	ctx := context.Background()
@@ -26,12 +27,12 @@ func TestMessaging(t *testing.T) {
 	handlers := &testMessagingHandlerDef{wg: sync.WaitGroup{}, tst: tst}
 
 	// Dial shar
-	cl := client.New(client.WithEphemeralStorage())
-	err := cl.Dial(natsURL)
+	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
+	err := cl.Dial(support.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("../testdata/message-workflow.bpmn")
+	b, err := os.ReadFile("../../testdata/message-workflow.bpmn")
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestMessaging", b)
@@ -66,16 +67,16 @@ func TestMessaging(t *testing.T) {
 		fmt.Println("completed " + c.WorkflowInstanceId)
 	case <-time.After(20 * time.Second):
 	}
-	tst.mx.Lock()
-	assert.Equal(t, "carried1value", tst.finalVars["carried"])
-	assert.Equal(t, "carried2value", tst.finalVars["carried2"])
-	tst.mx.Unlock()
+	tst.Mx.Lock()
+	assert.Equal(t, "carried1value", tst.FinalVars["carried"])
+	assert.Equal(t, "carried2value", tst.FinalVars["carried2"])
+	tst.Mx.Unlock()
 	tst.AssertCleanKV()
 }
 
 type testMessagingHandlerDef struct {
 	wg  sync.WaitGroup
-	tst *integration
+	tst *support.Integration
 }
 
 func (x *testMessagingHandlerDef) step1(ctx context.Context, client client.JobClient, _ model.Vars) (model.Vars, error) {
@@ -89,9 +90,9 @@ func (x *testMessagingHandlerDef) step2(ctx context.Context, client client.JobCl
 	if err := client.Log(ctx, messages.LogInfo, -1, "Step 2", nil); err != nil {
 		return nil, fmt.Errorf("failed to log: %w", err)
 	}
-	x.tst.mx.Lock()
-	x.tst.finalVars = vars
-	x.tst.mx.Unlock()
+	x.tst.Mx.Lock()
+	x.tst.FinalVars = vars
+	x.tst.Mx.Unlock()
 	return model.Vars{}, nil
 }
 

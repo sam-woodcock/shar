@@ -7,8 +7,8 @@ require (
 	github.com/antonmedv/expr v1.9.0
 	github.com/caarlos0/env/v6 v6.10.1
 	github.com/golang/protobuf v1.5.2
-	github.com/nats-io/nats-server/v2 v2.9.3
-	github.com/nats-io/nats.go v1.18.0
+	github.com/nats-io/nats-server/v2 v2.9.4
+	github.com/nats-io/nats.go v1.20.0
 	github.com/pterm/pterm v0.12.49
 	github.com/relvacode/iso8601 v1.1.0
 	github.com/segmentio/ksuid v1.0.4

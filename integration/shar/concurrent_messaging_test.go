@@ -1,4 +1,4 @@
-package intTests
+package intTest
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
+	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"sync"
@@ -15,10 +16,10 @@ import (
 
 //goland:noinspection GoNilness
 func TestConcurrentMessaging(t *testing.T) {
-	tst := &integration{}
-	tst.setup(t)
-	defer tst.teardown()
-	tst.cooldown = 5 * time.Second
+	tst := &support.Integration{}
+	tst.Setup(t)
+	defer tst.Teardown()
+	tst.Cooldown = 5 * time.Second
 	//tracer.Trace("127.0.0.1:4459")
 	//defer tracer.Close()
 
@@ -28,12 +29,12 @@ func TestConcurrentMessaging(t *testing.T) {
 	ctx := context.Background()
 
 	// Dial shar
-	cl := client.New(client.WithEphemeralStorage())
-	err := cl.Dial(natsURL)
+	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
+	err := cl.Dial(support.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("../testdata/message-workflow.bpmn")
+	b, err := os.ReadFile("../../testdata/message-workflow.bpmn")
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestConcurrentMessaging", b)
@@ -85,7 +86,7 @@ func TestConcurrentMessaging(t *testing.T) {
 
 type testConcurrentMessagingHandlerDef struct {
 	mx       sync.Mutex
-	tst      *integration
+	tst      *support.Integration
 	received int
 }
 
@@ -94,8 +95,8 @@ func (x *testConcurrentMessagingHandlerDef) step1(_ context.Context, _ client.Jo
 }
 
 func (x *testConcurrentMessagingHandlerDef) step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
-	assert.Equal(x.tst.test, "carried1value", vars["carried"])
-	assert.Equal(x.tst.test, "carried2value", vars["carried2"])
+	assert.Equal(x.tst.Test, "carried1value", vars["carried"])
+	assert.Equal(x.tst.Test, "carried2value", vars["carried2"])
 	x.mx.Lock()
 	defer x.mx.Unlock()
 	x.received++

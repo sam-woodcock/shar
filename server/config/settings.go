@@ -11,6 +11,7 @@ type Settings struct {
 	NatsURL       string `env:"NATS_URL" envDefault:"nats://127.0.0.1:4222"`
 	LogLevel      string `env:"SHAR_LOG_LEVEL" envDefault:"debug"`
 	PanicRecovery bool   `env:"SHAR_PANIC_RECOVERY" envDefault:"true"`
+	Concurrency   int    `env:"SHAR_CONCURRENCY" envDefault:"10"`
 }
 
 // GetEnvironment pulls the active settings into a settings struct.

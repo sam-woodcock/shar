@@ -1,10 +1,11 @@
-package intTests
+package intTest
 
 import (
 	"context"
 	"fmt"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
+	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"sync"
@@ -14,26 +15,26 @@ import (
 
 //goland:noinspection GoNilness
 func TestMultiWorkflow(t *testing.T) {
-	tst := &integration{}
-	tst.setup(t)
-	defer tst.teardown()
-	tst.cooldown = 5 * time.Second
+	tst := &support.Integration{}
+	tst.Setup(t)
+	defer tst.Teardown()
+	tst.Cooldown = 5 * time.Second
 	handlers := &testMultiworkflowMessagingHandlerDef{}
 
 	// Create a starting context
 	ctx := context.Background()
 
 	// Dial shar
-	cl := client.New(client.WithEphemeralStorage())
-	err := cl.Dial(natsURL)
+	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
+	err := cl.Dial(support.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("../testdata/message-workflow.bpmn")
+	b, err := os.ReadFile("../../testdata/message-workflow.bpmn")
 	require.NoError(t, err)
 
 	// Load BPMN workflow 2
-	b2, err := os.ReadFile("../testdata/simple-workflow.bpmn")
+	b2, err := os.ReadFile("../../testdata/simple-workflow.bpmn")
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestMultiWorkflow1", b)

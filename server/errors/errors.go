@@ -31,8 +31,8 @@ var (
 	ErrInvalidState                   = errors.New("invalid cancellation state")                                                                 // ErrInvalidState - an attempt was made to p[erform an action witrh an invalid cancellation state.
 )
 
-const TraceLevel = 41   // TraceLevel specifies a custom level for trace logging.
-const VerboseLevel = 51 // VerboseLevel specifies a custom level vor verbose logging.
+const TraceLevel = -41   // TraceLevel specifies a custom level for trace logging.
+const VerboseLevel = -51 // VerboseLevel specifies a custom level vor verbose logging.
 
 // ErrWorkflowFatal signifys that the workflow must terniate
 type ErrWorkflowFatal struct {

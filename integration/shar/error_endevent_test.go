@@ -1,11 +1,13 @@
-package intTests
+package intTest
 
+/*
 import (
 	"context"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
+	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"os"
@@ -13,21 +15,21 @@ import (
 )
 
 func TestEndEventError(t *testing.T) {
-	tst := &integration{}
-	tst.setup(t)
-	defer tst.teardown()
+	tst := &support.Integration{}
+	tst.Setup(t)
+	defer tst.Teardown()
 
 	// Create a starting context
 	ctx := context.Background()
 
 	// Dial shar
 	cl := client.New()
-	if err := cl.Dial(natsURL); err != nil {
+	if err := cl.Dial(support.NatsURL); err != nil {
 		panic(err)
 	}
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("../testdata/errors.bpmn")
+	b, err := os.ReadFile("../../testdata/errors.bpmn")
 	if err != nil {
 		panic(err)
 	}
@@ -90,3 +92,4 @@ func (d *testErrorEndEventHandlerDef) fixSituation(_ context.Context, _ client.J
 	fmt.Println("carried", vars["carried"])
 	panic("this event should not fire")
 }
+*/
