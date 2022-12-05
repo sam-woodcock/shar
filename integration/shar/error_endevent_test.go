@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
+	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"os"
@@ -14,7 +15,7 @@ import (
 )
 
 func TestEndEventError(t *testing.T) {
-	tst := &Integration{}
+	tst := &support.Integration{}
 	tst.Setup(t)
 	defer tst.Teardown()
 
@@ -23,7 +24,7 @@ func TestEndEventError(t *testing.T) {
 
 	// Dial shar
 	cl := client.New()
-	if err := cl.Dial(NatsURL); err != nil {
+	if err := cl.Dial(support.NatsURL); err != nil {
 		panic(err)
 	}
 
@@ -90,4 +91,5 @@ func (d *testErrorEndEventHandlerDef) mayFail3(ctx context.Context, client clien
 func (d *testErrorEndEventHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("carried", vars["carried"])
 	panic("this event should not fire")
-}*/
+}
+*/

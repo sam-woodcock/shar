@@ -14,10 +14,10 @@ import (
 	"gitlab.com/shar-workflow/shar/server/vars"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/sdk/instrumentation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
@@ -25,17 +25,46 @@ import (
 	"time"
 )
 
+const (
+	service     = "shar"
+	environment = "production"
+	id          = 1
+)
+
 // Server is the shar server type responsible for hosting the telemetry server.
 type Server struct {
 	js     nats.JetStreamContext
 	spanKV nats.KeyValue
 	res    *resource.Resource
-	exp    *jaeger.Exporter
+	exp    Exporter
 	wfi    nats.KeyValue
 }
 
 // New creates a new telemetry server.
-func New(ctx context.Context, js nats.JetStreamContext, res *resource.Resource, exp *jaeger.Exporter) *Server {
+func New(ctx context.Context, js nats.JetStreamContext, exp Exporter) *Server {
+	// Define our resource
+	res := resource.NewWithAttributes(
+		semconv.SchemaURL,
+		semconv.ServiceNameKey.String(service),
+		attribute.String("environment", environment),
+		attribute.Int64("ID", id),
+	)
+
+	if err := common.EnsureBuckets(js, nats.FileStorage, []string{"WORKFLOW_TRACE"}); err != nil {
+		panic(err)
+	}
+
+	if err := ensureConsumer(js, "WORKFLOW", &nats.ConsumerConfig{
+		Durable:       "Tracing",
+		Description:   "Sequential Trace Consumer",
+		DeliverPolicy: nats.DeliverAllPolicy,
+		FilterSubject: subj.NS(messages.WorkflowStateAll, "*"),
+		AckPolicy:     nats.AckExplicitPolicy,
+		MaxAckPending: 1,
+	}); err != nil {
+		panic(err)
+	}
+
 	return &Server{
 		js:  js,
 		res: res,
@@ -257,6 +286,18 @@ func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.Work
 	if err != nil {
 		id := common.TrackingID(oldState.Id).ID()
 		log.Warn("Could not delete the cached span", err, slog.String(keys.TrackingID, id))
+	}
+	return nil
+}
+
+// EnsureConsumer sets up a new NATS consumer if one does not already exist.
+func ensureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
+	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); errors.Is(err, nats.ErrConsumerNotFound) {
+		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
+			panic(err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("ensure consumer failed to get consumer info: %w", err)
 	}
 	return nil
 }

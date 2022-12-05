@@ -120,7 +120,7 @@ func GetServers(natsHost string, natsPort int, sharConcurrency int) (*sharsvr.Se
 	slog.Info("NATS started")
 
 	ssvr := sharsvr.New(sharsvr.EphemeralStorage(), sharsvr.PanicRecovery(false), sharsvr.Concurrency(10))
-	go ssvr.Listen(natsHost+":"+strconv.Itoa(natsPort), 55000)
+	go ssvr.Listen(natsHost+":"+strconv.Itoa(natsPort), 55001)
 	for {
 		if ssvr.Ready() {
 			break

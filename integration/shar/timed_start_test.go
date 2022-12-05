@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
+	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"sync"
@@ -14,7 +15,7 @@ import (
 )
 
 func TestTimedStart(t *testing.T) {
-	tst := &Integration{}
+	tst := &support.Integration{}
 	tst.Setup(t)
 	defer tst.Teardown()
 
@@ -23,7 +24,7 @@ func TestTimedStart(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(NatsURL)
+	err := cl.Dial(support.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
@@ -53,7 +54,7 @@ func TestTimedStart(t *testing.T) {
 	time.Sleep(5 * time.Second)
 	d.mx.Lock()
 	defer d.mx.Unlock()
-	assert.Equal(t, 32768, d.tst.finalVars["carried"])
+	assert.Equal(t, 32768, d.tst.FinalVars["carried"])
 	assert.Equal(t, 3, d.count)
 	tst.AssertCleanKV()
 }
@@ -61,7 +62,7 @@ func TestTimedStart(t *testing.T) {
 type timedStartHandlerDef struct {
 	mx    sync.Mutex
 	count int
-	tst   *Integration
+	tst   *support.Integration
 }
 
 func (d *timedStartHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
@@ -69,7 +70,7 @@ func (d *timedStartHandlerDef) integrationSimple(_ context.Context, _ client.Job
 	fmt.Println("carried", vars["carried"])
 	d.mx.Lock()
 	defer d.mx.Unlock()
-	d.tst.finalVars = vars
+	d.tst.FinalVars = vars
 	d.count++
 	return vars, nil
 }
