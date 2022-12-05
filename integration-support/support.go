@@ -20,11 +20,16 @@ import (
 	"time"
 )
 
+// NatsHost is the default testing ip for the NATS host.
 const NatsHost = "127.0.0.1"
+
+// NatsPort is the default testing port for the NATS host.
 const NatsPort = 4459
 
+// NatsURL is the default testing URL for the NATS host.
 var NatsURL = fmt.Sprintf("nats://%s:%v", NatsHost, NatsPort)
 
+// Integration - the integration test support framework.
 type Integration struct {
 	testNatsServer *server.Server
 	testSharServer *sharsvr.Server
@@ -40,7 +45,7 @@ func init() {
 	logx.SetDefault(slog.DebugLevel, false, "shar-Integration-tests")
 }
 
-//goland:noinspection GoNilness
+// Setup - sets up the test NATS and SHAR servers.
 func (s *Integration) Setup(t *testing.T) {
 
 	s.Cooldown = 2 * time.Second
@@ -65,6 +70,7 @@ func (s *Integration) Setup(t *testing.T) {
 	s.Test.Logf("\033[1;36m%s\033[0m", "> Setup completed\n")
 }
 
+// AssertCleanKV - ensures SHAR has cleans up after itself, and there are no records left in the KV.
 func (s *Integration) AssertCleanKV() {
 	time.Sleep(s.Cooldown)
 	js, err := s.GetJetstream()
@@ -125,6 +131,7 @@ func (s *Integration) AssertCleanKV() {
 	}
 }
 
+// Teardown - resposible for shutting down the integration test framework.
 func (s *Integration) Teardown() {
 
 	n, err := s.GetJetstream()
@@ -155,6 +162,7 @@ func (s *Integration) Teardown() {
 	s.Test.Log("\n")
 }
 
+// GetJetstream - fetches the test framework jetstream server for making test calls.
 func (s *Integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:ireturn
 	con, err := s.GetNats()
 	if err != nil {
@@ -167,6 +175,7 @@ func (s *Integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:i
 	return js, nil
 }
 
+// GetNats - fetches the test framework NATS server for making test calls.
 func (s *Integration) GetNats() (*nats.Conn, error) {
 	con, err := nats.Connect(NatsURL)
 	if err != nil {
