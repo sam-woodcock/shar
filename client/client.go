@@ -111,6 +111,7 @@ func New(option ...Option) *Client {
 		listenTasks:    make(map[string]struct{}),
 		msgListenTasks: make(map[string]struct{}),
 		ns:             "default",
+		concurrency:	10,
 	}
 	for _, i := range option {
 		i.configure(client)
