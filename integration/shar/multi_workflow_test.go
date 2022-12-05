@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
+	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"sync"
@@ -14,10 +15,10 @@ import (
 
 //goland:noinspection GoNilness
 func TestMultiWorkflow(t *testing.T) {
-	tst := &Integration{}
+	tst := &support.Integration{}
 	tst.Setup(t)
 	defer tst.Teardown()
-	tst.cooldown = 5 * time.Second
+	tst.Cooldown = 5 * time.Second
 	handlers := &testMultiworkflowMessagingHandlerDef{}
 
 	// Create a starting context
@@ -25,7 +26,7 @@ func TestMultiWorkflow(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(NatsURL)
+	err := cl.Dial(support.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
