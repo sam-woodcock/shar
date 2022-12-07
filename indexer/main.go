@@ -3,34 +3,32 @@ package main
 import (
 	"bytes"
 	"encoding/gob"
-	"encoding/json"
 	"fmt"
-	"math/rand"
-	"net/http"
-	"os"
+	"sync"
 
 	"github.com/nats-io/nats.go"
+	"gitlab.com/shar-workflow/shar/indexer/inmemorytable"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors"
+	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/telemetry/config"
-	"golang.org/x/net/websocket"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-var listenAddr = os.Getenv("listenAddr")
-
 func main() {
 
 	var (
-		e error
-		//cfg *config.settings
-		nc *nats.Conn
-		js nats.JetStreamContext
+		e          error
+		cfg        *config.Settings
+		nc         *nats.Conn
+		js         nats.JetStreamContext
+		tablesLock sync.Mutex
+		tables     = make(map[string]*inmemorytable.Table)
 	)
 
 	// Get the configuration
-	cfg, e := config.GetEnvironment()
+	cfg, e = config.GetEnvironment()
 	if e != nil {
 		panic(e)
 	}
@@ -46,312 +44,308 @@ func main() {
 		panic(e)
 	}
 
-	// This is the workflows registered by 'loadBPMN' function, with an ID
+	// Load and maintain state for the in memory table
 	go func() {
-		// Initiate the table
-		var memoryTable = New()
-
 		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_NAME", "/workflow-name", "/ws-name", memoryTable, nil); e != nil {
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_NAME", nil); e != nil {
 			fmt.Println(e)
 		}
 	}()
 
-	// This is functions registered by the 'RegisterServiceTask', with an ID
-	// There is no strict relationship between the registered task and the model, only a shared name.
+	// Load and maintain state for the in memory table
 	go func() {
-		// Initiate the table
-		var memoryTable = New()
-
 		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_CLIENTTASK", "/workflow-clienttask", "/ws-clienttask", memoryTable, nil); e != nil {
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_CLIENTTASK", nil); e != nil {
 			fmt.Println(e)
 		}
 	}()
 
-	// This contains BPMN Model name, and a list of SHA hash with a version
+	// Load and maintain state for the in memory table
 	go func() {
-		// Initiate the table
-		var memoryTable = New()
-
 		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_VERSION", "/workflow-version", "/ws-version", memoryTable, &model.WorkflowVersions{}); e != nil {
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_VERSION", &model.WorkflowVersions{}); e != nil {
 			fmt.Println(e)
 		}
 	}()
 
-	// This is currently running instances, listed against the WorkflowID
+	// Load and maintain state for the in memory table
 	go func() {
-		// Inititate the table
-		var memoryTable = New()
-
 		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_MSGSUBS", "/workflow-msgsubs", "/ws-msgsubs", memoryTable, &model.WorkflowInstanceSubscribers{}); e != nil {
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_MSGSUBS", &model.WorkflowInstanceSubscribers{}); e != nil {
 			fmt.Println(e)
 		}
 	}()
 
-	// This is currenly running instances
+	// Load and maintain state for the in memory table
 	go func() {
-		// Initiate the table
-		var memoryTable = New()
-
 		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_INSTANCE", "/workflow-instance", "/ws-instance", memoryTable, &model.WorkflowInstance{}); e != nil {
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_INSTANCE", &model.WorkflowInstance{}); e != nil {
 			fmt.Println(e)
 		}
 	}()
 
-	// This is the main model, telling us about all tasks in progress.
-	// TODO: This might just be the last update of the workflow, it might not be all tasks.
+	// Load and maintain state for the in memory table
 	go func() {
-		// Initiate the table
-		var memoryTable = New()
-
 		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_JOB", "/workflow-job", "/ws-job", memoryTable, &model.WorkflowState{}); e != nil {
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_JOB", &model.WorkflowState{}); e != nil {
 			fmt.Println(e)
 		}
 	}()
 
+	// Load and maintain state for the in memory table
 	go func() {
-		// Initiate the table
-		var memoryTable = New()
-
 		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_VARSTATE", "/workflow-varstate", "/ws-varstate", memoryTable, &model.WorkflowState{}); e != nil {
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_VARSTATE", &model.WorkflowState{}); e != nil {
 			fmt.Println(e)
 		}
 	}()
 
-	// This 'key' is the workflowID, it matches the WORKFLOW_VERSION 'key'
+	// Load and maintain state for the in memory table
 	go func() {
-		// Initiate the table
-		var memoryTable = New()
-
 		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_DEF", "/workflow-def", "/ws-def", memoryTable, &model.Workflow{}); e != nil {
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_DEF", &model.Workflow{}); e != nil {
 			fmt.Println(e)
 		}
 	}()
 
+	// Load and maintain state for the in memory table
 	go func() {
-		// Initiate the table
-		var memoryTable = New()
-
 		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_TRACKING", "/workflow-tracking", "/ws-tracking", memoryTable, &model.WorkflowState{}); e != nil {
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_TRACKING", &model.WorkflowState{}); e != nil {
 			fmt.Println(e)
 		}
 	}()
 
-	// This is currently running instances, listed against the WorkflowID
+	// Load and maintain state for the in memory table
 	go func() {
-		// Initiate the table
-		var memoryTable = New()
-
 		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_MSGSUB", "/workflow-msgsub", "/ws-msgsub", memoryTable, &model.WorkflowInstanceSubscribers{}); e != nil {
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_MSGSUB", &model.WorkflowInstanceSubscribers{}); e != nil {
 			fmt.Println(e)
 		}
 	}()
 
-	// This is currently running instances, listed against the WorkflowID
+	// Load and maintain state for the in memory table
 	go func() {
-		// Initiate the table
-		var memoryTable = New()
-
 		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_MSGNAME", "/workflow-msgname", "/ws-msgname", memoryTable, nil); e != nil {
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_MSGNAME", nil); e != nil {
 			fmt.Println(e)
 		}
 	}()
 
-	// This is currently running instances, listed against the WorkflowID
+	// Load and maintain state for the in memory table
 	go func() {
-		// Initiate new table
-		var memoryTable = New()
-
 		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_MSGID", "/workflow-msgid", "/ws-msgid", memoryTable, nil); e != nil {
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_MSGID", nil); e != nil {
 			fmt.Println(e)
 		}
 	}()
 
-	// This is currently running instances, listed against the WorkflowID
+	// Load and maintain state for the in memory table
 	go func() {
-		// Initiate the table
-		var memoryTable = New()
+		// Listen and store updates for the table
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_USERTASK", &model.UserTasks{}); e != nil {
+			fmt.Println(e)
+		}
+	}()
 
-		// Listen and respond to nats questions for this table
-		if _, e := nc.QueueSubscribe("WORKFLOW.Api.ListUserTaskIDs", "WORKFLOW.Api.ListUserTaskIDs", func(msg *nats.Msg) {
-			var (
-				e   error
-				b   bool
-				m   *any
-				req = model.ListUserTasksRequest{}
-			)
+	// Load and maintain state for the in memory table
+	go func() {
+		// Listen and store updates for the table
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_OWNERID", nil); e != nil {
+			fmt.Println(e)
+		}
+	}()
 
-			fmt.Println("New ListUserTaskIDs request")
+	// Load and maintain state for the in memory table
+	go func() {
+		// Listen and store updates for the table
+		if e = trackBucket(js, tables, &tablesLock, "WORKFLOW_OWNERNAME", nil); e != nil {
+			fmt.Println(e)
+		}
+	}()
 
-			if e = proto.Unmarshal(msg.Data, &req); e != nil {
-				fmt.Println(e)
-				res, _ := proto.Marshal(&model.WorkflowState{})
-				msg.Respond(res)
-				return
+	// time.Sleep(time.Second)
+	// // Testing entry
+	// *tables["WORKFLOW_USERTASK"].Add("1") = model.WorkflowState{
+	// 	WorkflowId:         "2IUjNaqAB54CPtUitssbsGXymDi",
+	// 	WorkflowInstanceId: "wfiid",
+	// 	ElementId:          "elementid",
+	// 	ElementType:        "elementType",
+	// 	Id:                 []string{"id1", "id2"},
+	// 	Owners:             []string{"dan"},
+	// }
+	// *tables["WORKFLOW_USERTASK"].Add("2") = model.WorkflowState{
+	// 	WorkflowId:         "2IUjNaqAB54CPtUitssbsGXymDi",
+	// 	WorkflowInstanceId: "wfiid2",
+	// 	ElementId:          "elementid2",
+	// 	ElementType:        "elementType2",
+	// 	Id:                 []string{"id3", "id4"},
+	// 	Owners:             []string{"dan"},
+	// }
+
+	// Listen and respond to nats questions for this table
+	if _, e := nc.QueueSubscribe(messages.APIListUserTaskIDs, messages.APIListUserTaskIDs, func(msg *nats.Msg) {
+		var (
+			e            error
+			b            []byte
+			req          = model.ListUserTasksRequest{}
+			userTaskList = model.UserTasks{}
+		)
+
+		if e = proto.Unmarshal(msg.Data, &req); e != nil {
+			fmt.Println(e)
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|" + e.Error()},
+			})
+			msg.Respond(reply)
+			return
+		}
+
+		// Loop over all instances workflow state
+		for id, item := range tables["WORKFLOW_USERTASK"].List() {
+
+			// Loop over all the Owners looking for a match
+			for _, owners := range (*item).(model.WorkflowState).Owners {
+				if owners == req.Owner {
+					// If found add teh ID to the response Id list
+					userTaskList.Id = append(userTaskList.Id, id)
+				}
 			}
+		}
 
-			if m, b = memoryTable.Get(req.Owner); !b {
-				res, _ := proto.Marshal(&model.WorkflowState{})
-				msg.Respond(res)
-				return
+		b, _ = proto.Marshal(&userTaskList)
+		msg.Respond(b)
+
+	}); e != nil {
+		fmt.Println(e)
+	}
+
+	// Respond to APIGetUserTask
+	if _, e := nc.QueueSubscribe(messages.APIGetUserTask, messages.APIGetUserTask, func(msg *nats.Msg) {
+		var (
+			e             error
+			b             []byte
+			ok            bool
+			req           = model.GetUserTaskRequest{}
+			resp          = model.GetUserTaskResponse{}
+			usertask, def *any
+		)
+
+		// Unmarshal the message
+		if e = proto.Unmarshal(msg.Data, &req); e != nil {
+			fmt.Println(e)
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|" + e.Error()},
+			})
+			msg.Respond(reply)
+			return
+		}
+
+		// Loop over all instances workflow state
+		// Find the usertask based on the ID
+		if usertask, ok = tables["WORKFLOW_USERTASK"].Get(req.TrackingId); !ok {
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|key not found in usertask bucket"},
+			})
+			msg.Respond(reply)
+			return
+		}
+
+		// Extract the defination of this job
+		if def, ok = tables["WORKFLOW_DEF"].Get((*usertask).(model.WorkflowState).WorkflowId); !ok {
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|key not found in definition bucket"},
+			})
+			msg.Respond(reply)
+			return
+		}
+
+		// Itterate over defination elements to find an element ID match
+		for _, process := range (*def).(*model.Workflow).Process {
+			for _, element := range process.Elements {
+				if element.Id == (*usertask).(model.WorkflowState).ElementId {
+					resp.Name = element.Name
+					resp.Description = element.Documentation
+					break
+				}
 			}
-
-			res, _ := proto.Marshal((*m).(*model.WorkflowState))
-			msg.Respond(res)
-
-		}); e != nil {
-			fmt.Println(e)
 		}
 
-		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_USERTASK", "/workflow-usertask", "/ws-usertask", memoryTable, &model.UserTasks{}); e != nil {
-			fmt.Println(e)
+		// Get the last tracking ID
+		// Unsure if this is always the same as the provided trackingID
+		if len((*usertask).(model.WorkflowState).Id) > 0 {
+			resp.TrackingId = (*usertask).(model.WorkflowState).Id[len((*usertask).(model.WorkflowState).Id)-1]
 		}
-	}()
 
-	// This is currently running instances, listed against the WorkflowID
-	go func() {
-		// Initiate the table
-		var memoryTable = New()
+		resp.Vars = (*usertask).(model.WorkflowState).Vars
+		resp.Owner = req.Owner
 
-		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_OWNERID", "/workflow-ownerid", "/ws-ownerid", memoryTable, nil); e != nil {
-			fmt.Println(e)
-		}
-	}()
+		b, _ = proto.Marshal(&resp)
+		msg.Respond(b)
 
-	// This is currently running instances, listed against the WorkflowID
-	go func() {
-		// Inititate the table
-		var memoryTable = New()
-
-		// Listen and store updates for the table
-		if e = trackBucket(js, "WORKFLOW_OWNERNAME", "/workflow-ownername", "/ws-ownername", memoryTable, nil); e != nil {
-			fmt.Println(e)
-		}
-	}()
-
-	go func() {
-		if listenAddr != "" {
-			fmt.Println("Started HTTP handler on", listenAddr)
-			fmt.Println(http.ListenAndServe(listenAddr, nil))
-		}
-	}()
+	}); e != nil {
+		fmt.Println(e)
+	}
 
 	<-make(chan struct{})
 }
 
-func trackBucket(js nats.JetStreamContext, store, httpEndpoint, wsEndpoint string, t *inMemoryTable, msg protoreflect.ProtoMessage) error {
+func trackBucket(js nats.JetStreamContext, tables map[string]*inmemorytable.Table, tablesLock *sync.Mutex, store string, msgstruct protoreflect.ProtoMessage) error {
 
 	var (
 		e       error
 		watcher <-chan nats.KeyValueEntry
 		w       nats.KeyValueEntry
-		wschans = make(map[string]chan []byte)
-		b       []byte
+		t       *inmemorytable.Table
+		ok      bool
 	)
+
+	// Create table if it does not exist already (Which it should not)
+	tablesLock.Lock()
+	if _, ok = tables[store]; ok {
+		tablesLock.Unlock()
+		return fmt.Errorf("table and Listener I expect already exists")
+	}
+	t = inmemorytable.New()
+	tables[store] = t
+	tablesLock.Unlock()
 
 	if watcher, e = getBucketWatcher(js, store); e != nil {
 		return e
 	}
 
-	// Start a http json endpoint
-	http.HandleFunc(httpEndpoint, t.HTTPServe)
-
-	// Start a websocket sender
-	http.Handle(wsEndpoint, websocket.Handler(func(ws *websocket.Conn) {
-
-		// I can't find the socket information, so well use a random string
-		id := RandomString(10)
-
-		// Make a message queue
-		wschan := make(chan []byte, 100)
-
-		// Register our message queue
-		wschans[id] = wschan
-
-		// Whatever happens remove our message queue
-		defer func() {
-			delete(wschans, id)
-		}()
-
-		var (
-			b []byte
-			e error
-		)
-
-		fmt.Println("Websocket Connection to", ws.LocalAddr(), "from", ws.RemoteAddr())
-
-		// Loop sending updates as they arrive on the channel
-		for {
-			b = <-wschan
-			if _, e = ws.Write(b); e != nil {
-				fmt.Println(e)
-			}
-
-		}
-	}))
-
+	// Ranges over bucket state changes
 	for w = range watcher {
 
-		// Handle the nil case where we are up-to-date
-		if w == nil {
-			fmt.Println(store, ": Updated")
-			continue
-		}
-
-		msg := proto.Clone(msg)
-
 		if w != nil {
-			x := t.Add(w.Key())
+			switch w.Operation() {
+			case nats.KeyValueDelete:
+				t.Delete(w.Key())
+			case nats.KeyValuePurge:
+				t.Purge()
+			case nats.KeyValuePut:
+				// msgstruct has an embedded pointer, we need to clone to get a unique pointer to an in memory space, where we can save data.
+				msgstruct := proto.Clone(msgstruct)
 
-			if msg != nil {
-				if e = proto.Unmarshal(w.Value(), msg); e != nil {
-					fmt.Println(e)
-				}
-				(*x) = msg
+				// Return a pointer to our in-memory table
+				// Where we can save the data
+				x := t.Add(w.Key())
 
-				if b, e = json.Marshal(map[string]protoreflect.ProtoMessage{
-					w.Key(): msg},
-				); e != nil {
-					fmt.Println(e)
-					continue
-				} else {
-					for _, wschan := range wschans {
-						select {
-						case wschan <- b:
-						default:
-						}
+				// Process the case, where the expected data is declared to be a specific struct
+				if msgstruct != nil {
+					// Extract the message into the given type
+					if e = proto.Unmarshal(w.Value(), msgstruct); e != nil {
+						fmt.Println(e)
 					}
-				}
-
-			} else {
-				(*x) = string(w.Value())
-				if b, e = json.Marshal(map[string]string{
-					w.Key(): string(w.Value())},
-				); e != nil {
-					fmt.Println(e)
-					continue
+					*x = msgstruct
 				} else {
-					for _, wschan := range wschans {
-						select {
-						case wschan <- b:
-						default:
-						}
-					}
+					// Process the case where the message is not expected to be a specific struct, assume just string
+					*x = string(w.Value())
 				}
 			}
+		} else {
+			// Handle the nil case where we are up-to-date
+			continue
 		}
 	}
 
@@ -378,24 +372,6 @@ func getBucketWatcher(js nats.JetStreamContext, bucket string) (<-chan nats.KeyV
 	}
 }
 
-func (t *inMemoryTable) HTTPServe(w http.ResponseWriter, r *http.Request) {
-	t.RLock()
-	defer t.RUnlock()
-
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Content-Type", "application/json")
-
-	b, e := t.JSON()
-
-	if e != nil {
-		fmt.Println(e)
-		w.WriteHeader(502)
-		return
-	}
-
-	w.Write(b)
-}
-
 // Decode decodes a go binary object containing workflow variables.
 func Decode(vars []byte) (model.Vars, error) {
 	ret := make(map[string]any)
@@ -404,20 +380,9 @@ func Decode(vars []byte) (model.Vars, error) {
 	}
 	r := bytes.NewReader(vars)
 	d := gob.NewDecoder(r)
-	if err := d.Decode(&ret); err != nil {
+	if e := d.Decode(&ret); e != nil {
 		msg := "failed to decode vars"
-		//		log.Error(msg, zap.Any("vars", vars), zap.Error(err))
-		return nil, fmt.Errorf(msg+": %w", &errors.ErrWorkflowFatal{Err: err})
+		return nil, fmt.Errorf(msg+": %w", &errors.ErrWorkflowFatal{Err: e})
 	}
 	return ret, nil
-}
-
-func RandomString(n int) string {
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-
-	s := make([]rune, n)
-	for i := range s {
-		s[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(s)
 }
