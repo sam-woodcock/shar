@@ -2,8 +2,6 @@ package inmemorytable
 
 import (
 	"encoding/json"
-	"fmt"
-	"net/http"
 	"sync"
 )
 
@@ -15,8 +13,8 @@ type Table struct {
 
 // New reates a new in memory table
 func New() *Table {
-	t := new(Table)
 
+	t := new(Table)
 	t.table = make(map[string]*any)
 
 	return t
@@ -48,32 +46,27 @@ func (t *Table) Add(id string) *any {
 
 // Remove an entry from the table
 func (t *Table) Delete(id string) {
+
 	// Check if key already exists
-	t.RLock()
+	t.Lock()
 	delete(t.table, id)
-	t.RUnlock()
+	t.Unlock()
 }
 
 // Get a pointer to memory location to save/update the data
 // Returns nil,false if the location does not exist
 func (t *Table) Get(id string) (w *any, b bool) {
 
-	t.RLock()
 	// Get the value and sucess
 	w, b = t.table[id]
-	t.RUnlock()
 	return
 }
 
 // Drop the whole table
 func (t *Table) Purge() {
-
-	t.RLock()
 	t.table = make(map[string]*any)
-	t.RUnlock()
 }
 
-// @todo
 // Returns a list of the current Keys
 func (t *Table) List() map[string]*any {
 
@@ -99,22 +92,4 @@ func (t *Table) JSON() ([]byte, error) {
 	t.RLock()
 	defer t.RUnlock()
 	return json.MarshalIndent(t.table, "", "  ")
-}
-
-func (t *Table) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	t.RLock()
-	defer t.RUnlock()
-
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Content-Type", "application/json")
-
-	b, e := t.JSON()
-
-	if e != nil {
-		fmt.Println(e)
-		w.WriteHeader(502)
-		return
-	}
-
-	w.Write(b)
 }
