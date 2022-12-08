@@ -201,6 +201,16 @@ func main() {
 			return
 		}
 
+		// Check table exists
+		if _, ok := tables["WORKFLOW_USERTASK"]; !ok {
+			fmt.Println("query to WORKFLOW_USERTASK table that does not exist")
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|unable to answer query, please try later"},
+			})
+			msg.Respond(reply)
+			return
+		}
+
 		// Loop over all instances workflow state
 		for id, item := range tables["WORKFLOW_USERTASK"].List() {
 
@@ -241,11 +251,31 @@ func main() {
 			return
 		}
 
+		// Check table exists
+		if _, ok := tables["WORKFLOW_USERTASK"]; !ok {
+			fmt.Println("query to WORKFLOW_USERTASK table that does not exist")
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|unable to answer query, please try later"},
+			})
+			msg.Respond(reply)
+			return
+		}
+
 		// Loop over all instances workflow state
 		// Find the usertask based on the ID
 		if usertask, ok = tables["WORKFLOW_USERTASK"].Get(req.TrackingId); !ok {
 			reply, _ := proto.Marshal(&model.WorkflowState{
 				Error: &model.Error{Code: " ERR_3|key not found in usertask bucket"},
+			})
+			msg.Respond(reply)
+			return
+		}
+
+		// Check table exists
+		if _, ok := tables["WORKFLOW_DEF"]; !ok {
+			fmt.Println("query to WORKFLOW_Def table that does not exist")
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|unable to answer query, please try later"},
 			})
 			msg.Respond(reply)
 			return
