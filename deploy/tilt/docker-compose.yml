@@ -12,7 +12,7 @@ services:
   shar-server:
     image: registry.gitlab.com/shar-workflow/shar/server:latest
     build:
-      context: .
+      context: ../..
       dockerfile: .
     restart: on-failure
     environment:
