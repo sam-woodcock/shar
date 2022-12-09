@@ -95,7 +95,6 @@ func TestMultiWorkflow(t *testing.T) {
 			wg.Done()
 			mx.Lock()
 			delete(instances, c.WorkflowInstanceId)
-			fmt.Println(i+1, "completed "+c.WorkflowInstanceId, " left:", len(instances))
 			mx.Unlock()
 		}
 	}()

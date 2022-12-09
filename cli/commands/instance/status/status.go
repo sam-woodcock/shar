@@ -32,9 +32,6 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("error getting workflow instance status: %w", err)
 	}
-	c := &output.Console{}
-	if err := c.OutputWorkflowInstanceStatus(status); err != nil {
-		return fmt.Errorf("failed to output workflow instance status: %w", err)
-	}
+	output.Current.OutputWorkflowInstanceStatus(status)
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"gitlab.com/shar-workflow/shar/cli/flag"
+	"gitlab.com/shar-workflow/shar/cli/output"
 	"gitlab.com/shar-workflow/shar/client"
 )
 
@@ -31,6 +32,6 @@ func run(cmd *cobra.Command, args []string) error {
 	if err := shar.CancelWorkflowInstance(ctx, wfiID); err != nil {
 		return fmt.Errorf("failed to cancel workflow instance: %w", err)
 	}
-	fmt.Println("workflow", wfiID, "cancelled.")
+	output.Current.OutputCancelledWorkflow(wfiID)
 	return nil
 }

@@ -1,6 +1,5 @@
 package intTest
 
-/*
 import (
 	"context"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestEndEventError(t *testing.T) {
@@ -63,12 +63,21 @@ func TestEndEventError(t *testing.T) {
 
 	var final *model.WorkflowInstanceComplete
 
+	finish := make(chan struct{})
 	// wait for the workflow to complete
-	for i := range complete {
-		if i.WorkflowInstanceId == wfiID {
-			final = i
-			break
+	go func() {
+		for i := range complete {
+			if i.WorkflowInstanceId == wfiID {
+				final = i
+				close(finish)
+				return
+			}
 		}
+	}()
+	select {
+	case <-finish:
+	case <-time.After(10 * time.Second):
+		assert.Fail(t, "timed out")
 	}
 	assert.Equal(t, "103", final.Error.Code)
 	assert.Equal(t, "CatastrophicError", final.Error.Name)
@@ -92,4 +101,3 @@ func (d *testErrorEndEventHandlerDef) fixSituation(_ context.Context, _ client.J
 	fmt.Println("carried", vars["carried"])
 	panic("this event should not fire")
 }
-*/
