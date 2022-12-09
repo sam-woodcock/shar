@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"gitlab.com/shar-workflow/shar/cli/flag"
+	"gitlab.com/shar-workflow/shar/cli/output"
 	"gitlab.com/shar-workflow/shar/client"
 )
 
@@ -31,8 +32,6 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to list workflows: %w", err)
 	}
-	for _, v := range res {
-		fmt.Println("instance:", v.Id, "version: ", v.Version)
-	}
+	output.Current.OutputListWorkflowInstance(res)
 	return nil
 }

@@ -50,7 +50,6 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("workflow launch failed: %w", err)
 	}
-	fmt.Println("workflow instance started. instance-id:", wfiID)
 
 	if flag.Value.DebugTrace {
 		// Connect to a server
@@ -88,7 +87,6 @@ func run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("error starting debug trace processing: %w", err)
 		}
 
-		c := output.Console{}
 		for msg := range workflowMessages {
 			var state = model.WorkflowState{}
 			err := proto.Unmarshal(msg.Data, &state)
@@ -98,10 +96,7 @@ func run(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("failed to unmarshal status trace message: %w", err)
 			}
 			if state.WorkflowInstanceId == wfiID {
-				err := c.OutputWorkflowInstanceStatus([]*model.WorkflowState{&state})
-				if err != nil {
-					return fmt.Errorf("error outputting workflow instance status: %w", err)
-				}
+				output.Current.OutputWorkflowInstanceStatus([]*model.WorkflowState{&state})
 			}
 			// Check end states once they are implemented
 			// if state.State == "" {
@@ -110,6 +105,7 @@ func run(cmd *cobra.Command, args []string) error {
 			// }
 		}
 	}
+	output.Current.OutputStartWorkflowResult(wfiID)
 	return nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"gitlab.com/shar-workflow/shar/cli/flag"
+	"gitlab.com/shar-workflow/shar/cli/output"
 	"gitlab.com/shar-workflow/shar/client"
 	"os"
 )
@@ -37,6 +38,6 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("workflow could not be loaded: %w", err)
 	}
-	fmt.Println("workflow " + wn + " loaded.")
+	output.Current.OutputLoadResult(wn)
 	return nil
 }

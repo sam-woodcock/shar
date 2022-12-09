@@ -83,12 +83,22 @@ func TestUserTasks(t *testing.T) {
 		}
 	}()
 
-	// wait for the workflow to complete
-	for i := range complete {
-		if i.WorkflowInstanceId == wfiID {
-			break
+	finish := make(chan struct{})
+	go func() {
+		// wait for the workflow to complete
+		for i := range complete {
+			if i.WorkflowInstanceId == wfiID {
+				close(finish)
+				return
+			}
 		}
+	}()
+	select {
+	case <-finish:
+	case <-time.After(20 * time.Second):
+		assert.Fail(t, "timed out")
 	}
+
 	et, err := cl.ListUserTaskIDs(ctx, "andrei")
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(et.Id))
