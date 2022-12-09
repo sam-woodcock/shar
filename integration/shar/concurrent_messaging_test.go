@@ -75,12 +75,11 @@ func TestConcurrentMessaging(t *testing.T) {
 		select {
 		case c := <-complete:
 			fmt.Println(c.WorkflowInstanceId)
-		case <-time.After(40 * time.Second):
+		case <-time.After(5 * time.Second):
 		}
 	}
 	assert.Equal(t, handlers.received, n)
 	fmt.Println("Stopwatch:", -time.Until(tm))
-	// TODO: Add kill workflow activities upon completion, then add this back in.
 	tst.AssertCleanKV()
 }
 

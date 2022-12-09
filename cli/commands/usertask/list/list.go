@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"gitlab.com/shar-workflow/shar/cli/flag"
+	"gitlab.com/shar-workflow/shar/cli/output"
 	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/model"
 )
 
 // Cmd is the cobra command object
@@ -30,13 +32,15 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("send message failed: %w", err)
 	}
+	res := make([]*model.GetUserTaskResponse, len(ut.Id))
 	for i, v := range ut.Id {
 		ut, _, err := shar.GetUserTask(ctx, args[0], v)
 		if err != nil {
 			return fmt.Errorf("failed to get user task %s: %w", v, err)
 		}
-		fmt.Println(i, ut)
+		res[i] = ut
 	}
+	output.Current.OutputUserTaskIDs(res)
 	return nil
 }
 

@@ -3,6 +3,7 @@ package intTest
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/common/workflow"
@@ -10,6 +11,7 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestUnhandledError(t *testing.T) {
@@ -63,12 +65,20 @@ func TestUnhandledError(t *testing.T) {
 		}
 	}()
 
+	finish := make(chan struct{})
 	// wait for the workflow to complete
-	for i := range complete {
-		if i.WorkflowInstanceId == wfiID {
-			fmt.Println("state", i.WorkflowState)
-			break
+	go func() {
+		for i := range complete {
+			if i.WorkflowInstanceId == wfiID {
+				close(finish)
+				break
+			}
 		}
+	}()
+	select {
+	case <-finish:
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "timed out")
 	}
 	tst.AssertCleanKV()
 }

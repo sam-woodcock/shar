@@ -11,6 +11,7 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestHandledError(t *testing.T) {
@@ -65,11 +66,20 @@ func TestHandledError(t *testing.T) {
 		}
 	}()
 
+	finish := make(chan struct{})
 	// wait for the workflow to complete
-	for i := range complete {
-		if i.WorkflowInstanceId == wfiID {
-			break
+	go func() {
+		for i := range complete {
+			if i.WorkflowInstanceId == wfiID {
+				close(finish)
+				break
+			}
 		}
+	}()
+	select {
+	case <-finish:
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "timed out")
 	}
 	tst.AssertCleanKV()
 }

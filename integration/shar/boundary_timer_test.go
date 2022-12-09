@@ -78,7 +78,7 @@ func TestExclusiveGateway(t *testing.T) {
 	select {
 	case c := <-complete:
 		fmt.Println("completed " + c.WorkflowInstanceId)
-	case <-time.After(20 * time.Second):
+	case <-time.After(5 * time.Second):
 		assert.Fail(t, "Timed out")
 
 	}
