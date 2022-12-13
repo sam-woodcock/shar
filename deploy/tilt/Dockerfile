@@ -7,7 +7,7 @@ ARG COMMIT_HASH="12345abcd"
 WORKDIR /work
 
 # dep caching
-COPY ../../go.mod ../../go.sum ./
+COPY go.mod go.sum ./
 RUN go mod download -x
 RUN     go get -d google.golang.org/protobuf/cmd/protoc-gen-go@v1.28 && \
         go get -d google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2 && \
@@ -17,7 +17,7 @@ RUN     go get -d google.golang.org/protobuf/cmd/protoc-gen-go@v1.28 && \
 
 # go protobuf generation:
 RUN apk add protoc
-COPY ../.. .
+COPY . .
 RUN cd proto; protoc --go_opt=M=gitlab.com --go_out=../model shar-workflow/models.proto
 RUN ls model/gitlab.com/shar-workflow/shar/model && \
     mv model/gitlab.com/shar-workflow/shar/model/models.pb.go model && \
