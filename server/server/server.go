@@ -1,9 +1,13 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/nats-io/nats.go"
+	"gitlab.com/shar-workflow/shar/common/authn"
+	"gitlab.com/shar-workflow/shar/common/authz"
+	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/api"
 	"gitlab.com/shar-workflow/shar/server/health"
 	"gitlab.com/shar-workflow/shar/server/services"
@@ -26,6 +30,8 @@ type Server struct {
 	panicRecovery           bool
 	allowOrphanServiceTasks bool
 	concurrency             int
+	apiAuthorizer           authz.APIFunc
+	apiAuthenticator authn.Check
 }
 
 // New creates a new SHAR server.
@@ -37,11 +43,26 @@ func New(options ...Option) *Server {
 		panicRecovery:           true,
 		allowOrphanServiceTasks: true,
 		concurrency:             6,
+		apiAuthorizer: noopAuthZ,
+		apiAuthenticator: noopAuthN,
 	}
 	for _, i := range options {
 		i.configure(s)
 	}
 	return s
+}
+
+func noopAuthN(ctx context.Context, request *model.ApiAuthenticationRequest) (*model.ApiAuthenticationResponse, error) {
+	return &model.ApiAuthenticationResponse{
+		User:          "anonymous",
+		Authenticated: true,
+	}, nil
+}
+
+func noopAuthZ(ctx context.Context, request *model.ApiAuthorizationRequest) (*model.ApiAuthorizationResponse, error) {
+	return &model.ApiAuthorizationResponse{
+		Authorized: true,
+	}, nil
 }
 
 // Listen starts the GRPC server for both serving requests, and the GRPC health endpoint.
@@ -75,7 +96,7 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 	slog.Info("shar grpc health started")
 
 	ns := s.createServices(natsURL, s.ephemeralStorage, s.allowOrphanServiceTasks)
-	s.api, err = api.New(ns, s.panicRecovery)
+	s.api, err = api.New(ns, s.panicRecovery, s.apiAuthorizer, s.apiAuthenticator)
 	if err != nil {
 		panic(err)
 	}

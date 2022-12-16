@@ -15,7 +15,7 @@ import (
 
 func TestExclusiveGatewayDecision(t *testing.T) {
 	tst := &support.Integration{}
-	tst.Setup(t)
+	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
 	// Create a starting context

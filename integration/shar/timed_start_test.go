@@ -16,7 +16,7 @@ import (
 
 func TestTimedStart(t *testing.T) {
 	tst := &support.Integration{}
-	tst.Setup(t)
+	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
 	// Create a starting context
@@ -51,7 +51,7 @@ func TestTimedStart(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 	d.mx.Lock()
 	defer d.mx.Unlock()
 	assert.Equal(t, 32768, d.tst.FinalVars["carried"])

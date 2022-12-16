@@ -16,7 +16,7 @@ import (
 
 func TestHandledError(t *testing.T) {
 	tst := &support.Integration{}
-	tst.Setup(t)
+	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
 	//sub := tracer.Trace("nats://127.0.0.1:4459")

@@ -8,6 +8,8 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gitlab.com/shar-workflow/shar/common/authn"
+	"gitlab.com/shar-workflow/shar/common/authz"
 	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/model"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
@@ -42,12 +44,12 @@ type Integration struct {
 }
 
 // Setup - sets up the test NATS and SHAR servers.
-func (s *Integration) Setup(t *testing.T) {
+func (s *Integration) Setup(t *testing.T, authZFn authz.APIFunc, authNFn authn.Check) {
 	logx.SetDefault(slog.DebugLevel, false, "shar-Integration-tests")
 	s.Cooldown = 2 * time.Second
 	s.Test = t
 	s.FinalVars = make(map[string]interface{})
-	ss, ns, err := zensvr.GetServers(NatsHost, NatsPort, 10)
+	ss, ns, err := zensvr.GetServers(NatsHost, NatsPort, 10, authZFn, authNFn)
 	if err != nil {
 		panic(err)
 	}

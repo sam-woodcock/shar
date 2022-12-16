@@ -3,6 +3,8 @@ package server
 import (
 	"fmt"
 	"github.com/nats-io/nats-server/v2/server"
+	"gitlab.com/shar-workflow/shar/common/authn"
+	"gitlab.com/shar-workflow/shar/common/authz"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
 	"golang.org/x/exp/slog"
 	"strconv"
@@ -10,7 +12,7 @@ import (
 )
 
 // GetServers returns a test NATS and SHAR server.
-func GetServers(natsHost string, natsPort int, sharConcurrency int) (*sharsvr.Server, *server.Server, error) {
+func GetServers(natsHost string, natsPort int, sharConcurrency int, apiAuth authz.APIFunc, authN authn.Check) (*sharsvr.Server, *server.Server, error) {
 	nsvr, err := server.NewServer(&server.Options{
 		ConfigFile:            "",
 		ServerName:            "TestNatsServer",
@@ -119,7 +121,18 @@ func GetServers(natsHost string, natsPort int, sharConcurrency int) (*sharsvr.Se
 	}
 	slog.Info("NATS started")
 
-	ssvr := sharsvr.New(sharsvr.EphemeralStorage(), sharsvr.PanicRecovery(false), sharsvr.Concurrency(10))
+	options := []sharsvr.Option{
+		sharsvr.EphemeralStorage(),
+		sharsvr.PanicRecovery(false),
+		sharsvr.Concurrency(sharConcurrency),
+	}
+	if apiAuth != nil {
+		options = append(options,sharsvr.WithApiAuthorizer(apiAuth))
+	}
+	if authN != nil {
+		options = append(options,sharsvr.WithAuthentication(authN))
+	}
+	ssvr := sharsvr.New(options...)
 	go ssvr.Listen(natsHost+":"+strconv.Itoa(natsPort), 55001)
 	for {
 		if ssvr.Ready() {

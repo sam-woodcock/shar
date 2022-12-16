@@ -19,7 +19,7 @@ import (
 func TestSimpleTelemetry(t *testing.T) {
 	tel := &MockTelemetry{}
 	tst := &support.Integration{WithTelemetry: tel}
-	tst.Setup(t)
+	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
 	tel.On("ExportSpans", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("[]trace.ReadOnlySpan")).

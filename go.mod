@@ -6,9 +6,10 @@ require (
 	github.com/antchfx/xmlquery v1.3.12
 	github.com/antonmedv/expr v1.9.0
 	github.com/caarlos0/env/v6 v6.10.1
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang/protobuf v1.5.2
-	github.com/nats-io/nats-server/v2 v2.9.4
-	github.com/nats-io/nats.go v1.20.0
+	github.com/nats-io/nats-server/v2 v2.9.9
+	github.com/nats-io/nats.go v1.21.0
 	github.com/pterm/pterm v0.12.49
 	github.com/relvacode/iso8601 v1.1.0
 	github.com/segmentio/ksuid v1.0.4
