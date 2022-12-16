@@ -227,46 +227,46 @@ func (s *SharServer) authorize(ctx context.Context, workflowName string) (contex
 	return ctx, nil
 }
 
-func (s *SharServer) authFromJobID(ctx context.Context, trackingID string) (*model.WorkflowState, error) {
+func (s *SharServer) authFromJobID(ctx context.Context, trackingID string) (context.Context, *model.WorkflowState, error) {
 	job, err := s.ns.GetJob(ctx, trackingID)
 	if err != nil {
-		return nil, err
+		return ctx,nil, fmt.Errorf("failed to get job for authorization: %w",err)
 	}
 	wi, err := s.ns.GetWorkflowInstance(ctx, job.WorkflowInstanceId)
 	if err != nil {
-		return nil, err
+		return ctx, nil, fmt.Errorf("failed to get workflow instance for authorization: %w",err)
 	}
 	ctx, auth := s.authorize(ctx, wi.WorkflowName)
 	if auth != nil{
-		return nil, fmt.Errorf("failed to authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
+		return ctx, nil, fmt.Errorf("failed to authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
 	}
-	return job, nil
+	return ctx,job, nil
 }
 
-func (s *SharServer) authFromInstanceID(ctx context.Context, instanceID string) (*model.WorkflowInstance, error) {
+func (s *SharServer) authFromInstanceID(ctx context.Context, instanceID string) (context.Context,*model.WorkflowInstance, error) {
 	wi, err := s.ns.GetWorkflowInstance(ctx, instanceID)
 	if err != nil {
-		return nil, err
+		return ctx,nil, fmt.Errorf("failed to get workflow instance for authorization: %w",err)
 	}
 	ctx, auth := s.authorize(ctx, wi.WorkflowName)
 	if auth != nil{
-		return nil, fmt.Errorf("failed to authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
+		return ctx,nil, fmt.Errorf("failed to authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
 	}
-	return wi, nil
+	return ctx, wi, nil
 }
 
-func (s *SharServer) authForNonWorkflow(ctx context.Context) error {
+func (s *SharServer) authForNonWorkflow(ctx context.Context) (context.Context,error) {
 	ctx, auth := s.authorize(ctx, "")
 	if auth != nil{
-		return fmt.Errorf("failed to authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
+		return ctx,fmt.Errorf("failed to authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
 	}
-	return nil
+	return ctx,nil
 }
 
-func (s *SharServer) authForNamedWorkflow(ctx context.Context, name string) error {
+func (s *SharServer) authForNamedWorkflow(ctx context.Context, name string) (context.Context,error) {
 	ctx, auth := s.authorize(ctx, name)
 	if auth != nil{
-		return fmt.Errorf("failed to authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
+		return ctx,fmt.Errorf("failed to authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
 	}
-	return nil
+	return ctx,nil
 }
