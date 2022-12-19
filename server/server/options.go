@@ -68,7 +68,6 @@ func (o apiAuthorizerOption) configure(server *Server) {
 	server.apiAuthorizer = o.value
 }
 
-
 // WithAuthentication specifies a handler function for API authorization.
 func WithAuthentication(authFn authn.Check) authenticationOption { //nolint
 	return authenticationOption{value: authFn}

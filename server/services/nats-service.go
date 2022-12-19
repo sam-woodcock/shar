@@ -457,7 +457,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		State:              state,
 		Error:              wfError,
 		UnixTimeNano:       time.Now().UnixNano(),
-		WorkflowName: wf.Name,
+		WorkflowName:       wf.Name,
 	}
 
 	if tState.Error != nil {
@@ -1103,6 +1103,10 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 				msg, err := sub.Fetch(1, nats.Context(reqCtx))
 				if err != nil {
 					if errors2.Is(err, context.DeadlineExceeded) {
+						cancel()
+						continue
+					}
+					if err.Error() == "nats: Server Shutdown" {
 						cancel()
 						continue
 					}

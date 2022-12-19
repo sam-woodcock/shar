@@ -3,7 +3,6 @@ package intTest
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	support "gitlab.com/shar-workflow/shar/integration-support"
@@ -20,14 +19,16 @@ func TestBoundaryTimer(t *testing.T) {
 	defer tst.Teardown()
 
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
-	d := &testBoundaryTimerDef{}
+	d := &testBoundaryTimerDef{
+		tst: tst,
+	}
 
 	executeBoundaryTimerTest(t, complete, d)
 	select {
 	case c := <-complete:
 		fmt.Println("completed " + c.WorkflowInstanceId)
 	case <-time.After(20 * time.Second):
-		assert.Fail(t, "Timed out")
+		require.Fail(t, "Timed out")
 	}
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
@@ -48,6 +49,7 @@ func TestBoundaryTimerTimeout(t *testing.T) {
 	d := &testBoundaryTimerDef{
 		CanTimeOutPause:  time.Second * 5,
 		CheckResultPause: time.Second * 4,
+		tst:              tst,
 	}
 
 	executeBoundaryTimerTest(t, complete, d)
@@ -55,7 +57,7 @@ func TestBoundaryTimerTimeout(t *testing.T) {
 	case c := <-complete:
 		fmt.Println("completed " + c.WorkflowInstanceId)
 	case <-time.After(20 * time.Second):
-		assert.Fail(t, "Timed out")
+		require.Fail(t, "Timed out")
 	}
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
@@ -72,6 +74,7 @@ func TestExclusiveGateway(t *testing.T) {
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	d := &testBoundaryTimerDef{
 		CheckResultPause: time.Second * 3,
+		tst:              tst,
 	}
 
 	executeBoundaryTimerTest(t, complete, d)
@@ -79,7 +82,7 @@ func TestExclusiveGateway(t *testing.T) {
 	case c := <-complete:
 		fmt.Println("completed " + c.WorkflowInstanceId)
 	case <-time.After(5 * time.Second):
-		assert.Fail(t, "Timed out")
+		require.Fail(t, "Timed out")
 
 	}
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
@@ -96,7 +99,7 @@ func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanc
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(support.NatsURL)
+	err := cl.Dial(d.tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
@@ -138,6 +141,7 @@ type testBoundaryTimerDef struct {
 	CanTimeOutPause   time.Duration
 	CheckResultPause  time.Duration
 	NoTimeoutPause    time.Duration
+	tst               *support.Integration
 }
 
 func (d *testBoundaryTimerDef) canTimeout(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {

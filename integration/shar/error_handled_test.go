@@ -27,7 +27,7 @@ func TestHandledError(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	if err := cl.Dial(support.NatsURL); err != nil {
+	if err := cl.Dial(tst.NatsURL); err != nil {
 		panic(err)
 	}
 
@@ -79,7 +79,7 @@ func TestHandledError(t *testing.T) {
 	select {
 	case <-finish:
 	case <-time.After(5 * time.Second):
-		assert.Fail(t, "timed out")
+		require.Fail(t, "timed out")
 	}
 	tst.AssertCleanKV()
 }

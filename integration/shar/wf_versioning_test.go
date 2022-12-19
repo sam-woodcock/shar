@@ -23,7 +23,7 @@ func TestWfVersioning(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(support.NatsURL)
+	err := cl.Dial(tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
@@ -40,7 +40,7 @@ func TestWfVersioning(t *testing.T) {
 	res2, err := cl.ListWorkflows(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), res2[0].Version)
-	nc, err := nats.Connect(support.NatsURL)
+	nc, err := nats.Connect(tst.NatsURL)
 	require.NoError(t, err)
 	js, err := nc.JetStream()
 	require.NoError(t, err)

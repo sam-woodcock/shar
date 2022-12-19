@@ -112,8 +112,8 @@ func GetServers(natsHost string, natsPort int, sharConcurrency int, apiAuth auth
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create a new server instance: %w", err)
 	}
-	nl := &NatsLogger{}
-	nsvr.SetLogger(nl, false, false)
+	//nl := &NatsLogger{}
+	//nsvr.SetLogger(nl, false, false)
 
 	go nsvr.Start()
 	if !nsvr.ReadyForConnections(5 * time.Second) {
@@ -127,10 +127,10 @@ func GetServers(natsHost string, natsPort int, sharConcurrency int, apiAuth auth
 		sharsvr.Concurrency(sharConcurrency),
 	}
 	if apiAuth != nil {
-		options = append(options,sharsvr.WithApiAuthorizer(apiAuth))
+		options = append(options, sharsvr.WithApiAuthorizer(apiAuth))
 	}
 	if authN != nil {
-		options = append(options,sharsvr.WithAuthentication(authN))
+		options = append(options, sharsvr.WithAuthentication(authN))
 	}
 	ssvr := sharsvr.New(options...)
 	go ssvr.Listen(natsHost+":"+strconv.Itoa(natsPort), 55001)
