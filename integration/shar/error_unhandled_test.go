@@ -3,7 +3,6 @@ package intTest
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/common/workflow"
@@ -16,7 +15,7 @@ import (
 
 func TestUnhandledError(t *testing.T) {
 	tst := &support.Integration{}
-	tst.Setup(t)
+	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
 	//sub := tracer.Trace(NatsURL)
@@ -27,7 +26,7 @@ func TestUnhandledError(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	if err := cl.Dial(support.NatsURL); err != nil {
+	if err := cl.Dial(tst.NatsURL); err != nil {
 		panic(err)
 	}
 
@@ -78,7 +77,7 @@ func TestUnhandledError(t *testing.T) {
 	select {
 	case <-finish:
 	case <-time.After(5 * time.Second):
-		assert.Fail(t, "timed out")
+		require.Fail(t, "timed out")
 	}
 	tst.AssertCleanKV()
 }

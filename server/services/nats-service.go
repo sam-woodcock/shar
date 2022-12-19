@@ -11,6 +11,7 @@ import (
 	"github.com/segmentio/ksuid"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/expression"
+	"gitlab.com/shar-workflow/shar/common/header"
 	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/setup"
 	"gitlab.com/shar-workflow/shar/common/subj"
@@ -456,6 +457,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		State:              state,
 		Error:              wfError,
 		UnixTimeNano:       time.Now().UnixNano(),
+		WorkflowName:       wf.Name,
 	}
 
 	if tState.Error != nil {
@@ -672,6 +674,10 @@ func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string
 		return fmt.Errorf("failed to marshal proto during publish workflow state: %w", err)
 	}
 	msg.Data = b
+	val := header.FromCtx(ctx)
+	if err := header.ToMsg(ctx, val, msg); err != nil {
+		return fmt.Errorf("failed to add header to published workflow state: %w", err)
+	}
 	pubCtx, cancel := context.WithTimeout(ctx, s.publishTimeout)
 	defer cancel()
 	if c.ID == "" {
@@ -713,7 +719,10 @@ func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID str
 
 	msg.Header.Add(logx.CorrelationHeader, ctx.Value(logx.CorrelationContextKey).(string))
 	msg.Data = b
-
+	val := header.FromCtx(ctx)
+	if err := header.ToMsg(ctx, val, msg); err != nil {
+		return fmt.Errorf("failed to add header to published workflow state: %w", err)
+	}
 	pubCtx, cancel := context.WithTimeout(ctx, s.publishTimeout)
 	defer cancel()
 	id := ksuid.New().String()
@@ -1097,6 +1106,10 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 						cancel()
 						continue
 					}
+					if err.Error() == "nats: Server Shutdown" {
+						cancel()
+						continue
+					}
 					// Log Error
 					log.Error("message fetch error", err)
 					cancel()
@@ -1137,6 +1150,15 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 				}
 
 				ctx, log := logx.LoggingEntrypoint(sctx, "shar-server", cid)
+				val, err := header.FromMsg(ctx, m)
+				if err != nil {
+					log.Error("failed to get header values from incoming process message", &errors.ErrWorkflowFatal{Err: err})
+					if err := msg[0].Ack(); err != nil {
+						log.Error("processing failed to ack", err)
+					}
+					continue
+				}
+				ctx = header.ToCtx(ctx, val)
 				if strings.HasSuffix(msg[0].Subject, ".Timers.ElementExecute") {
 					wfi, err := s.GetWorkflowInstance(ctx, state.WorkflowInstanceId)
 					if errors2.Is(err, errors.ErrWorkflowInstanceNotFound) {

@@ -16,7 +16,7 @@ import (
 
 func TestTimedStart(t *testing.T) {
 	tst := &support.Integration{}
-	tst.Setup(t)
+	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
 	// Create a starting context
@@ -24,7 +24,7 @@ func TestTimedStart(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(support.NatsURL)
+	err := cl.Dial(tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
@@ -51,7 +51,7 @@ func TestTimedStart(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 	d.mx.Lock()
 	defer d.mx.Unlock()
 	assert.Equal(t, 32768, d.tst.FinalVars["carried"])

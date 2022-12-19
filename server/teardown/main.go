@@ -14,7 +14,6 @@ func main() {
 	} else {
 		natsURI = os.Args[1]
 	}
-	fmt.Println("Connecting to NATS: " + natsURI)
 	con, err := nats.Connect(natsURI)
 	if err != nil {
 		panic(err)

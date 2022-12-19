@@ -104,6 +104,7 @@ message WorkflowState {
   repeated string groups = 13; // Groups - a list of user groups for this state that may be responsible for completing tasks
   Error error = 14; // Error - an error being carried by the state if it has faulted.
   WorkflowTimer timer = 16; // Timer - a time needed to transition to the next state.
+  string workflowName = 17; // WorkflowName - name of this workflow to avoid lookups.
 }
 
 // WorkflowTimerDefinition defines a workflow timer that can be used to trigger an event.
@@ -133,6 +134,7 @@ message WorkflowInstance {
   optional string parentElementId = 3; // ParentElementId - the ID of the element in the parent workflow that triggered the launch of this instance.
   string workflowId = 4; // WorkflowId - the workflow version ID that this instance is executing.
   map<string, bool> inFlight = 6; // InFlight - active state machine states inside the workflow instance.
+  string workflowName = 7; // WorkflowName - name of this workflow to avoid lookups.
 }
 
 // MessageInstance represents a workflow message.
@@ -150,6 +152,27 @@ message UserTasks {
   repeated string id = 1;
 }
 
+
+message ApiAuthorizationRequest {
+  map<string, string> Headers = 1;
+  string function = 2;
+  string workflowName = 3;
+  string user = 4;
+}
+
+message ApiAuthorizationResponse {
+  bool authorized = 1;
+  string userId = 2;
+}
+
+message ApiAuthenticationRequest {
+  map<string, string> headers = 1;
+}
+
+message ApiAuthenticationResponse {
+  string user = 1;
+  bool Authenticated = 2;
+}
 
 message LaunchWorkflowRequest {
   string name = 1;

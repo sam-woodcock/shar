@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/nats-io/nats.go"
+	"gitlab.com/shar-workflow/shar/common/header"
 	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
@@ -187,12 +188,26 @@ func Process(ctx context.Context, js nats.JetStreamContext, traceName string, cl
 						cancel()
 						continue
 					}
+					// Horrible, but this isn't a typed error.  This test just stops the listener printing pointless errors.
+					if err.Error() == "nats: Server Shutdown" {
+						cancel()
+						continue
+					}
 					// Log Error
 					log.Error("message fetch error", err)
 					cancel()
 					continue
 				}
 				m := msg[0]
+				val, err := header.FromMsg(ctx, m)
+				if err != nil {
+					log.Error("failed to get header values from incoming process message", &errors2.ErrWorkflowFatal{Err: err})
+					if err := msg[0].Ack(); err != nil {
+						log.Error("processing failed to ack", err)
+					}
+					cancel()
+					continue
+				}
 				//				log.Debug("Process:"+traceName, slog.String("subject", msg[0].Subject))
 				cancel()
 				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
@@ -211,6 +226,7 @@ func Process(ctx context.Context, js nats.JetStreamContext, traceName string, cl
 				}
 				cid := msg[0].Header.Get(logx.CorrelationHeader)
 				executeCtx, executeLog := logx.LoggingEntrypoint(context.Background(), "server", cid)
+				executeCtx = header.ToCtx(executeCtx, val)
 				ack, err := fn(executeCtx, executeLog, msg[0])
 				if err != nil {
 					if errors2.IsWorkflowFatal(err) {

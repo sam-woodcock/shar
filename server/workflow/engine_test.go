@@ -36,6 +36,7 @@ func TestLaunchWorkflow(t *testing.T) {
 			ParentWorkflowInstanceId: nil,
 			ParentElementId:          nil,
 			WorkflowId:               "test-workflow-id",
+			WorkflowName:             "TestWorkflow",
 		}, nil)
 
 	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.valueCtx"), "WORKFLOW.%s.State.Traversal.Execute", mock.AnythingOfType("*model.WorkflowState")).
@@ -77,6 +78,7 @@ func TestTraversal(t *testing.T) {
 		ParentWorkflowInstanceId: nil,
 		ParentElementId:          nil,
 		WorkflowId:               "test-workflow-id",
+		WorkflowName:             "TestWorkflow",
 	}
 
 	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.valueCtx"), "WORKFLOW.%s.State.Traversal.Execute", mock.AnythingOfType("*model.WorkflowState")).
@@ -114,6 +116,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 			ParentWorkflowInstanceId: nil,
 			ParentElementId:          nil,
 			WorkflowId:               "test-workflow-id",
+			WorkflowName:             "TestWorkflow",
 		}, nil)
 
 	svc.On("GetWorkflow", mock.AnythingOfType("*context.valueCtx"), "test-workflow-id").
@@ -167,6 +170,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 		ElementId:          els["Step1"].Id,
 		Id:                 []string{trackingID},
 		Vars:               v,
+		WorkflowName:       "TestWorkflow",
 	}, false)
 	assert.NoError(t, err)
 	svc.AssertExpectations(t)
@@ -227,6 +231,5 @@ func TestCompleteJobProcessor(t *testing.T) {
 	err := eng.completeJobProcessor(ctx, []string{"test-job-id"}, []byte{})
 	assert.NoError(t, err)
 	svc.AssertExpectations(t)
-
 }
 */
