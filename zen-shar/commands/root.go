@@ -30,7 +30,7 @@ func run(cmd *cobra.Command, args []string) error {
 	// Capture SIGTERM and SIGINT
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
 
-	ns, ss, err := server.GetServers("127.0.0.1", 4222, flag.Value.Concurrency)
+	ns, ss, err := server.GetServers("127.0.0.1", 4222, flag.Value.Concurrency, nil, nil)
 	if err != nil {
 		panic(err)
 	}

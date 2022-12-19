@@ -11,6 +11,7 @@ import (
 	"gitlab.com/shar-workflow/shar/client/parser"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/ctxkey"
+	"gitlab.com/shar-workflow/shar/common/header"
 	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/common/workflow"
@@ -111,7 +112,7 @@ func New(option ...Option) *Client {
 		listenTasks:    make(map[string]struct{}),
 		msgListenTasks: make(map[string]struct{}),
 		ns:             "default",
-		concurrency:	10,
+		concurrency:    10,
 	}
 	for _, i := range option {
 		i.configure(client)
@@ -210,6 +211,11 @@ func (c *Client) listen(ctx context.Context) error {
 				return false, fmt.Errorf("failed during service task listener: %w", err)
 			}
 			ctx = context.WithValue(ctx, ctxkey.WorkflowInstanceID, ut.WorkflowInstanceId)
+			val, err := header.FromMsg(ctx, msg)
+			if err != nil {
+				return true, &errors2.ErrWorkflowFatal{Err: fmt.Errorf("failed to obtain headers from message: %w", err)}
+			}
+			ctx = header.ToCtx(ctx, val)
 			switch ut.ElementType {
 			case "serviceTask":
 				trackingID := common.TrackingID(ut.Id).ID()
@@ -565,12 +571,17 @@ func (c *Client) GetJob(ctx context.Context, id string) (*model.WorkflowState, e
 	return job, nil
 }
 
-func callAPI[T proto.Message, U proto.Message](_ context.Context, con *nats.Conn, subject string, command T, ret U) error {
+func callAPI[T proto.Message, U proto.Message](ctx context.Context, con *nats.Conn, subject string, command T, ret U) error {
+	val := header.FromCtx(ctx)
 	b, err := proto.Marshal(command)
 	if err != nil {
 		return fmt.Errorf("failed to marshal proto for call API: %w", err)
 	}
 	msg := nats.NewMsg(subject)
+	err = header.ToMsg(ctx, val, msg)
+	if err != nil {
+		return fmt.Errorf("failed to attach headers to outgoing API message: %w", err)
+	}
 	msg.Header.Set("cid", ksuid.New().String())
 	msg.Data = b
 	res, err := con.RequestMsg(msg, time.Second*60)

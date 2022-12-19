@@ -1,5 +1,10 @@
 package server
 
+import (
+	"gitlab.com/shar-workflow/shar/common/authn"
+	"gitlab.com/shar-workflow/shar/common/authz"
+)
+
 // Option represents a SHAR server option
 type Option interface {
 	configure(server *Server)
@@ -50,4 +55,26 @@ type concurrencyOption struct{ value int }
 
 func (o concurrencyOption) configure(server *Server) {
 	server.concurrency = o.value
+}
+
+// WithApiAuthorizer specifies a handler function for API authorization.
+func WithApiAuthorizer(authFn authz.APIFunc) apiAuthorizerOption { //nolint
+	return apiAuthorizerOption{value: authFn}
+}
+
+type apiAuthorizerOption struct{ value authz.APIFunc }
+
+func (o apiAuthorizerOption) configure(server *Server) {
+	server.apiAuthorizer = o.value
+}
+
+// WithAuthentication specifies a handler function for API authorization.
+func WithAuthentication(authFn authn.Check) authenticationOption { //nolint
+	return authenticationOption{value: authFn}
+}
+
+type authenticationOption struct{ value authn.Check }
+
+func (o authenticationOption) configure(server *Server) {
+	server.apiAuthenticator = o.value
 }

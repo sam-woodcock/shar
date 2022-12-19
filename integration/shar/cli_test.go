@@ -20,7 +20,7 @@ import (
 
 func TestCLI(t *testing.T) {
 	tst := &support.Integration{}
-	tst.Setup(t)
+	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
 	// Create a starting context
@@ -28,7 +28,7 @@ func TestCLI(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(support.NatsURL)
+	err := cl.Dial(tst.NatsURL)
 	require.NoError(t, err)
 
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
@@ -46,21 +46,21 @@ func TestCLI(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	flag.Value.Server = support.NatsURL
+	flag.Value.Server = tst.NatsURL
 	flag.Value.Json = true
 
 	// Load Workflow
 	wf := &struct {
 		WorkflowID string
 	}{}
-	sharExecf(t, wf, "bpmn load SimpleWorkflow ../../testdata/simple-workflow.bpmn --server %s --json", support.NatsURL)
+	sharExecf(t, wf, "bpmn load SimpleWorkflow ../../testdata/simple-workflow.bpmn --server %s --json", tst.NatsURL)
 	assert.NotEmpty(t, wf.WorkflowID)
 
 	// List Workflows
 	wfs := &struct {
 		Workflow []*model.ListWorkflowResult
 	}{}
-	sharExecf(t, wfs, "workflow list --server %s --json", support.NatsURL)
+	sharExecf(t, wfs, "workflow list --server %s --json", tst.NatsURL)
 	assert.Equal(t, 1, len(wfs.Workflow))
 	assert.Equal(t, "SimpleWorkflow", wfs.Workflow[0].Name)
 	assert.Equal(t, int32(1), wfs.Workflow[0].Version)
@@ -69,14 +69,14 @@ func TestCLI(t *testing.T) {
 	wfi := &struct {
 		WorkflowInstanceID string
 	}{}
-	sharExecf(t, wfi, "workflow start SimpleWorkflow --server %s --json", support.NatsURL)
+	sharExecf(t, wfi, "workflow start SimpleWorkflow --server %s --json", tst.NatsURL)
 	assert.NotEmpty(t, wfi.WorkflowInstanceID)
 
 	// Get Workflow Instances
 	instances := &struct {
 		WorkflowInstance []model.ListWorkflowInstanceResult
 	}{}
-	sharExecf(t, &instances, "instance list SimpleWorkflow --server %s --json", support.NatsURL)
+	sharExecf(t, &instances, "instance list SimpleWorkflow --server %s --json", tst.NatsURL)
 	assert.Equal(t, 1, len(instances.WorkflowInstance))
 	assert.Equal(t, wfi.WorkflowInstanceID, instances.WorkflowInstance[0].Id)
 
@@ -89,7 +89,7 @@ func TestCLI(t *testing.T) {
 		Executing  string
 		Since      int64
 	}{}
-	sharExecf(t, &status, "instance status %s --server %s --json", wfi.WorkflowInstanceID, support.NatsURL)
+	sharExecf(t, &status, "instance status %s --server %s --json", wfi.WorkflowInstanceID, tst.NatsURL)
 	assert.NotEmpty(t, status.TrackingId)
 	assert.Equal(t, "Step1", status.ID)
 	assert.Equal(t, "serviceTask", status.Type)
@@ -103,7 +103,7 @@ func TestCLI(t *testing.T) {
 	case c := <-complete:
 		fmt.Println("completed " + c.WorkflowInstanceId)
 	case <-time.After(20 * time.Second):
-		assert.Fail(t, "Timed out")
+		require.Fail(t, "Timed out")
 	}
 	tst.AssertCleanKV()
 }
