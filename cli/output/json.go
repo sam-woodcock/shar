@@ -12,11 +12,13 @@ type Json struct {
 }
 
 // OutputStartWorkflowResult returns a CLI response
-func (c *Json) OutputStartWorkflowResult(wfiID string) {
+func (c *Json) OutputStartWorkflowResult(wfiID string, wfID string) {
 	outJson(struct {
 		WorkflowInstanceID string
+		WorkflowID         string
 	}{
 		WorkflowInstanceID: wfiID,
+		WorkflowID:         wfID,
 	})
 }
 

@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -407,14 +409,70 @@ func (c *Client) completeSendMessage(ctx context.Context, trackingID string, new
 func (c *Client) LoadBPMNWorkflowFromBytes(ctx context.Context, name string, b []byte) (string, error) {
 	rdr := bytes.NewReader(b)
 	wf, err := parser.Parse(name, rdr)
-	if err == nil {
-		res := &wrapperspb.StringValue{}
-		if err := callAPI(ctx, c.txCon, messages.APIStoreWorkflow, wf, res); err != nil {
-			return "", c.clientErr(ctx, err)
-		}
-		return res.Value, nil
+	if err != nil {
+		return "", c.clientErr(ctx, err)
 	}
-	return "", c.clientErr(ctx, err)
+	rdr = bytes.NewReader(b)
+	compressed := &bytes.Buffer{}
+	archiver := gzip.NewWriter(compressed)
+	if _, err := io.Copy(archiver, rdr); err != nil {
+		return "", fmt.Errorf("fasiled to compress source: %w", err)
+	}
+	if err := archiver.Close(); err != nil {
+		return "", fmt.Errorf("fasiled to complete source compression: %w", err)
+	}
+	wf.GzipSource = compressed.Bytes()
+
+	res := &wrapperspb.StringValue{}
+	if err := callAPI(ctx, c.txCon, messages.APIStoreWorkflow, wf, res); err != nil {
+		return "", c.clientErr(ctx, err)
+	}
+	return res.Value, nil
+}
+
+// HasWorkflowDefinitionChanged - given a workflow name and a BPMN xml, return true if the resulting definition is different.
+func (c *Client) HasWorkflowDefinitionChanged(ctx context.Context, name string, b []byte) (bool, error) {
+	versions, err := c.GetWorkflowVersions(ctx, name)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return true, nil
+		}
+		return false, err
+	}
+	rdr := bytes.NewReader(b)
+	wf, err := parser.Parse(name, rdr)
+	if err != nil {
+		return false, c.clientErr(ctx, err)
+	}
+	hash, err := workflow.GetHash(wf)
+	if err != nil {
+		return false, c.clientErr(ctx, err)
+	}
+	return !bytes.Equal(versions.Version[len(versions.Version)-1].Sha256, hash), nil
+}
+
+// GetWorkflowVersions - returns a list of versions for a given workflow.
+func (c *Client) GetWorkflowVersions(ctx context.Context, name string) (*model.WorkflowVersions, error) {
+	req := &model.GetWorkflowVersionsRequest{
+		Name: name,
+	}
+	res := &model.GetWorkflowVersionsResponse{}
+	if err := callAPI(ctx, c.txCon, messages.APIGetWorkflowVersions, req, res); err != nil {
+		return nil, c.clientErr(ctx, err)
+	}
+	return res.Versions, nil
+}
+
+// GetWorkflow - retrieves a workflow model given its ID
+func (c *Client) GetWorkflow(ctx context.Context, id string) (*model.Workflow, error) {
+	req := &model.GetWorkflowRequest{
+		Id: id,
+	}
+	res := &model.GetWorkflowResponse{}
+	if err := callAPI(ctx, c.txCon, messages.APIGetWorkflow, req, res); err != nil {
+		return nil, c.clientErr(ctx, err)
+	}
+	return res.Definition, nil
 }
 
 // CancelWorkflowInstance cancels a running workflow instance.
@@ -436,17 +494,17 @@ func (c *Client) cancelWorkflowInstanceWithError(ctx context.Context, instanceID
 }
 
 // LaunchWorkflow launches a new workflow instance.
-func (c *Client) LaunchWorkflow(ctx context.Context, workflowName string, mvars model.Vars) (string, error) {
+func (c *Client) LaunchWorkflow(ctx context.Context, workflowName string, mvars model.Vars) (string, string, error) {
 	ev, err := vars.Encode(ctx, mvars)
 	if err != nil {
-		return "", fmt.Errorf("failed to encode variables for launch workflow: %w", err)
+		return "", "", fmt.Errorf("failed to encode variables for launch workflow: %w", err)
 	}
 	req := &model.LaunchWorkflowRequest{Name: workflowName, Vars: ev}
-	res := &wrappers.StringValue{}
+	res := &model.LaunchWorkflowResponse{}
 	if err := callAPI(ctx, c.txCon, messages.APILaunchWorkflow, req, res); err != nil {
-		return "", c.clientErr(ctx, err)
+		return "", "", c.clientErr(ctx, err)
 	}
-	return res.Value, nil
+	return res.InstanceId, res.WorkflowId, nil
 }
 
 // ListWorkflowInstance gets a list of running workflow instances by workflow name.

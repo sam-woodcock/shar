@@ -47,7 +47,7 @@ func TestExclusiveGatewayDecision(t *testing.T) {
 	require.NoError(t, err)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "ExclusiveGatewayTest", model.Vars{"carried": 32768}); err != nil {
+	if _, _, err := cl.LaunchWorkflow(ctx, "ExclusiveGatewayTest", model.Vars{"carried": 32768}); err != nil {
 		panic(err)
 	}
 

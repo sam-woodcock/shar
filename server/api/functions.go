@@ -143,16 +143,16 @@ func (s *SharServer) getMessageSenderRoutingID(ctx context.Context, req *model.G
 	return &wrapperspb.StringValue{Value: res}, nil
 }
 
-func (s *SharServer) launchWorkflow(ctx context.Context, req *model.LaunchWorkflowRequest) (*wrapperspb.StringValue, error) {
+func (s *SharServer) launchWorkflow(ctx context.Context, req *model.LaunchWorkflowRequest) (*model.LaunchWorkflowResponse, error) {
 	ctx, err2 := s.authForNamedWorkflow(ctx, req.Name)
 	if err2 != nil {
 		return nil, fmt.Errorf("failed to authorize complete user task: %w", err2)
 	}
-	res, err := s.engine.Launch(ctx, req.Name, req.Vars)
+	wfiID, wfID, err := s.engine.Launch(ctx, req.Name, req.Vars)
 	if err != nil {
 		return nil, fmt.Errorf("failed to launch workflow instance kv: %w", err)
 	}
-	return &wrapperspb.StringValue{Value: res}, nil
+	return &model.LaunchWorkflowResponse{WorkflowId: wfID, InstanceId: wfiID}, nil
 }
 
 func (s *SharServer) cancelWorkflowInstance(ctx context.Context, req *model.CancelWorkflowInstanceRequest) (*emptypb.Empty, error) {
@@ -341,4 +341,28 @@ func (s *SharServer) getServerInstanceStats(ctx context.Context, _ *emptypb.Empt
 	}
 	ret := *s.ns.WorkflowStats()
 	return &ret, nil
+}
+
+func (s *SharServer) getWorkflowVersions(ctx context.Context, req *model.GetWorkflowVersionsRequest) (*model.GetWorkflowVersionsResponse, error) {
+	ctx, err2 := s.authForNamedWorkflow(ctx, req.Name)
+	if err2 != nil {
+		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+	}
+	ret, err := s.ns.GetWorkflowVersions(ctx, req.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed get workflow versions: %w", err)
+	}
+	return &model.GetWorkflowVersionsResponse{Versions: ret}, nil
+}
+
+func (s *SharServer) getWorkflow(ctx context.Context, req *model.GetWorkflowRequest) (*model.GetWorkflowResponse, error) {
+	ctx, err2 := s.authForNonWorkflow(ctx)
+	if err2 != nil {
+		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+	}
+	ret, err := s.ns.GetWorkflow(ctx, req.Id)
+	if err != nil {
+		return nil, fmt.Errorf("failed get workflow: %w", err)
+	}
+	return &model.GetWorkflowResponse{Definition: ret}, nil
 }

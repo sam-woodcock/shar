@@ -42,7 +42,7 @@ func TestStartingVariable(t *testing.T) {
 	require.NoError(t, err)
 
 	// Launch the workflow
-	_, err = cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{})
+	_, _, err = cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{})
 
 	assert.Error(t, err)
 	tst.AssertCleanKV()

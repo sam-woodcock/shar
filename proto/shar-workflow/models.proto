@@ -7,10 +7,11 @@ option go_package = "gitlab.com/shar-workflow/shar/model";
 
 // Workflow describes a number of processes that interact together.  It also contains all messages and errors used by the processes.
 message Workflow {
-  string Name = 1; // Name defines the common name that describes the workflow.
-  map<string, Process> Process = 2; // Process is a map of process names to workflow state machines.
+  string name = 1; // Name defines the common name that describes the workflow.
+  map<string, Process> process = 2; // Process is a map of process names to workflow state machines.
   repeated Element messages = 3; // Messages define the messages that can be sent by the workflow.
   repeated Error errors = 4; // Errors define the errors used by the workflow.
+  bytes gzipSource = 5; // Source for round tripping.
 }
 
 // Process describes a single workflow state machine.
@@ -179,6 +180,11 @@ message LaunchWorkflowRequest {
   bytes vars = 2;
 }
 
+message LaunchWorkflowResponse {
+  string instanceId = 1;
+  string workflowId = 2;
+}
+
 enum CancellationState {
   executing = 0;  // CancellationState_executing - the state machine is executing
   completed = 1;  // CancellationState_completed - the state machine has completed successfully
@@ -296,6 +302,22 @@ message HandleWorkflowErrorRequest {
 
 message HandleWorkflowErrorResponse {
   bool handled = 1;
+}
+
+message GetWorkflowVersionsRequest {
+  string name = 1;
+}
+
+message GetWorkflowVersionsResponse {
+  WorkflowVersions versions = 1;
+}
+
+message GetWorkflowRequest {
+  string id = 1;
+}
+
+message GetWorkflowResponse {
+  Workflow definition = 1;
 }
 
 message WorkflowStats {

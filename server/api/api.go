@@ -130,6 +130,14 @@ func (s *SharServer) Listen() error {
 		return fmt.Errorf("APICompleteSendMessageTask failed: %w", err)
 	}
 
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetWorkflowVersions, &model.GetWorkflowVersionsRequest{}, s.getWorkflowVersions); err != nil {
+		return fmt.Errorf("APIGetWorkflowVersions failed: %w", err)
+	}
+
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetWorkflow, &model.GetWorkflowRequest{}, s.getWorkflow); err != nil {
+		return fmt.Errorf("APIGetWorkflowVersions failed: %w", err)
+	}
+
 	slog.Info("shar api listener started")
 	return nil
 }

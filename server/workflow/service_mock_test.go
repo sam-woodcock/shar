@@ -336,6 +336,29 @@ func (_m *MockNatsService) GetWorkflowInstanceStatus(ctx context.Context, id str
 	return r0, r1
 }
 
+// GetWorkflowVersions provides a mock function with given fields: ctx, workflowName
+func (_m *MockNatsService) GetWorkflowVersions(ctx context.Context, workflowName string) (*model.WorkflowVersions, error) {
+	ret := _m.Called(ctx, workflowName)
+
+	var r0 *model.WorkflowVersions
+	if rf, ok := ret.Get(0).(func(context.Context, string) *model.WorkflowVersions); ok {
+		r0 = rf(ctx, workflowName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*model.WorkflowVersions)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, workflowName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // ListWorkflowInstance provides a mock function with given fields: ctx, workflowName
 func (_m *MockNatsService) ListWorkflowInstance(ctx context.Context, workflowName string) (chan *model.ListWorkflowInstanceResult, chan error) {
 	ret := _m.Called(ctx, workflowName)

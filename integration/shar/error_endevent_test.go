@@ -48,7 +48,7 @@ func TestEndEventError(t *testing.T) {
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	wfiID, err := cl.LaunchWorkflow(ctx, "TestEndEventError", model.Vars{})
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "TestEndEventError", model.Vars{})
 	if err != nil {
 		panic(err)
 	}

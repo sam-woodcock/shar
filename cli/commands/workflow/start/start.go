@@ -46,7 +46,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	wfiID, err := shar.LaunchWorkflow(ctx, args[0], *vars)
+	wfiID, wfID, err := shar.LaunchWorkflow(ctx, args[0], *vars)
 	if err != nil {
 		return fmt.Errorf("workflow launch failed: %w", err)
 	}
@@ -105,7 +105,7 @@ func run(cmd *cobra.Command, args []string) error {
 			// }
 		}
 	}
-	output.Current.OutputStartWorkflowResult(wfiID)
+	output.Current.OutputStartWorkflowResult(wfiID, wfID)
 	return nil
 }
 

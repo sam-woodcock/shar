@@ -57,7 +57,7 @@ func TestLaunchWorkflow(t *testing.T) {
 		}).
 		Return(nil)
 
-	wfiid, err := eng.Launch(ctx, "TestWorkflow", []byte{})
+	wfiid, _, err := eng.Launch(ctx, "TestWorkflow", []byte{})
 	assert.NoError(t, err)
 	assert.Equal(t, "test-workflow-instance-id", wfiid)
 	svc.AssertExpectations(t)

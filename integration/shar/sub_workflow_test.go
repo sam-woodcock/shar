@@ -53,7 +53,7 @@ func TestSubWorkflow(t *testing.T) {
 	require.NoError(t, err)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "MasterWorkflowDemo", model.Vars{}); err != nil {
+	if _, _, err := cl.LaunchWorkflow(ctx, "MasterWorkflowDemo", model.Vars{}); err != nil {
 		panic(err)
 	}
 
