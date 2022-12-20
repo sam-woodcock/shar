@@ -45,7 +45,7 @@ func main() {
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	cl.RegisterWorkflowInstanceComplete(complete)
 
-	wfiID, err := cl.LaunchWorkflow(ctx, "MasterWorkflowDemo", model.Vars{})
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "MasterWorkflowDemo", model.Vars{})
 	if err != nil {
 		panic(err)
 	}

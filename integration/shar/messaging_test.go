@@ -50,7 +50,7 @@ func TestMessaging(t *testing.T) {
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	wfid, err := cl.LaunchWorkflow(ctx, "TestMessaging", model.Vars{"orderId": 57})
+	wfid, _, err := cl.LaunchWorkflow(ctx, "TestMessaging", model.Vars{"orderId": 57})
 	if err != nil {
 		t.Fatal(err)
 		return

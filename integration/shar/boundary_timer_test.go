@@ -121,7 +121,7 @@ func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanc
 	require.NoError(t, err)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "PossibleTimeout", model.Vars{}); err != nil {
+	if _, _, err := cl.LaunchWorkflow(ctx, "PossibleTimeout", model.Vars{}); err != nil {
 		panic(err)
 	}
 

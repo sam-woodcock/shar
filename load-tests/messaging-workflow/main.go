@@ -64,7 +64,7 @@ func main() {
 	for i := 0; i < n; i++ {
 		// Launch the workflows
 		// Launch the workflow
-		if _, err := cl1.LaunchWorkflow(ctx, "MessageLoad", model.Vars{"orderId": 57}); err != nil {
+		if _, _, err := cl1.LaunchWorkflow(ctx, "MessageLoad", model.Vars{"orderId": 57}); err != nil {
 			log.Fatal(err.Error())
 			return
 		}

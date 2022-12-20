@@ -109,11 +109,11 @@ func main() {
 	n := 5000
 	for i := 0; i < n; i++ {
 		// Launch the workflows
-		_, err := cl2.LaunchWorkflow(ctx, "LoadDemo1", model.Vars{})
+		_, _, err := cl2.LaunchWorkflow(ctx, "LoadDemo1", model.Vars{})
 		if err != nil {
 			panic(err)
 		}
-		_, err = cl2.LaunchWorkflow(ctx, "LoadDemo2", model.Vars{})
+		_, _, err = cl2.LaunchWorkflow(ctx, "LoadDemo2", model.Vars{})
 		if err != nil {
 			panic(err)
 		}

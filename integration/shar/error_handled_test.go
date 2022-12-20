@@ -53,7 +53,7 @@ func TestHandledError(t *testing.T) {
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	wfiID, err := cl.LaunchWorkflow(ctx, "TestHandleError", model.Vars{})
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "TestHandleError", model.Vars{})
 	if err != nil {
 		panic(err)
 	}
