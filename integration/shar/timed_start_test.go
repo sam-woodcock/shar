@@ -41,7 +41,7 @@ func TestTimedStart(t *testing.T) {
 	require.NoError(t, err)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "TimedStartTest", model.Vars{"carried2": "carried2value"}); err != nil {
+	if _, _, err := cl.LaunchWorkflow(ctx, "TimedStartTest", model.Vars{"carried2": "carried2value"}); err != nil {
 		panic(err)
 	}
 

@@ -43,7 +43,7 @@ func TestSimple(t *testing.T) {
 	require.NoError(t, err)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{}); err != nil {
+	if _, _, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{}); err != nil {
 		panic(err)
 	}
 

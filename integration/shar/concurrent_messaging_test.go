@@ -64,7 +64,7 @@ func TestConcurrentMessaging(t *testing.T) {
 	for inst := 0; inst < n; inst++ {
 		go func() {
 			// Launch the workflow
-			if wfiID, err := cl.LaunchWorkflow(ctx, "TestConcurrentMessaging", model.Vars{"orderId": 57}); err != nil {
+			if wfiID, _, err := cl.LaunchWorkflow(ctx, "TestConcurrentMessaging", model.Vars{"orderId": 57}); err != nil {
 				panic(err)
 			} else {
 				instances[wfiID] = struct{}{}

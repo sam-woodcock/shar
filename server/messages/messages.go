@@ -102,7 +102,7 @@ const (
 	APISendMessage               = "WORKFLOW.Api.SendMessage"               // APISendMessage is the send workflow message API subject.
 	APICompleteManualTask        = "WORKFLOW.Api.CompleteManualTask"        // APICompleteManualTask is the complete manual task API subject.
 	APICompleteServiceTask       = "WORKFLOW.Api.CompleteServiceTask"       // APICompleteServiceTask is the complete service task API subject.
-	APICompleteUserTask          = "WORKFLOW.Api.CompleteUserTask"          // APICompleteUserTask is the omplete user task API subject.
+	APICompleteUserTask          = "WORKFLOW.Api.CompleteUserTask"          // APICompleteUserTask is the complete user task API subject.
 	APICompleteSendMessageTask   = "WORKFLOW.Api.CompleteSendMessageTask"   // APICompleteSendMessageTask is the complete send message task API subject.
 	APIListUserTaskIDs           = "WORKFLOW.Api.ListUserTaskIDs"           // APIListUserTaskIDs is the list user task IDs API subject.
 	APIGetUserTask               = "WORKFLOW.Api.GetUserTask"               // APIGetUserTask is the get user task API subject.
@@ -110,6 +110,8 @@ const (
 	APIGetServerInstanceStats    = "WORKFLOW.Api.GetServerInstanceStats"    // APIGetServerInstanceStats is the get server instance status API subject.
 	APIGetServiceTaskRoutingID   = "WORKFLOW.Api.GetServiceTaskRoutingID"   // APIGetServiceTaskRoutingID is the get client routing ID for a service task API subject.
 	APIGetMessageSenderRoutingID = "WORKFLOW.Api.GetMessageSenderRoutingID" // APIGetMessageSenderRoutingID is the get message sender routing ID API subject.
+	APIGetWorkflowVersions       = "WORKFLOW.Api.GetWorkflowVersions"       // APIGetWorkflowVersions is the get workflow versions API message subject.
+	APIGetWorkflow               = "WORKFLOW.Api.GetWorkflow"               // APIGetWorkflow is the get workflow API message subject.
 )
 
 var (

@@ -14,7 +14,7 @@ type Method interface {
 	OutputCancelledWorkflow(id string)
 	OutputUserTaskIDs(ut []*model.GetUserTaskResponse)
 	OutputWorkflow(res []*model.ListWorkflowResult)
-	OutputStartWorkflowResult(wfiID string)
+	OutputStartWorkflowResult(wfiID string, wfID string)
 }
 
 // Current is the currently selected output method.

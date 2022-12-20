@@ -40,7 +40,7 @@ func TestEmbargo(t *testing.T) {
 
 	sw := time.Now().UnixNano()
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "TestEmbargo", model.Vars{}); err != nil {
+	if _, _, err := cl.LaunchWorkflow(ctx, "TestEmbargo", model.Vars{}); err != nil {
 		panic(err)
 	}
 
