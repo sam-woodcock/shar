@@ -294,6 +294,14 @@ message TelemetryLogEntry {
   map<string, string> attributes = 5;
 }
 
+message ListWorkflowInstanceStatusRequest {
+  string status = 1;
+}
+
+message ListWorkflowInstanceWfIdRequest {
+  repeated WorkflowState state = 1;
+}
+
 enum LogSource {
   logSourceEngine = 0;
   logSourceWorkflow = 2;

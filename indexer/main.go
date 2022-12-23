@@ -164,26 +164,7 @@ func main() {
 		}
 	}()
 
-	// time.Sleep(time.Second)
-	// // Testing entry
-	// *tables["WORKFLOW_USERTASK"].Add("1") = model.WorkflowState{
-	// 	WorkflowId:         "2IUjNaqAB54CPtUitssbsGXymDi",
-	// 	WorkflowInstanceId: "wfiid",
-	// 	ElementId:          "elementid",
-	// 	ElementType:        "elementType",
-	// 	Id:                 []string{"id1", "id2"},
-	// 	Owners:             []string{"user1"},
-	// }
-	// *tables["WORKFLOW_USERTASK"].Add("2") = model.WorkflowState{
-	// 	WorkflowId:         "2IUjNaqAB54CPtUitssbsGXymDi",
-	// 	WorkflowInstanceId: "wfiid2",
-	// 	ElementId:          "elementid2",
-	// 	ElementType:        "elementType2",
-	// 	Id:                 []string{"id3", "id4"},
-	// 	Owners:             []string{"user1"},
-	// }
-
-	// Listen and respond to nats questions for this table
+	// Listen and respond to NATS API ListeUserTaskIDs
 	if _, e := nc.QueueSubscribe(messages.APIListUserTaskIDs, messages.APIListUserTaskIDs, func(msg *nats.Msg) {
 		var (
 			e            error
@@ -215,7 +196,7 @@ func main() {
 		for id, item := range tables["WORKFLOW_USERTASK"].List() {
 
 			// Loop over all the Owners looking for a match
-			for _, owners := range (*item).(model.WorkflowState).Owners {
+			for _, owners := range (*item).(*model.UserTasks).Id {
 				if owners == req.Owner {
 					// If found add teh ID to the response Id list
 					userTaskList.Id = append(userTaskList.Id, id)
@@ -230,7 +211,158 @@ func main() {
 		fmt.Println(e)
 	}
 
-	// Respond to APIGetUserTask
+	// workflow by execution time
+
+	// Listen and respond to NATS API ListInstanceByState
+	if _, e := nc.QueueSubscribe(messages.APIListWorkflowInstancesByState, messages.APIListWorkflowInstancesByState, func(msg *nats.Msg) {
+		var (
+			e    error
+			b    []byte
+			req  = model.ListWorkflowInstanceStatusRequest{}
+			resp = model.ListWorkflowInstanceResponse{}
+		)
+		fmt.Println(req)
+
+		if e = proto.Unmarshal(msg.Data, &req); e != nil {
+			fmt.Println(e)
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|" + e.Error()},
+			})
+			msg.Respond(reply)
+			return
+		}
+
+		// Check table exists
+		if _, ok := tables["WORKFLOW_JOB"]; !ok {
+			fmt.Println("query to WORKFLOW_JOB table that does not exist")
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|unable to answer query, please try later"},
+			})
+			msg.Respond(reply)
+			return
+		}
+
+		// Check table exists
+		if _, ok := tables["WORKFLOW_JOB"]; !ok {
+			fmt.Println("query to WORKFLOW_JOB table that does not exist")
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|unable to answer query, please try later"},
+			})
+			msg.Respond(reply)
+			return
+		}
+
+		// Check table exists
+		if _, ok := tables["WORKFLOW_VERSION"]; !ok {
+			fmt.Println("query to WORKFLOW_JOB table that does not exist")
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|unable to answer query, please try later"},
+			})
+			msg.Respond(reply)
+			return
+		}
+
+		// Loop over all instances workflow state
+	jobloop:
+		for _, job := range tables["WORKFLOW_JOB"].List() {
+
+			if (*job).(*model.WorkflowState).WorkflowId == req.Status {
+
+				for _, version := range tables["WORKFLOW_VERSION"].List() {
+					if /*(*version).(*model.WorkflowVersion).Id == (*job).(*model.WorkflowState).WorkflowInstanceId */ false {
+						// If found add teh ID to the response Id list
+						resp.Result = append(resp.Result, &model.ListWorkflowInstanceResult{
+							Id:      (*job).(*model.WorkflowState).WorkflowInstanceId,
+							Version: (*version).(*model.WorkflowVersion).Number,
+						})
+						break jobloop
+					}
+				}
+			}
+		}
+
+		if b, e = proto.Marshal(&resp); e != nil {
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|unable to answer query, please try later"},
+			})
+			msg.Respond(reply)
+		}
+		msg.Respond(b)
+
+	}); e != nil {
+		fmt.Println(e)
+	}
+
+	// Listen and respond to NATS API ListInstanceByWfID
+	if _, e := nc.QueueSubscribe(messages.APIListWorkflowInstancesByWfID, messages.APIListWorkflowInstancesByWfID, func(msg *nats.Msg) {
+		var (
+			e    error
+			b    []byte
+			req  = model.ListWorkflowInstanceStatusRequest{}
+			resp = model.ListWorkflowInstanceResponse{}
+		)
+		fmt.Println(req)
+		if e = proto.Unmarshal(msg.Data, &req); e != nil {
+			fmt.Println(e)
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|" + e.Error()},
+			})
+			msg.Respond(reply)
+			return
+		}
+
+		// Check table exists
+		if _, ok := tables["WORKFLOW_JOB"]; !ok {
+			fmt.Println("query to WORKFLOW_JOB table that does not exist")
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|unable to answer query, please try later"},
+			})
+			msg.Respond(reply)
+			return
+		}
+
+		// Check table exists
+		if _, ok := tables["WORKFLOW_VERSION"]; !ok {
+			fmt.Println("query to WORKFLOW_JOB table that does not exist")
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|unable to answer query, please try later"},
+			})
+			msg.Respond(reply)
+			return
+		}
+
+		// Loop over all instances workflow state
+	jobloop:
+		for _, job := range tables["WORKFLOW_JOB"].List() {
+
+			if (*job).(*model.WorkflowState).WorkflowId == req.Status {
+
+				for _, version := range tables["WORKFLOW_VERSION"].List() {
+					if (*version).(*model.WorkflowVersion).Id == (*job).(*model.WorkflowState).WorkflowInstanceId {
+						// If found add teh ID to the response Id list
+						resp.Result = append(resp.Result, &model.ListWorkflowInstanceResult{
+							Id:      (*job).(*model.WorkflowState).WorkflowInstanceId,
+							Version: (*version).(*model.WorkflowVersion).Number,
+						})
+						break jobloop
+					}
+				}
+			}
+		}
+
+		if b, e = proto.Marshal(&resp); e != nil {
+			reply, _ := proto.Marshal(&model.WorkflowState{
+				Error: &model.Error{Code: " ERR_3|unable to answer query, please try later"},
+			})
+			msg.Respond(reply)
+		}
+		msg.Respond(b)
+
+	}); e != nil {
+		fmt.Println(e)
+	}
+
+	// Listen and respond to NATS APIGetUserTask
 	if _, e := nc.QueueSubscribe(messages.APIGetUserTask, messages.APIGetUserTask, func(msg *nats.Msg) {
 		var (
 			e             error
