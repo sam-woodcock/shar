@@ -3,13 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/nats-io/nats.go"
-	"gitlab.com/shar-workflow/shar/client"
-	"gitlab.com/shar-workflow/shar/model"
 	"log"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/nats-io/nats.go"
+	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/workflow"
+	"gitlab.com/shar-workflow/shar/model"
 )
 
 func main() {
@@ -79,12 +81,12 @@ func main() {
 	fmt.Println(-time.Until(sw))
 }
 
-func step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
+func step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Step 1")
 	return model.Vars{}, nil
 }
 
-func step2(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
+func step2(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Step 2")
 	return model.Vars{}, nil
 }
