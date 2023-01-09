@@ -31,7 +31,7 @@ type Server struct {
 	allowOrphanServiceTasks bool
 	concurrency             int
 	apiAuthorizer           authz.APIFunc
-	apiAuthenticator authn.Check
+	apiAuthenticator        authn.Check
 }
 
 // New creates a new SHAR server.
@@ -43,11 +43,15 @@ func New(options ...Option) *Server {
 		panicRecovery:           true,
 		allowOrphanServiceTasks: true,
 		concurrency:             6,
-		apiAuthorizer: noopAuthZ,
-		apiAuthenticator: noopAuthN,
 	}
 	for _, i := range options {
 		i.configure(s)
+	}
+	if s.apiAuthorizer == nil {
+		s.apiAuthorizer = noopAuthZ
+	}
+	if s.apiAuthenticator == nil {
+		s.apiAuthenticator = noopAuthN
 	}
 	return s
 }

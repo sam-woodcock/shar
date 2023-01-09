@@ -3,7 +3,6 @@ package intTest
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	support "gitlab.com/shar-workflow/shar/integration-support"
@@ -26,7 +25,7 @@ func TestSubWorkflow(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(support.NatsURL)
+	err := cl.Dial(tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflows
@@ -54,7 +53,7 @@ func TestSubWorkflow(t *testing.T) {
 	require.NoError(t, err)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "MasterWorkflowDemo", model.Vars{}); err != nil {
+	if _, _, err := cl.LaunchWorkflow(ctx, "MasterWorkflowDemo", model.Vars{}); err != nil {
 		panic(err)
 	}
 
@@ -68,7 +67,7 @@ func TestSubWorkflow(t *testing.T) {
 		case c := <-complete:
 			fmt.Println("completed " + c.WorkflowInstanceId)
 		case <-time.After(3 * time.Second):
-			assert.Fail(t, "Timed out")
+			require.Fail(t, "Timed out")
 		}
 	}
 	tst.AssertCleanKV()

@@ -24,7 +24,7 @@ func TestUserTasks(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	if err := cl.Dial(support.NatsURL); err != nil {
+	if err := cl.Dial(tst.NatsURL); err != nil {
 		panic(err)
 	}
 
@@ -53,7 +53,7 @@ func TestUserTasks(t *testing.T) {
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	wfiID, err := cl.LaunchWorkflow(ctx, "TestUserTasks", model.Vars{"OrderId": 68})
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "TestUserTasks", model.Vars{"OrderId": 68})
 	if err != nil {
 		panic(err)
 	}
@@ -96,7 +96,7 @@ func TestUserTasks(t *testing.T) {
 	select {
 	case <-finish:
 	case <-time.After(20 * time.Second):
-		assert.Fail(t, "timed out")
+		require.Fail(t, "timed out")
 	}
 
 	et, err := cl.ListUserTaskIDs(ctx, "andrei")

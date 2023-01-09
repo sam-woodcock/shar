@@ -25,7 +25,7 @@ const randomUserJWT = "eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJTaGFySW50ZWdyYXRpb24iLCJ1
 const testJWTKey = "SuperSecretKey"
 const testIssuer = "SharIntegration"
 const testAlg = "HS256"
-const testAud= "go-workflow.com"
+const testAud = "go-workflow.com"
 
 func TestSimpleAuthZ(t *testing.T) {
 
@@ -38,7 +38,7 @@ func TestSimpleAuthZ(t *testing.T) {
 	ctx = header.ToCtx(ctx, header.Values{"JWT": testUserSimpleWorkflowJWT})
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(support.NatsURL)
+	err := cl.Dial(tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
@@ -58,7 +58,7 @@ func TestSimpleAuthZ(t *testing.T) {
 	require.NoError(t, err)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{}); err != nil {
+	if _, _, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{}); err != nil {
 		panic(err)
 	}
 
@@ -71,7 +71,7 @@ func TestSimpleAuthZ(t *testing.T) {
 	case c := <-complete:
 		fmt.Println("completed " + c.WorkflowInstanceId)
 	case <-time.After(5 * time.Second):
-		assert.Fail(t, "Timed out")
+		require.Fail(t, "Timed out")
 	}
 	tst.AssertCleanKV()
 }
@@ -87,18 +87,18 @@ func TestNoAuthN(t *testing.T) {
 	ctx = header.ToCtx(ctx, header.Values{"JWT": randomUserJWT})
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(support.NatsURL)
+	err := cl.Dial(tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
 	b, err := os.ReadFile("../../testdata/simple-workflow.bpmn")
+	fmt.Println("RET1:", err)
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "SimpleWorkflowTest", b)
 	assert.ErrorContains(t, err, "failed to authenticate")
 
 }
-
 
 func TestSimpleNoAuthZ(t *testing.T) {
 
@@ -111,7 +111,7 @@ func TestSimpleNoAuthZ(t *testing.T) {
 	ctx = header.ToCtx(ctx, header.Values{"JWT": testUserReadOnlyJWT})
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(support.NatsURL)
+	err := cl.Dial(tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
@@ -119,18 +119,20 @@ func TestSimpleNoAuthZ(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "SimpleWorkflowTest", b)
-	assert.ErrorContains(t, err,"failed to authorize")
+	fmt.Println("RET2:", err)
+	assert.ErrorContains(t, err, "failed to authorize")
 
 	tst.AssertCleanKV()
 }
 
 func testAuthNFn(ctx context.Context, request *model.ApiAuthenticationRequest) (*model.ApiAuthenticationResponse, error) {
+	fmt.Println("AUTHN:", request.Headers)
 	j := request.Headers["JWT"]
 	claims := jwt.MapClaims{}
 	if token, err := jwt.ParseWithClaims(j, claims, func(token *jwt.Token) (interface{}, error) { return []byte(testJWTKey), nil }); err != nil {
 		return nil, fmt.Errorf("invalid token: %w", errors.ErrApiAuthZFail)
 	} else if token.Header["alg"] != testAlg ||
-		!claims.VerifyAudience(testAud,true) ||
+		!claims.VerifyAudience(testAud, true) ||
 		!claims.VerifyIssuer(testIssuer, true) ||
 		!claims.VerifyExpiresAt(time.Now().Unix(), true) ||
 		!claims.VerifyIssuedAt(time.Now().Unix(), true) {
@@ -140,6 +142,7 @@ func testAuthNFn(ctx context.Context, request *model.ApiAuthenticationRequest) (
 }
 
 func testAuthZFn(ctx context.Context, request *model.ApiAuthorizationRequest) (*model.ApiAuthorizationResponse, error) {
+	fmt.Println("AUTHZ:", request.Function, request.User, request.Headers)
 	j := request.Headers["JWT"]
 	start := strings.IndexByte(j, '.') + 1
 	end := strings.LastIndexByte(j, '.')

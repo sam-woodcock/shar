@@ -30,7 +30,7 @@ func TestConcurrentMessaging(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(support.NatsURL)
+	err := cl.Dial(tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
@@ -64,7 +64,7 @@ func TestConcurrentMessaging(t *testing.T) {
 	for inst := 0; inst < n; inst++ {
 		go func() {
 			// Launch the workflow
-			if wfiID, err := cl.LaunchWorkflow(ctx, "TestConcurrentMessaging", model.Vars{"orderId": 57}); err != nil {
+			if wfiID, _, err := cl.LaunchWorkflow(ctx, "TestConcurrentMessaging", model.Vars{"orderId": 57}); err != nil {
 				panic(err)
 			} else {
 				instances[wfiID] = struct{}{}
@@ -76,6 +76,7 @@ func TestConcurrentMessaging(t *testing.T) {
 		case c := <-complete:
 			fmt.Println(c.WorkflowInstanceId)
 		case <-time.After(5 * time.Second):
+			require.Fail(t, "timed out")
 		}
 	}
 	assert.Equal(t, handlers.received, n)

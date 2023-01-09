@@ -15,21 +15,13 @@ import (
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
 	server2 "gitlab.com/shar-workflow/shar/telemetry/server"
 	zensvr "gitlab.com/shar-workflow/shar/zen-shar/server"
+	rand2 "golang.org/x/exp/rand"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
 	"sync"
 	"testing"
 	"time"
 )
-
-// NatsHost is the default testing ip for the NATS host.
-const NatsHost = "127.0.0.1"
-
-// NatsPort is the default testing port for the NATS host.
-const NatsPort = 4459
-
-// NatsURL is the default testing URL for the NATS host.
-var NatsURL = fmt.Sprintf("nats://%s:%v", NatsHost, NatsPort)
 
 // Integration - the integration test support framework.
 type Integration struct {
@@ -41,21 +33,28 @@ type Integration struct {
 	Cooldown       time.Duration
 	WithTelemetry  server2.Exporter
 	testTelemetry  *server2.Server
+
+	NatsURL  string // NatsURL is the default testing URL for the NATS host.
+	NatsPort int    // NatsPort is the default testing port for the NATS host.
+	NatsHost string // NatsHost is the default NATS host.
 }
 
 // Setup - sets up the test NATS and SHAR servers.
 func (s *Integration) Setup(t *testing.T, authZFn authz.APIFunc, authNFn authn.Check) {
+	s.NatsHost = "127.0.0.1"
+	s.NatsPort = 4459 + rand2.Intn(500)
+	s.NatsURL = fmt.Sprintf("nats://%s:%v", s.NatsHost, s.NatsPort)
 	logx.SetDefault(slog.DebugLevel, false, "shar-Integration-tests")
 	s.Cooldown = 2 * time.Second
 	s.Test = t
 	s.FinalVars = make(map[string]interface{})
-	ss, ns, err := zensvr.GetServers(NatsHost, NatsPort, 10, authZFn, authNFn)
+	ss, ns, err := zensvr.GetServers(s.NatsHost, s.NatsPort, 10, authZFn, authNFn)
 	if err != nil {
 		panic(err)
 	}
 	if s.WithTelemetry != nil {
 		ctx := context.Background()
-		n, err := nats.Connect(NatsURL)
+		n, err := nats.Connect(s.NatsURL)
 		require.NoError(t, err)
 		js, err := n.JetStream()
 		require.NoError(t, err)
@@ -175,7 +174,7 @@ func (s *Integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:i
 
 // GetNats - fetches the test framework NATS server for making test calls.
 func (s *Integration) GetNats() (*nats.Conn, error) {
-	con, err := nats.Connect(NatsURL)
+	con, err := nats.Connect(s.NatsURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
 	}

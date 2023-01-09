@@ -14,8 +14,9 @@ type Text struct {
 }
 
 // OutputStartWorkflowResult returns a CLI response
-func (c *Text) OutputStartWorkflowResult(wfiID string) {
+func (c *Text) OutputStartWorkflowResult(wfiID string, wfID string) {
 	fmt.Println("Workflow Instance:", wfiID)
+	fmt.Println("Workflow:", wfID)
 }
 
 // OutputWorkflow returns a CLI response

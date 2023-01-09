@@ -46,7 +46,7 @@ func main() {
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	wfiID, err := cl.LaunchWorkflow(ctx, "MessageDemo", model.Vars{"orderId": 57})
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "MessageDemo", model.Vars{"orderId": 57})
 	if err != nil {
 		panic(err)
 	}

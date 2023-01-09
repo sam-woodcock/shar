@@ -24,7 +24,7 @@ func TestTimedStart(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(support.NatsURL)
+	err := cl.Dial(tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
@@ -41,7 +41,7 @@ func TestTimedStart(t *testing.T) {
 	require.NoError(t, err)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "TimedStartTest", model.Vars{"carried2": "carried2value"}); err != nil {
+	if _, _, err := cl.LaunchWorkflow(ctx, "TimedStartTest", model.Vars{"carried2": "carried2value"}); err != nil {
 		panic(err)
 	}
 

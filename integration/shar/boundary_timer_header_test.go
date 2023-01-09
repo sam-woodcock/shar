@@ -21,14 +21,14 @@ func TestBoundaryTimerHeaders(t *testing.T) {
 	defer tst.Teardown()
 
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
-	d := &testBoundaryTimerHeaderDef{}
+	d := &testBoundaryTimerHeaderDef{tst: tst}
 
 	executeBoundaryTimerHeaderTest(t, complete, d)
 	select {
 	case c := <-complete:
 		fmt.Println("completed " + c.WorkflowInstanceId)
 	case <-time.After(20 * time.Second):
-		assert.Fail(t, "Timed out")
+		require.Fail(t, "Timed out")
 	}
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
@@ -49,6 +49,7 @@ func TestBoundaryTimerTimeoutHeaders(t *testing.T) {
 	d := &testBoundaryTimerHeaderDef{
 		CanTimeOutPause:  time.Second * 5,
 		CheckResultPause: time.Second * 4,
+		tst:              tst,
 	}
 
 	executeBoundaryTimerHeaderTest(t, complete, d)
@@ -56,7 +57,7 @@ func TestBoundaryTimerTimeoutHeaders(t *testing.T) {
 	case c := <-complete:
 		fmt.Println("completed " + c.WorkflowInstanceId)
 	case <-time.After(20 * time.Second):
-		assert.Fail(t, "Timed out")
+		require.Fail(t, "Timed out")
 	}
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
@@ -73,6 +74,7 @@ func TestExclusiveGatewayHeaders(t *testing.T) {
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	d := &testBoundaryTimerHeaderDef{
 		CheckResultPause: time.Second * 3,
+		tst:              tst,
 	}
 
 	executeBoundaryTimerHeaderTest(t, complete, d)
@@ -80,8 +82,7 @@ func TestExclusiveGatewayHeaders(t *testing.T) {
 	case c := <-complete:
 		fmt.Println("completed " + c.WorkflowInstanceId)
 	case <-time.After(5 * time.Second):
-		assert.Fail(t, "Timed out")
-
+		require.Fail(t, "Timed out")
 	}
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
@@ -97,7 +98,7 @@ func executeBoundaryTimerHeaderTest(t *testing.T, complete chan *model.WorkflowI
 	ctx = header.ToCtx(ctx, header.Values{"sample": "ok"})
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(support.NatsURL)
+	err := cl.Dial(d.tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
@@ -119,7 +120,7 @@ func executeBoundaryTimerHeaderTest(t *testing.T, complete chan *model.WorkflowI
 	require.NoError(t, err)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "PossibleTimeout", model.Vars{}); err != nil {
+	if _, _, err := cl.LaunchWorkflow(ctx, "PossibleTimeout", model.Vars{}); err != nil {
 		panic(err)
 	}
 
@@ -140,6 +141,7 @@ type testBoundaryTimerHeaderDef struct {
 	CheckResultPause  time.Duration
 	NoTimeoutPause    time.Duration
 	t                 *testing.T
+	tst               *support.Integration
 }
 
 func (d *testBoundaryTimerHeaderDef) canTimeout(ctx context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {

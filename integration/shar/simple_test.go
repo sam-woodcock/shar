@@ -23,7 +23,7 @@ func TestSimple(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(support.NatsURL)
+	err := cl.Dial(tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
@@ -43,7 +43,7 @@ func TestSimple(t *testing.T) {
 	require.NoError(t, err)
 
 	// Launch the workflow
-	if _, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{}); err != nil {
+	if _, _, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{}); err != nil {
 		panic(err)
 	}
 
@@ -56,7 +56,7 @@ func TestSimple(t *testing.T) {
 	case c := <-complete:
 		fmt.Println("completed " + c.WorkflowInstanceId)
 	case <-time.After(5 * time.Second):
-		assert.Fail(t, "Timed out")
+		require.Fail(t, "Timed out")
 	}
 	tst.AssertCleanKV()
 }

@@ -3,8 +3,6 @@ package services
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/json"
 	errors2 "errors"
 	"fmt"
 	"github.com/nats-io/nats.go"
@@ -15,6 +13,7 @@ import (
 	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/setup"
 	"gitlab.com/shar-workflow/shar/common/subj"
+	"gitlab.com/shar-workflow/shar/common/workflow"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/errors/keys"
@@ -112,7 +111,7 @@ func (s *NatsService) ListWorkflows(ctx context.Context) (chan *model.ListWorkfl
 			}
 			res <- &model.ListWorkflowResult{
 				Name:    k,
-				Version: v.Version[0].Number,
+				Version: v.Version[len(v.Version)-1].Number,
 			}
 
 		}
@@ -204,15 +203,10 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 	}
 
 	wfID := ksuid.New().String()
-	b, err := json.Marshal(wf)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal the workflow definition: %w", err)
+	hash, err2 := workflow.GetHash(wf)
+	if err2 != nil {
+		return "", fmt.Errorf("store workflow failed to get the workflow hash: %w", err2)
 	}
-	h := sha256.New()
-	if _, err := h.Write(b); err != nil {
-		return "", fmt.Errorf("could not write the workflow definitino to the hash provider: %s", wf.Name)
-	}
-	hash := h.Sum(nil)
 
 	var newWf bool
 	if err := common.UpdateObj(ctx, s.wfVersion, wf.Name, &model.WorkflowVersions{}, func(v *model.WorkflowVersions) (*model.WorkflowVersions, error) {
@@ -220,8 +214,8 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 		if v.Version == nil || n == 0 {
 			v.Version = make([]*model.WorkflowVersion, 0, 1)
 		} else {
-			if bytes.Equal(hash, v.Version[0].Sha256) {
-				wfID = v.Version[0].Id
+			if bytes.Equal(hash, v.Version[n-1].Sha256) {
+				wfID = v.Version[n-1].Id
 				return v, nil
 			}
 		}
@@ -230,9 +224,7 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 		if err != nil {
 			return nil, fmt.Errorf("could not save workflow: %s", wf.Name)
 		}
-		v.Version = append([]*model.WorkflowVersion{
-			{Id: wfID, Sha256: hash, Number: int32(n) + 1},
-		}, v.Version...)
+		v.Version = append(v.Version, &model.WorkflowVersion{Id: wfID, Sha256: hash, Number: int32(n) + 1})
 		return v, nil
 	}); err != nil {
 		return "", fmt.Errorf("could not update workflow version for: %s", wf.Name)
@@ -311,7 +303,7 @@ func ensureConsumer(js nats.JetStreamContext, streamName string, consumerConfig 
 	return nil
 }
 
-// GetWorkflow retrieves a workflow model given its ID
+// GetWorkflow - retrieves a workflow model given its ID
 func (s *NatsService) GetWorkflow(ctx context.Context, workflowID string) (*model.Workflow, error) {
 	wf := &model.Workflow{}
 	if err := common.LoadObj(ctx, s.wf, workflowID, wf); errors2.Is(err, nats.ErrKeyNotFound) {
@@ -321,6 +313,18 @@ func (s *NatsService) GetWorkflow(ctx context.Context, workflowID string) (*mode
 		return nil, fmt.Errorf("failed to load workflow from KV: %w", err)
 	}
 	return wf, nil
+}
+
+// GetWorkflowVersions - returns a list of versions for a given workflow.
+func (s *NatsService) GetWorkflowVersions(ctx context.Context, workflowName string) (*model.WorkflowVersions, error) {
+	ver := &model.WorkflowVersions{}
+	if err := common.LoadObj(ctx, s.wfVersion, workflowName, ver); errors2.Is(err, nats.ErrKeyNotFound) {
+		return nil, fmt.Errorf("get workflow versions failed to load object: %w", errors.ErrWorkflowVersionNotFound)
+
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to load workflow from KV: %w", err)
+	}
+	return ver, nil
 }
 
 // CreateWorkflowInstance given a workflow, starts a new workflow instance and returns its ID
@@ -457,7 +461,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		State:              state,
 		Error:              wfError,
 		UnixTimeNano:       time.Now().UnixNano(),
-		WorkflowName: wf.Name,
+		WorkflowName:       wf.Name,
 	}
 
 	if tState.Error != nil {
@@ -482,7 +486,7 @@ func (s *NatsService) GetLatestVersion(ctx context.Context, workflowName string)
 	} else if err != nil {
 		return "", fmt.Errorf("failed load object whist getting latest versiony: %w", err)
 	} else {
-		return v.Version[0].Id, nil
+		return v.Version[len(v.Version)-1].Id, nil
 	}
 }
 
@@ -1103,6 +1107,10 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 				msg, err := sub.Fetch(1, nats.Context(reqCtx))
 				if err != nil {
 					if errors2.Is(err, context.DeadlineExceeded) {
+						cancel()
+						continue
+					}
+					if err.Error() == "nats: Server Shutdown" {
 						cancel()
 						continue
 					}

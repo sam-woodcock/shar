@@ -22,7 +22,7 @@ func TestStartingVariable(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(support.NatsURL)
+	err := cl.Dial(tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
@@ -42,7 +42,7 @@ func TestStartingVariable(t *testing.T) {
 	require.NoError(t, err)
 
 	// Launch the workflow
-	_, err = cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{})
+	_, _, err = cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{})
 
 	assert.Error(t, err)
 	tst.AssertCleanKV()

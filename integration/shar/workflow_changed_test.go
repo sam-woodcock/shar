@@ -2,16 +2,15 @@ package intTest
 
 import (
 	"context"
-	"fmt"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	support "gitlab.com/shar-workflow/shar/integration-support"
-	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"testing"
 )
 
-func TestRegisterOrphanServiceTask(t *testing.T) {
+func TestWorkflowChanged(t *testing.T) {
 	tst := &support.Integration{}
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
@@ -28,20 +27,21 @@ func TestRegisterOrphanServiceTask(t *testing.T) {
 	b, err := os.ReadFile("../../testdata/simple-workflow.bpmn")
 	require.NoError(t, err)
 
+	changed, err := cl.HasWorkflowDefinitionChanged(ctx, "SimpleWorkflowTest", b)
+	require.NoError(t, err)
+	assert.True(t, changed)
+
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "SimpleWorkflowTest", b)
 	require.NoError(t, err)
 
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-
-	// Register a service task
-	cl.RegisterWorkflowInstanceComplete(complete)
-	err = cl.RegisterServiceTask(ctx, "UndefinedProcess", orphanTask)
+	changed, err = cl.HasWorkflowDefinitionChanged(ctx, "SimpleWorkflowTest", b)
 	require.NoError(t, err)
-	tst.AssertCleanKV()
-}
+	assert.False(t, changed)
 
-func orphanTask(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
-	fmt.Println("Hi")
-	fmt.Println("carried", vars["carried"])
-	return vars, nil
+	// Load second BPMN workflow
+	b, err = os.ReadFile("../../testdata/simple-workflow-changed.bpmn")
+	require.NoError(t, err)
+	changed, err = cl.HasWorkflowDefinitionChanged(ctx, "SimpleWorkflowTest", b)
+	require.NoError(t, err)
+	assert.True(t, changed)
 }

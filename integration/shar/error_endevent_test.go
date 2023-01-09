@@ -24,7 +24,7 @@ func TestEndEventError(t *testing.T) {
 
 	// Dial shar
 	cl := client.New()
-	if err := cl.Dial(support.NatsURL); err != nil {
+	if err := cl.Dial(tst.NatsURL); err != nil {
 		panic(err)
 	}
 
@@ -48,7 +48,7 @@ func TestEndEventError(t *testing.T) {
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	wfiID, err := cl.LaunchWorkflow(ctx, "TestEndEventError", model.Vars{})
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "TestEndEventError", model.Vars{})
 	if err != nil {
 		panic(err)
 	}
@@ -77,7 +77,7 @@ func TestEndEventError(t *testing.T) {
 	select {
 	case <-finish:
 	case <-time.After(10 * time.Second):
-		assert.Fail(t, "timed out")
+		require.Fail(t, "timed out")
 	}
 	assert.Equal(t, "103", final.Error.Code)
 	assert.Equal(t, "CatastrophicError", final.Error.Name)
