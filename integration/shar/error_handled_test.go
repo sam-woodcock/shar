@@ -3,15 +3,16 @@ package intTest
 import (
 	"context"
 	"errors"
+	"os"
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
-	"os"
-	"testing"
-	"time"
 )
 
 func TestHandledError(t *testing.T) {
@@ -90,13 +91,13 @@ type errorHandledHandlerDef struct {
 }
 
 // A "Hello World" service task
-func (d *errorHandledHandlerDef) mayFail(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
+func (d *errorHandledHandlerDef) mayFail(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, workflow.WrappedError) {
 	//Throw handled error
 	return model.Vars{"success": false, "myVar": 69}, workflow.Error{Code: "101", WrappedError: errors.New("things went badly")}
 }
 
 // A "Hello World" service task
-func (d *errorHandledHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *errorHandledHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	assert.Equal(d.tst.Test, 69, vars["testVal"])
 	assert.Equal(d.tst.Test, 32768, vars["carried"])
 	d.fixed = true

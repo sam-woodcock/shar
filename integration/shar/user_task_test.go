@@ -3,15 +3,17 @@ package intTest
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gitlab.com/shar-workflow/shar/client"
-	support "gitlab.com/shar-workflow/shar/integration-support"
-	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/workflow"
+	support "gitlab.com/shar-workflow/shar/integration-support"
+	"gitlab.com/shar-workflow/shar/model"
 )
 
 func TestUserTasks(t *testing.T) {
@@ -117,14 +119,14 @@ type testUserTaskHandlerDef struct {
 }
 
 // A "Hello World" service task
-func (d *testUserTaskHandlerDef) prepare(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testUserTaskHandlerDef) prepare(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Preparing")
 	oid := vars["OrderId"].(int)
 	return model.Vars{"OrderId": oid + 1}, nil
 }
 
 // A "Hello World" service task
-func (d *testUserTaskHandlerDef) complete(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testUserTaskHandlerDef) complete(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Completed")
 	fmt.Println("OrderId", vars["OrderId"])
 	fmt.Println("Forename", vars["Forename"])

@@ -5,6 +5,10 @@ import (
 )
 
 // Error describes a workflow error by code or name
+type WrappedError interface {
+	Error() string
+}
+
 type Error struct {
 	Code         string
 	WrappedError error

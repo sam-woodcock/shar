@@ -3,16 +3,18 @@ package intTest
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gitlab.com/shar-workflow/shar/client"
-	"gitlab.com/shar-workflow/shar/common/header"
-	support "gitlab.com/shar-workflow/shar/integration-support"
-	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/header"
+	"gitlab.com/shar-workflow/shar/common/workflow"
+	support "gitlab.com/shar-workflow/shar/integration-support"
+	"gitlab.com/shar-workflow/shar/model"
 )
 
 func TestBoundaryTimerHeaders(t *testing.T) {
@@ -144,7 +146,7 @@ type testBoundaryTimerHeaderDef struct {
 	tst               *support.Integration
 }
 
-func (d *testBoundaryTimerHeaderDef) canTimeout(ctx context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testBoundaryTimerHeaderDef) canTimeout(ctx context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	val := header.FromCtx(ctx)
 	assert.Equal(d.t, "ok", val["sample"])
 	d.mx.Lock()
@@ -154,7 +156,7 @@ func (d *testBoundaryTimerHeaderDef) canTimeout(ctx context.Context, _ client.Jo
 	return vars, nil
 }
 
-func (d *testBoundaryTimerHeaderDef) noTimeout(ctx context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testBoundaryTimerHeaderDef) noTimeout(ctx context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	val := header.FromCtx(ctx)
 	assert.Equal(d.t, "ok", val["sample"])
 	d.mx.Lock()
@@ -164,7 +166,7 @@ func (d *testBoundaryTimerHeaderDef) noTimeout(ctx context.Context, _ client.Job
 	return vars, nil
 }
 
-func (d *testBoundaryTimerHeaderDef) timedOut(ctx context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testBoundaryTimerHeaderDef) timedOut(ctx context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	val := header.FromCtx(ctx)
 	assert.Equal(d.t, "ok", val["sample"])
 	d.mx.Lock()
@@ -173,7 +175,7 @@ func (d *testBoundaryTimerHeaderDef) timedOut(ctx context.Context, _ client.JobC
 	return vars, nil
 }
 
-func (d *testBoundaryTimerHeaderDef) checkResult(ctx context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testBoundaryTimerHeaderDef) checkResult(ctx context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	val := header.FromCtx(ctx)
 	assert.Equal(d.t, "ok", val["sample"])
 	d.mx.Lock()

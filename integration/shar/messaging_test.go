@@ -3,16 +3,18 @@ package intTest
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gitlab.com/shar-workflow/shar/client"
-	support "gitlab.com/shar-workflow/shar/integration-support"
-	"gitlab.com/shar-workflow/shar/model"
-	"gitlab.com/shar-workflow/shar/server/messages"
 	"os"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/workflow"
+	support "gitlab.com/shar-workflow/shar/integration-support"
+	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/messages"
 )
 
 //goland:noinspection GoNilness
@@ -80,14 +82,14 @@ type testMessagingHandlerDef struct {
 	tst *support.Integration
 }
 
-func (x *testMessagingHandlerDef) step1(ctx context.Context, client client.JobClient, _ model.Vars) (model.Vars, error) {
+func (x *testMessagingHandlerDef) step1(ctx context.Context, client client.JobClient, _ model.Vars) (model.Vars, workflow.WrappedError) {
 	if err := client.Log(ctx, messages.LogInfo, -1, "Step 1", nil); err != nil {
 		return nil, fmt.Errorf("failed to log: %w", err)
 	}
 	return model.Vars{}, nil
 }
 
-func (x *testMessagingHandlerDef) step2(ctx context.Context, client client.JobClient, vars model.Vars) (model.Vars, error) {
+func (x *testMessagingHandlerDef) step2(ctx context.Context, client client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	if err := client.Log(ctx, messages.LogInfo, -1, "Step 2", nil); err != nil {
 		return nil, fmt.Errorf("failed to log: %w", err)
 	}

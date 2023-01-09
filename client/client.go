@@ -6,6 +6,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
@@ -25,10 +30,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-	"io"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // LogClient represents a client which is capable of logging to the SHAR infrastructure.
@@ -76,7 +77,7 @@ func (c *messageClient) Log(ctx context.Context, severity messages.WorkflowLogLe
 }
 
 // ServiceFn provides the signature for service task functions.
-type ServiceFn func(ctx context.Context, client JobClient, vars model.Vars) (model.Vars, error)
+type ServiceFn func(ctx context.Context, client JobClient, vars model.Vars) (model.Vars, workflow.WrappedError)
 
 // SenderFn provides the signature for functions that can act as Workflow Message senders.
 type SenderFn func(ctx context.Context, client MessageClient, vars model.Vars) error

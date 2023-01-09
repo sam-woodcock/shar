@@ -3,15 +3,17 @@ package intTest
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gitlab.com/shar-workflow/shar/client"
-	support "gitlab.com/shar-workflow/shar/integration-support"
-	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/workflow"
+	support "gitlab.com/shar-workflow/shar/integration-support"
+	"gitlab.com/shar-workflow/shar/model"
 )
 
 func TestTimedStart(t *testing.T) {
@@ -65,7 +67,7 @@ type timedStartHandlerDef struct {
 	tst   *support.Integration
 }
 
-func (d *timedStartHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *timedStartHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Hi")
 	fmt.Println("carried", vars["carried"])
 	d.mx.Lock()

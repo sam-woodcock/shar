@@ -3,14 +3,16 @@ package intTest
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gitlab.com/shar-workflow/shar/client"
-	support "gitlab.com/shar-workflow/shar/integration-support"
-	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/workflow"
+	support "gitlab.com/shar-workflow/shar/integration-support"
+	"gitlab.com/shar-workflow/shar/model"
 )
 
 func TestExclusiveGatewayDecision(t *testing.T) {
@@ -70,20 +72,20 @@ type testExclusiveGatewayDecisionDef struct {
 	gameResult string
 }
 
-func (d *testExclusiveGatewayDecisionDef) playGame(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testExclusiveGatewayDecisionDef) playGame(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Hi")
 	assert.Equal(d.t, 32768, vars["carried"].(int))
 	vars["GameResult"] = d.gameResult
 	return vars, nil
 }
 
-func (d *testExclusiveGatewayDecisionDef) win(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testExclusiveGatewayDecisionDef) win(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	assert.Equal(d.t, "Win", vars["GameResult"].(string))
 	assert.Equal(d.t, 32768, vars["carried"].(int))
 	return vars, nil
 }
 
-func (d *testExclusiveGatewayDecisionDef) lose(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testExclusiveGatewayDecisionDef) lose(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	assert.Equal(d.t, "Lose", vars["GameResult"].(string))
 	assert.Equal(d.t, 32768, vars["carried"].(int))
 	vars["Success"] = true

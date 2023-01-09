@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/workflow"
 	"gitlab.com/shar-workflow/shar/model"
 
 	"os"
@@ -62,7 +64,7 @@ func main() {
 }
 
 // A "Hello World" service task
-func simpleProcess(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
+func simpleProcess(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Hello World")
 	return model.Vars{}, nil
 }

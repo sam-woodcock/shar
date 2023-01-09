@@ -3,15 +3,17 @@ package intTest
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gitlab.com/shar-workflow/shar/client"
-	support "gitlab.com/shar-workflow/shar/integration-support"
-	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/workflow"
+	support "gitlab.com/shar-workflow/shar/integration-support"
+	"gitlab.com/shar-workflow/shar/model"
 )
 
 //goland:noinspection GoNilness
@@ -90,11 +92,11 @@ type testConcurrentMessagingHandlerDef struct {
 	received int
 }
 
-func (x *testConcurrentMessagingHandlerDef) step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
+func (x *testConcurrentMessagingHandlerDef) step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, workflow.WrappedError) {
 	return model.Vars{}, nil
 }
 
-func (x *testConcurrentMessagingHandlerDef) step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (x *testConcurrentMessagingHandlerDef) step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	assert.Equal(x.tst.Test, "carried1value", vars["carried"])
 	assert.Equal(x.tst.Test, "carried2value", vars["carried2"])
 	x.mx.Lock()

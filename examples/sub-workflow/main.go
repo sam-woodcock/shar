@@ -7,6 +7,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/workflow"
 	"gitlab.com/shar-workflow/shar/model"
 )
 
@@ -64,16 +65,16 @@ func main() {
 	}
 }
 
-func afterCallingSubProcess(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func afterCallingSubProcess(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println(vars["x"])
 	return vars, nil
 }
 
-func duringSubProcess(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func duringSubProcess(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	z := vars["z"].(int)
 	return model.Vars{"z": z + 41}, nil
 }
 
-func beforeCallingSubProcess(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
+func beforeCallingSubProcess(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, workflow.WrappedError) {
 	return model.Vars{"x": 1}, nil
 }

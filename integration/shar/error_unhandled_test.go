@@ -3,14 +3,15 @@ package intTest
 import (
 	"context"
 	"fmt"
+	"os"
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
-	"os"
-	"testing"
-	"time"
 )
 
 func TestUnhandledError(t *testing.T) {
@@ -86,13 +87,13 @@ type testErrorUnhandledHandlerDef struct {
 }
 
 // A "Hello World" service task
-func (d *testErrorUnhandledHandlerDef) mayFail(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
+func (d *testErrorUnhandledHandlerDef) mayFail(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Throw unhandled error")
 	return model.Vars{"success": false}, workflow.Error{Code: "102"}
 }
 
 // A "Hello World" service task
-func (d *testErrorUnhandledHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testErrorUnhandledHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Fixing")
 	fmt.Println("carried", vars["carried"])
 	return model.Vars{}, nil

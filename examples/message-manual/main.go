@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/workflow"
 	"gitlab.com/shar-workflow/shar/model"
-	"os"
 )
 
 var cl *client.Client
@@ -65,7 +67,7 @@ func main() {
 	}
 }
 
-func step1(ctx context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
+func step1(ctx context.Context, _ client.JobClient, _ model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Step 1")
 	fmt.Println("Sending Message...")
 	if err := cl.SendMessage(ctx, "", "continueMessage", 57, model.Vars{"success": 32768}); err != nil {
@@ -74,7 +76,7 @@ func step1(ctx context.Context, _ client.JobClient, _ model.Vars) (model.Vars, e
 	return model.Vars{}, nil
 }
 
-func step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Step 2")
 	fmt.Println(vars["success"])
 	return model.Vars{}, nil

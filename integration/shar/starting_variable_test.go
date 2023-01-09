@@ -3,13 +3,15 @@ package intTest
 import (
 	"context"
 	"fmt"
+	"os"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/workflow"
 	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
-	"os"
-	"testing"
 )
 
 func TestStartingVariable(t *testing.T) {
@@ -51,7 +53,7 @@ func TestStartingVariable(t *testing.T) {
 type testStartingVariableHandlerDef struct {
 }
 
-func (d *testStartingVariableHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testStartingVariableHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Hi")
 	fmt.Println("carried", vars["carried"])
 	return vars, nil

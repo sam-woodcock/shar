@@ -3,14 +3,16 @@ package intTest
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/require"
-	"gitlab.com/shar-workflow/shar/client"
-	support "gitlab.com/shar-workflow/shar/integration-support"
-	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/workflow"
+	support "gitlab.com/shar-workflow/shar/integration-support"
+	"gitlab.com/shar-workflow/shar/model"
 )
 
 //goland:noinspection GoNilness
@@ -105,13 +107,13 @@ func TestMultiWorkflow(t *testing.T) {
 type testMultiworkflowMessagingHandlerDef struct {
 }
 
-func (x *testMultiworkflowMessagingHandlerDef) step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
+func (x *testMultiworkflowMessagingHandlerDef) step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Step 1")
 
 	return model.Vars{}, nil
 }
 
-func (x *testMultiworkflowMessagingHandlerDef) step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (x *testMultiworkflowMessagingHandlerDef) step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Step 2")
 	fmt.Println("carried", vars["carried"])
 	fmt.Println("carried2", vars["carried2"])
@@ -128,7 +130,7 @@ func (x *testMultiworkflowMessagingHandlerDef) sendMessage(ctx context.Context, 
 }
 
 // A "Hello World" service task
-func (x *testMultiworkflowMessagingHandlerDef) simpleProcess(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (x *testMultiworkflowMessagingHandlerDef) simpleProcess(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Hello World")
 	fmt.Println("carried", vars["carried"])
 	fmt.Println("carried2", vars["carried2"])

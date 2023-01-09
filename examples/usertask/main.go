@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/nats-io/nats.go"
-	"gitlab.com/shar-workflow/shar/client"
-	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"time"
+
+	"github.com/nats-io/nats.go"
+	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/workflow"
+	"gitlab.com/shar-workflow/shar/model"
 )
 
 func main() {
@@ -79,14 +81,14 @@ func main() {
 }
 
 // A "Hello World" service task
-func prepare(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func prepare(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("Preparing")
 	oid := vars["OrderId"].(int)
 	return model.Vars{"OrderId": oid + 1}, nil
 }
 
 // A "Hello World" service task
-func complete(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func complete(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("OrderId", vars["OrderId"])
 	fmt.Println("Forename", vars["Forename"])
 	fmt.Println("Surname", vars["Surname"])

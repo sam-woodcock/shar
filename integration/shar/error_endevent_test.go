@@ -3,15 +3,17 @@ package intTest
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gitlab.com/shar-workflow/shar/client"
-	support "gitlab.com/shar-workflow/shar/integration-support"
-	"gitlab.com/shar-workflow/shar/model"
-	"gitlab.com/shar-workflow/shar/server/messages"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/workflow"
+	support "gitlab.com/shar-workflow/shar/integration-support"
+	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/messages"
 )
 
 func TestEndEventError(t *testing.T) {
@@ -89,7 +91,7 @@ type testErrorEndEventHandlerDef struct {
 }
 
 // A "Hello World" service task
-func (d *testErrorEndEventHandlerDef) mayFail3(ctx context.Context, client client.JobClient, _ model.Vars) (model.Vars, error) {
+func (d *testErrorEndEventHandlerDef) mayFail3(ctx context.Context, client client.JobClient, _ model.Vars) (model.Vars, workflow.WrappedError) {
 	if err := client.Log(ctx, messages.LogInfo, -1, "service task completed successfully", nil); err != nil {
 		return nil, fmt.Errorf("logging failed: %w", err)
 	}
@@ -97,7 +99,7 @@ func (d *testErrorEndEventHandlerDef) mayFail3(ctx context.Context, client clien
 }
 
 // A "Hello World" service task
-func (d *testErrorEndEventHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testErrorEndEventHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, workflow.WrappedError) {
 	fmt.Println("carried", vars["carried"])
 	panic("this event should not fire")
 }
