@@ -7,7 +7,7 @@ type Vars map[string]any
 
 // Get takes the desired return type as parameter and safely searches the map and returns the value
 // if it is found and is of the desired type.
-func Get[V any](vars Vars, key string) (V, error) {
+func Get[V any](vars Vars, key string) (V, error) { //nolint:ireturn
 	// v is the return type value
 	var v V
 
