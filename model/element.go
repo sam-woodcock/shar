@@ -7,7 +7,7 @@ type Vars map[string]any
 
 // get takes the desired return type as parameter and safely searches the map and returns the value
 // if it is found and is of the desired type.
-func get[V string | int | int8 | int16 | int32 | int64 | byte | []byte | bool | float32 | float64](vars Vars, key string) (V, error) {
+func Get[V any](vars Vars, key string) (V, error) {
 	// v is the return type value
 	var v V
 
