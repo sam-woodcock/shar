@@ -4,14 +4,13 @@ import (
 	"context"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/model"
 	"testing"
 )
 
 func TestEncodeDecodeVars(t *testing.T) {
 	v := make(model.Vars)
-	ctx, _ := logx.LoggingEntrypoint(context.Background(), "shar-unit-tests", "fake-correlation-key")
+	ctx := context.Background()
 	v["first"] = 56
 	v["second"] = "elvis"
 	v["third"] = 5.98

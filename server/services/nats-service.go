@@ -669,17 +669,12 @@ func (s *NatsService) PublishWorkflowState(ctx context.Context, stateName string
 	state.UnixTimeNano = time.Now().UnixNano()
 	msg := nats.NewMsg(subj.NS(stateName, "default"))
 	msg.Header.Set("embargo", strconv.Itoa(c.Embargo))
-	if cid := ctx.Value(logx.CorrelationContextKey); cid == nil {
-		return errors.ErrMissingCorrelation
-	}
-	msg.Header.Add(logx.CorrelationHeader, ctx.Value(logx.CorrelationContextKey).(string))
 	b, err := proto.Marshal(state)
 	if err != nil {
 		return fmt.Errorf("failed to marshal proto during publish workflow state: %w", err)
 	}
 	msg.Data = b
-	val := header.FromCtx(ctx)
-	if err := header.ToMsg(ctx, val, msg); err != nil {
+	if err := header.FromCtxToMsgHeader(ctx, &msg.Header); err != nil {
 		return fmt.Errorf("failed to add header to published workflow state: %w", err)
 	}
 	pubCtx, cancel := context.WithTimeout(ctx, s.publishTimeout)
@@ -720,11 +715,8 @@ func (s *NatsService) PublishMessage(ctx context.Context, workflowInstanceID str
 	if err != nil {
 		return fmt.Errorf("failed to marshal message for publishing: %w", err)
 	}
-
-	msg.Header.Add(logx.CorrelationHeader, ctx.Value(logx.CorrelationContextKey).(string))
 	msg.Data = b
-	val := header.FromCtx(ctx)
-	if err := header.ToMsg(ctx, val, msg); err != nil {
+	if err := header.FromCtxToMsgHeader(ctx, &msg.Header); err != nil {
 		return fmt.Errorf("failed to add header to published workflow state: %w", err)
 	}
 	pubCtx, cancel := context.WithTimeout(ctx, s.publishTimeout)
@@ -1153,8 +1145,8 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 					return
 				}
 
-				ctx, log := logx.LoggingEntrypoint(sctx, "shar-server", cid)
-				val, err := header.FromMsg(ctx, m)
+				ctx, log := logx.NatsMessageLoggingEntrypoint(sctx, "shar-server", msg[0].Header)
+				ctx, err = header.FromMsgHeaderToCtx(ctx, m.Header)
 				if err != nil {
 					log.Error("failed to get header values from incoming process message", &errors.ErrWorkflowFatal{Err: err})
 					if err := msg[0].Ack(); err != nil {
@@ -1162,7 +1154,6 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 					}
 					continue
 				}
-				ctx = header.ToCtx(ctx, val)
 				if strings.HasSuffix(msg[0].Subject, ".Timers.ElementExecute") {
 					wfi, err := s.GetWorkflowInstance(ctx, state.WorkflowInstanceId)
 					if errors2.Is(err, errors.ErrWorkflowInstanceNotFound) {

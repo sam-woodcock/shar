@@ -3,6 +3,7 @@ package logx
 import (
 	"context"
 	"fmt"
+	"github.com/nats-io/nats.go"
 	"golang.org/x/exp/slog"
 	"os"
 )
@@ -40,16 +41,21 @@ func SetDefault(level slog.Level, addSource bool, ecosystem string) {
 	slog.SetDefault(slog.New(h).With(slog.String(EcoSystemLoggingKey, ecosystem)))
 }
 
-// LoggingEntrypoint returns a new logger and a context containing the logger for use during entry points.  An entry point is any code location where correlation has been obtained.
-func LoggingEntrypoint(ctx context.Context, subsystem string, correlationId string) (context.Context, *slog.Logger) {
-	logger := slog.Default().With(slog.String(SubsystemLoggingKey, subsystem), slog.String(CorrelationLoggingKey, correlationId))
-	ctx = slog.NewContext(ctx, logger)
-	ctx = context.WithValue(ctx, CorrelationContextKey, correlationId)
-	return ctx, logger
+// NatsMessageLoggingEntrypoint returns a new logger and a context containing the logger for use when a new NATS message arrives.
+func NatsMessageLoggingEntrypoint(ctx context.Context, subsystem string, hdr nats.Header) (context.Context, *slog.Logger) {
+	cid := hdr.Get(CorrelationHeader)
+	return loggingEntrypoint(ctx, subsystem, cid)
 }
 
 // ContextWith obtains a new logger with an area parameter.  Typically it should be used when obtaining a logger within a programmatic boundary.
 func ContextWith(ctx context.Context, area string) (context.Context, *slog.Logger) {
 	logger := slog.FromContext(ctx).With(AreaLoggingKey, area)
 	return slog.NewContext(ctx, logger), logger
+}
+
+func loggingEntrypoint(ctx context.Context, subsystem string, correlationId string) (context.Context, *slog.Logger) {
+	logger := slog.Default().With(slog.String(SubsystemLoggingKey, subsystem), slog.String(CorrelationLoggingKey, correlationId))
+	ctx = slog.NewContext(ctx, logger)
+	ctx = context.WithValue(ctx, CorrelationContextKey, correlationId)
+	return ctx, logger
 }
