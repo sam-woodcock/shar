@@ -3,6 +3,7 @@ package intTest
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/client"
 	support "gitlab.com/shar-workflow/shar/integration-support"
@@ -19,7 +20,7 @@ func TestMultiWorkflow(t *testing.T) {
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 	tst.Cooldown = 5 * time.Second
-	handlers := &testMultiworkflowMessagingHandlerDef{}
+	handlers := &testMultiworkflowMessagingHandlerDef{t: t}
 
 	// Create a starting context
 	ctx := context.Background()
@@ -77,7 +78,6 @@ func TestMultiWorkflow(t *testing.T) {
 				mx.Lock()
 				instances[wfiID] = struct{}{}
 				mx.Unlock()
-				fmt.Println("started", wfiID)
 			}
 			if wfiID2, _, err := cl.LaunchWorkflow(ctx, "TestMultiWorkflow2", model.Vars{}); err != nil {
 				panic(err)
@@ -85,7 +85,6 @@ func TestMultiWorkflow(t *testing.T) {
 				mx.Lock()
 				instances[wfiID2] = struct{}{}
 				mx.Unlock()
-				fmt.Println("started", wfiID2)
 			}
 		}()
 	}
@@ -103,24 +102,20 @@ func TestMultiWorkflow(t *testing.T) {
 }
 
 type testMultiworkflowMessagingHandlerDef struct {
+	t *testing.T
 }
 
 func (x *testMultiworkflowMessagingHandlerDef) step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
-	fmt.Println("Step 1")
-
 	return model.Vars{}, nil
 }
 
 func (x *testMultiworkflowMessagingHandlerDef) step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
-	fmt.Println("Step 2")
-	fmt.Println("carried", vars["carried"])
-	fmt.Println("carried2", vars["carried2"])
-	//time.Sleep(1 * time.Second)
+	assert.Equal(x.t, "carried1value", vars["carried"].(string))
+	assert.Equal(x.t, "carried2value", vars["carried2"].(string))
 	return model.Vars{}, nil
 }
 
 func (x *testMultiworkflowMessagingHandlerDef) sendMessage(ctx context.Context, cmd client.MessageClient, vars model.Vars) error {
-	fmt.Println("Sending Message...")
 	if err := cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]}); err != nil {
 		return fmt.Errorf("failed to send continue message: %w", err)
 	}
@@ -129,8 +124,6 @@ func (x *testMultiworkflowMessagingHandlerDef) sendMessage(ctx context.Context, 
 
 // A "Hello World" service task
 func (x *testMultiworkflowMessagingHandlerDef) simpleProcess(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
-	fmt.Println("Hello World")
-	fmt.Println("carried", vars["carried"])
-	fmt.Println("carried2", vars["carried2"])
+	assert.Equal(x.t, 32768, vars["carried"].(int))
 	return model.Vars{}, nil
 }

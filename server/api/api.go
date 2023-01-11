@@ -144,7 +144,7 @@ func (s *SharServer) Listen() error {
 
 func listen[T proto.Message, U proto.Message](con common.NatsConn, panicRecovery bool, subList *sync.Map, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
 	sub, err := con.QueueSubscribe(subject, subject, func(msg *nats.Msg) {
-		ctx, log := logx.LoggingEntrypoint(context.Background(), "server", msg.Header.Get(logx.CorrelationHeader))
+		ctx, log := logx.NatsMessageLoggingEntrypoint(context.Background(), "server", msg.Header)
 		if err := callAPI(ctx, panicRecovery, req, msg, fn); err != nil {
 			log.Error("API call for "+subject+" failed", err)
 		}
@@ -164,17 +164,10 @@ func callAPI[T proto.Message, U proto.Message](ctx context.Context, panicRecover
 		errorResponse(msg, codes.InvalidArgument, err.Error())
 		return fmt.Errorf("failed to unmarshal message data during callAPI: %w", err)
 	}
-	cid := msg.Header.Get(logx.CorrelationHeader)
-	if cid == "" {
-		errorResponse(msg, codes.InvalidArgument, errors2.ErrMissingCorrelation)
-		return fmt.Errorf("failed to get correlation key : %w", errors2.ErrMissingCorrelation)
-	}
-	val, err := header.FromMsg(ctx, msg)
+	ctx, err := header.FromMsgHeaderToCtx(ctx, msg.Header)
 	if err != nil {
 		return errors2.ErrWorkflowFatal{Err: fmt.Errorf("failed to decode context value from NATS message for API call: %w", err)}
 	}
-	ctx = header.ToCtx(ctx, val)
-	ctx = context.WithValue(ctx, logx.CorrelationContextKey, cid)
 	ctx = context.WithValue(ctx, ctxkey.APIFunc, msg.Subject)
 	resMsg, err := fn(ctx, container)
 	if err != nil {
@@ -215,8 +208,8 @@ func apiError(code codes.Code, msg any) []byte {
 }
 
 func (s *SharServer) authorize(ctx context.Context, workflowName string) (context.Context, error) {
-	hdr := header.FromCtx(ctx)
-	res, authErr := s.apiAuthNFn(ctx, &model.ApiAuthenticationRequest{Headers: hdr})
+	vals := ctx.Value(header.HeaderContextKey).(header.Values)
+	res, authErr := s.apiAuthNFn(ctx, &model.ApiAuthenticationRequest{Headers: vals})
 	if authErr != nil || !res.Authenticated {
 		return ctx, fmt.Errorf("failed to authenticate: %w", errors2.ErrApiAuthNFail)
 	}
@@ -225,7 +218,7 @@ func (s *SharServer) authorize(ctx context.Context, workflowName string) (contex
 		return ctx, nil
 	}
 	if authRes, err := s.apiAuthZFn(ctx, &model.ApiAuthorizationRequest{
-		Headers:      header.FromCtx(ctx),
+		Headers:      vals,
 		Function:     ctx.Value(ctxkey.APIFunc).(string),
 		WorkflowName: workflowName,
 		User:         res.User,
