@@ -10,17 +10,17 @@ import (
 
 func TestContextEncodimg(t *testing.T) {
 	ctx := context.Background()
-	ctx2 := ToCtx(ctx, Values{"name1": "value1"})
-	val := FromCtx(ctx2)
+	ctx2 := toCtx(ctx, Values{"name1": "value1"})
+	val := fromCtx(ctx2)
 	assert.Equal(t, "value1", val["name1"])
 }
 
 func TestMsgEncoding(t *testing.T) {
 	ctx := context.Background()
 	msg := nats.NewMsg("testSubject")
-	err := ToMsg(ctx, Values{"name1": "value1"}, msg)
+	err := toMsg(Values{"name1": "value1"}, &msg.Header)
 	require.NoError(t, err)
-	val, err := FromMsg(ctx, msg)
+	val, err := fromMsg(ctx, msg.Header)
 	require.NoError(t, err)
 	assert.Equal(t, "value1", val["name1"])
 }
@@ -28,12 +28,12 @@ func TestMsgEncoding(t *testing.T) {
 func TestMsgNilDecoding(t *testing.T) {
 	ctx := context.Background()
 	msg := nats.NewMsg("testSubject")
-	val, err := FromMsg(ctx, msg)
+	val, err := fromMsg(ctx, msg.Header)
 	require.NoError(t, err)
 	assert.Equal(t, "", val["name1"])
 }
 func TestContextNilDecodimg(t *testing.T) {
 	ctx := context.Background()
-	val := FromCtx(ctx)
+	val := fromCtx(ctx)
 	assert.Equal(t, "", val["name1"])
 }

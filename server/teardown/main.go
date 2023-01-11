@@ -30,8 +30,6 @@ func main() {
 	}
 	kvDelete(js,
 		messages.KvMessageID,
-		messages.KvOwnerID,
-		messages.KvOwnerName,
 		messages.KvMessageSubs,
 		messages.KvMessageSub,
 		messages.KvMessageName,

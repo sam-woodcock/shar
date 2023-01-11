@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_0ulvm6h" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.0.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.0.0">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_0ulvm6h" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.6.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.0.0">
   <bpmn:collaboration id="Collaboration_1w0etxp">
     <bpmn:participant id="Participant_08o14sz" processRef="Process_0hgpt6k" />
     <bpmn:participant id="Participant_0pzg05b" processRef="Process_03llwnm" />
@@ -40,7 +40,6 @@
     <bpmn:intermediateCatchEvent id="ReceiveMessage" name="Receive Continue Message">
       <bpmn:extensionElements>
         <zeebe:ioMapping>
-          <zeebe:output source="= msgVar" target="MessageVar" />
           <zeebe:output source="= carried" target="carried" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -64,8 +63,8 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="step2" />
         <zeebe:ioMapping>
-          <zeebe:input source="= carried" target="carried" />
-          <zeebe:input source="= carried2" target="carried2" />
+          <zeebe:input source="=carried" target="carried" />
+          <zeebe:input source="=carried2" target="carried2" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0nfs5sn</bpmn:incoming>
@@ -85,14 +84,6 @@
       <bpmndi:BPMNShape id="Participant_08o14sz_di" bpmnElement="Participant_08o14sz" isHorizontal="true">
         <dc:Bounds x="129" y="80" width="551" height="160" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_0gbijao_di" bpmnElement="Flow_0gbijao">
-        <di:waypoint x="350" y="160" />
-        <di:waypoint x="382" y="160" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_06ow1k2_di" bpmnElement="Flow_06ow1k2">
-        <di:waypoint x="215" y="160" />
-        <di:waypoint x="250" y="160" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="Event_0n1r4fm_di" bpmnElement="SendMessage">
         <dc:Bounds x="382" y="142" width="36" height="36" />
         <bpmndi:BPMNLabel>
@@ -106,21 +97,17 @@
         <dc:Bounds x="250" y="120" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_06ow1k2_di" bpmnElement="Flow_06ow1k2">
+        <di:waypoint x="215" y="160" />
+        <di:waypoint x="250" y="160" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0gbijao_di" bpmnElement="Flow_0gbijao">
+        <di:waypoint x="350" y="160" />
+        <di:waypoint x="382" y="160" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="Participant_0pzg05b_di" bpmnElement="Participant_0pzg05b" isHorizontal="true">
         <dc:Bounds x="129" y="240" width="551" height="160" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_0b7z5v8_di" bpmnElement="Flow_0b7z5v8">
-        <di:waypoint x="218" y="320" />
-        <di:waypoint x="382" y="320" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0fqsoiu_di" bpmnElement="Flow_0fqsoiu">
-        <di:waypoint x="560" y="320" />
-        <di:waypoint x="602" y="320" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0nfs5sn_di" bpmnElement="Flow_0nfs5sn">
-        <di:waypoint x="418" y="320" />
-        <di:waypoint x="460" y="320" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="Event_03c4rvb_di" bpmnElement="ReceiveMessage">
         <dc:Bounds x="382" y="302" width="36" height="36" />
         <bpmndi:BPMNLabel>
@@ -136,6 +123,18 @@
       <bpmndi:BPMNShape id="Activity_120jttp_di" bpmnElement="Step2">
         <dc:Bounds x="460" y="280" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0nfs5sn_di" bpmnElement="Flow_0nfs5sn">
+        <di:waypoint x="418" y="320" />
+        <di:waypoint x="460" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0fqsoiu_di" bpmnElement="Flow_0fqsoiu">
+        <di:waypoint x="560" y="320" />
+        <di:waypoint x="602" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0b7z5v8_di" bpmnElement="Flow_0b7z5v8">
+        <di:waypoint x="218" y="320" />
+        <di:waypoint x="382" y="320" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_0asztzp_di" bpmnElement="Flow_0asztzp">
         <di:waypoint x="400" y="178" />
         <di:waypoint x="400" y="302" />

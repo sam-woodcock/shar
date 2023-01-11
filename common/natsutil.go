@@ -199,7 +199,7 @@ func Process(ctx context.Context, js nats.JetStreamContext, traceName string, cl
 					continue
 				}
 				m := msg[0]
-				val, err := header.FromMsg(ctx, m)
+				ctx, err := header.FromMsgHeaderToCtx(ctx, m.Header)
 				if err != nil {
 					log.Error("failed to get header values from incoming process message", &errors2.ErrWorkflowFatal{Err: err})
 					if err := msg[0].Ack(); err != nil {
@@ -224,9 +224,8 @@ func Process(ctx context.Context, js nats.JetStreamContext, traceName string, cl
 						continue
 					}
 				}
-				cid := msg[0].Header.Get(logx.CorrelationHeader)
-				executeCtx, executeLog := logx.LoggingEntrypoint(context.Background(), "server", cid)
-				executeCtx = header.ToCtx(executeCtx, val)
+				executeCtx, executeLog := logx.NatsMessageLoggingEntrypoint(context.Background(), "server", m.Header)
+				executeCtx = header.Copy(ctx, executeCtx)
 				ack, err := fn(executeCtx, executeLog, msg[0])
 				if err != nil {
 					if errors2.IsWorkflowFatal(err) {

@@ -35,7 +35,7 @@ func TestSimpleAuthZ(t *testing.T) {
 
 	// Create a starting context
 	ctx := context.Background()
-	ctx = header.ToCtx(ctx, header.Values{"JWT": testUserSimpleWorkflowJWT})
+	ctx = header.Set(ctx, "JWT", testUserSimpleWorkflowJWT)
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
 	err := cl.Dial(tst.NatsURL)
@@ -84,7 +84,7 @@ func TestNoAuthN(t *testing.T) {
 
 	// Create a starting context
 	ctx := context.Background()
-	ctx = header.ToCtx(ctx, header.Values{"JWT": randomUserJWT})
+	ctx = header.Set(ctx, "JWT", randomUserJWT)
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
 	err := cl.Dial(tst.NatsURL)
@@ -108,7 +108,7 @@ func TestSimpleNoAuthZ(t *testing.T) {
 
 	// Create a starting context
 	ctx := context.Background()
-	ctx = header.ToCtx(ctx, header.Values{"JWT": testUserReadOnlyJWT})
+	ctx = header.Set(ctx, "JWT", testUserReadOnlyJWT)
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
 	err := cl.Dial(tst.NatsURL)

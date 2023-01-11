@@ -213,11 +213,10 @@ func (c *Client) listen(ctx context.Context) error {
 				return false, fmt.Errorf("failed during service task listener: %w", err)
 			}
 			ctx = context.WithValue(ctx, ctxkey.WorkflowInstanceID, ut.WorkflowInstanceId)
-			val, err := header.FromMsg(ctx, msg)
+			ctx, err := header.FromMsgHeaderToCtx(ctx, msg.Header)
 			if err != nil {
 				return true, &errors2.ErrWorkflowFatal{Err: fmt.Errorf("failed to obtain headers from message: %w", err)}
 			}
-			ctx = header.ToCtx(ctx, val)
 			switch ut.ElementType {
 			case "serviceTask":
 				trackingID := common.TrackingID(ut.Id).ID()
@@ -630,17 +629,16 @@ func (c *Client) GetJob(ctx context.Context, id string) (*model.WorkflowState, e
 }
 
 func callAPI[T proto.Message, U proto.Message](ctx context.Context, con *nats.Conn, subject string, command T, ret U) error {
-	val := header.FromCtx(ctx)
+
 	b, err := proto.Marshal(command)
 	if err != nil {
 		return fmt.Errorf("failed to marshal proto for call API: %w", err)
 	}
 	msg := nats.NewMsg(subject)
-	err = header.ToMsg(ctx, val, msg)
-	if err != nil {
+	ctx = context.WithValue(ctx, logx.CorrelationContextKey, ksuid.New().String())
+	if err := header.FromCtxToMsgHeader(ctx, &msg.Header); err != nil {
 		return fmt.Errorf("failed to attach headers to outgoing API message: %w", err)
 	}
-	msg.Header.Set("cid", ksuid.New().String())
 	msg.Data = b
 	res, err := con.RequestMsg(msg, time.Second*60)
 	if err != nil {
