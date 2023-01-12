@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"gitlab.com/shar-workflow/shar/common/element"
 	"gitlab.com/shar-workflow/shar/common/expression"
 	"gitlab.com/shar-workflow/shar/model"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
@@ -21,7 +22,7 @@ func validModel(workflow *model.Workflow) error {
 				return fmt.Errorf("model validation failed: %w", &valError{Err: errors2.ErrMissingID, Context: j.Name})
 			}
 			switch j.Type {
-			case "serviceTask":
+			case element.ServiceTask:
 				if err := validServiceTask(j); err != nil {
 					return fmt.Errorf("invalid service task: %w", err)
 				}

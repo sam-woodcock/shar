@@ -8,6 +8,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
 	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/common/element"
 	"gitlab.com/shar-workflow/shar/common/expression"
 	"gitlab.com/shar-workflow/shar/common/header"
 	"gitlab.com/shar-workflow/shar/common/logx"
@@ -263,7 +264,7 @@ func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (st
 	}
 	for _, i := range wf.Process {
 		for _, j := range i.Elements {
-			if j.Type == "serviceTask" {
+			if j.Type == element.ServiceTask {
 				id := ksuid.New().String()
 				_, err := s.wfClientTask.Get(j.Execute)
 				if err != nil && errors2.Is(err, nats.ErrKeyNotFound) {
@@ -1102,7 +1103,7 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 						cancel()
 						continue
 					}
-					if err.Error() == "nats: Server Shutdown" {
+					if err.Error() == "nats: Server Shutdown" || err.Error() == "nats: connection closed" {
 						cancel()
 						continue
 					}

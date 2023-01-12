@@ -3,9 +3,12 @@ package parser
 import (
 	"fmt"
 	"github.com/antchfx/xmlquery"
+	"gitlab.com/shar-workflow/shar/common/element"
+	"gitlab.com/shar-workflow/shar/common/linter"
 	"gitlab.com/shar-workflow/shar/model"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 
@@ -44,18 +47,23 @@ func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 	if err := validModel(wf); err != nil {
 		return nil, fmt.Errorf("model is invalid: %w", err)
 	}
-
+	if msgs, err := linter.Lint(wf, true); err != nil {
+		for _, i := range msgs {
+			os.Stderr.WriteString(fmt.Sprintf("%v: %s", i.Type, i.Text))
+		}
+		return nil, fmt.Errorf("linting found issues: %w", err)
+	}
 	return wf, nil
 }
 
 func parseProcess(doc *xmlquery.Node, wf *model.Workflow, prXML *xmlquery.Node, pr *model.Process, msgXML []*xmlquery.Node, errXML []*xmlquery.Node, msgs map[string]string, errs map[string]string) error {
+	if msgXML != nil {
+		parseMessages(doc, wf, msgXML, msgs)
+	}
 	for _, i := range prXML.SelectElements("*") {
 		if err := parseElements(doc, wf, pr, i, msgs, errs); err != nil {
 			return fmt.Errorf("fasiled to parse elements: %w", err)
 		}
-	}
-	if msgXML != nil {
-		parseMessages(doc, wf, msgXML, msgs)
 	}
 	if errXML != nil {
 		parseErrors(doc, wf, errXML, errs)
@@ -97,17 +105,14 @@ func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i 
 	if i.NamespaceURI == bpmnNS {
 		el := &model.Element{Type: i.Data}
 
+		switch i.Data {
 		// These are handled specially
-		if i.Data == "sequenceFlow" || i.Data == "incoming" || i.Data == "outgoing" || i.Data == "extensionElements" || i.Data == "boundaryEvent" {
+		case "sequenceFlow", "incoming", "outgoing", "extensionElements", "boundaryEvent":
 			return nil
-		}
-
 		// Intermediate catch events need special processing
-		if i.Data == "intermediateCatchEvent" {
-			parseIntermediateCatchEvent(i, el)
-		}
-
-		if i.Data == "startEvent" {
+		case "intermediateThrowEvent":
+			parseIntermediateThrowEvent(i, el, wf, msgs)
+		case "startEvent":
 			if err := parseStartEvent(i, el); err != nil {
 				return fmt.Errorf("failed to parse start events: %w", err)
 			}
@@ -127,6 +132,18 @@ func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i 
 		pr.Elements = append(pr.Elements, el)
 	}
 	return nil
+}
+
+func parseIntermediateThrowEvent(i *xmlquery.Node, el *model.Element, wf *model.Workflow, msgs map[string]string) {
+	if i.Data == "intermediateThrowEvent" {
+		if def := i.SelectElement("bpmn:linkEventDefinition/@name"); def != nil {
+			el.Type = element.LinkIntermediateThrowEvent
+			el.Execute = def.InnerText()
+		}
+		if def := i.SelectElement("bpmn:messageEventDefinition"); def != nil {
+			el.Type = element.MessageIntermediateThrowEvent
+		}
+	}
 }
 
 func parseStartEvent(n *xmlquery.Node, el *model.Element) error {
@@ -168,7 +185,7 @@ func parseStartEvent(n *xmlquery.Node, el *model.Element) error {
 			}
 		}
 		el.Timer = t
-		el.Type = "timedStartEvent"
+		el.Type = element.TimedStartEvent
 	}
 	return nil
 }
@@ -193,50 +210,45 @@ func parseBoundaryEvent(doc *xmlquery.Node, i *xmlquery.Node, pr *model.Process)
 			break
 		}
 	}
-	if errorRef := i.SelectElement("//bpmn:errorEventDefinition/@errorRef"); errorRef != nil {
-		allFlow := i.SelectElements("..//bpmn:sequenceFlow")
-		flowID := i.SelectElement("//bpmn:outgoing").InnerText()
-		var target string
-		for _, v := range allFlow {
-			if v.SelectAttr("id") == flowID {
-				target = v.SelectAttr("targetRef")
+	parseBoundaryEventData(
+		doc, i, el, "//bpmn:errorEventDefinition/@errorRef",
+		func(ref *xmlquery.Node, attach *model.Element, target string) any {
+			newCatchErr := &model.CatchError{
+				Id:      i.SelectElement("//bpmn:errorEventDefinition/@id").InnerText(),
+				ErrorId: ref.InnerText(),
+				Target:  target,
 			}
-		}
-		newCatchErr := &model.CatchError{
-			Id:      i.SelectElement("//bpmn:errorEventDefinition/@id").InnerText(),
-			ErrorId: errorRef.InnerText(),
-			Target:  target,
-		}
-		parseZeebeExtensions(doc, newCatchErr, i)
-		el.Errors = append(el.Errors, newCatchErr)
-	}
-	if timerEvent := i.SelectElement("//bpmn:timerEventDefinition"); timerEvent != nil {
-		fmt.Println(attach, timerEvent.InnerText())
-		allFlow := i.SelectElements("..//bpmn:sequenceFlow")
-		flowID := i.SelectElement("//bpmn:outgoing").InnerText()
-		var target string
-		for _, v := range allFlow {
-			if v.SelectAttr("id") == flowID {
-				target = v.SelectAttr("targetRef")
+			attach.Errors = append(el.Errors, newCatchErr)
+			return newCatchErr
+		},
+	)
+	parseBoundaryEventData(
+		doc, i, el, "//bpmn:timerEventDefinition",
+		func(ref *xmlquery.Node, attach *model.Element, target string) any {
+			durationExpr := i.SelectElement("//bpmn:timeDuration").InnerText()
+			newTimer := &model.Timer{
+				Id:       i.SelectElement("//bpmn:timerEventDefinition/@id").InnerText(),
+				Duration: durationExpr,
+				Target:   target,
 			}
-		}
-		durationExpr := i.SelectElement("//bpmn:timeDuration").InnerText()
-		newTimer := &model.Timer{
-			Id:       i.SelectElement("//bpmn:timerEventDefinition/@id").InnerText(),
-			Duration: durationExpr,
-			Target:   target,
-		}
-		parseZeebeExtensions(doc, newTimer, i)
-		el.BoundaryTimer = append(el.BoundaryTimer, newTimer)
-	}
+			el.BoundaryTimer = append(el.BoundaryTimer, newTimer)
+			return newTimer
+		},
+	)
 }
 
-func parseIntermediateCatchEvent(i *xmlquery.Node, _ *model.Element) {
-	subType := i.FirstChild
-	switch subType.Data {
-	case "timerEventDefinition":
-	case "messageEventDefinition":
-
+func parseBoundaryEventData(doc *xmlquery.Node, node *xmlquery.Node, attachRef *model.Element, selector string, fn func(*xmlquery.Node, *model.Element, string) any) {
+	if ref := node.SelectElement(selector); ref != nil {
+		allFlow := node.SelectElements("..//bpmn:sequenceFlow")
+		flowID := node.SelectElement("//bpmn:outgoing").InnerText()
+		var target string
+		for _, v := range allFlow {
+			if v.SelectAttr("id") == flowID {
+				target = v.SelectAttr("targetRef")
+			}
+		}
+		newNode := fn(ref, attachRef, target)
+		parseZeebeExtensions(doc, newNode, node)
 	}
 }
 
@@ -244,7 +256,7 @@ func parseSubscription(wf *model.Workflow, el *model.Element, i *xmlquery.Node, 
 	if i.Data == "intermediateCatchEvent" {
 		if x := i.SelectElement("bpmn:messageEventDefinition/@messageRef"); x != nil {
 			ref := x.InnerText()
-			el.Type = "messageIntermediateCatchEvent"
+			el.Type = element.MessageIntermediateCatchEvent
 			el.Msg = msgs[ref]
 			c, err := getCorrelation(wf.Messages, el.Msg)
 			if err != nil {
@@ -255,12 +267,18 @@ func parseSubscription(wf *model.Workflow, el *model.Element, i *xmlquery.Node, 
 		}
 		if x := i.SelectElement("bpmn:timerEventDefinition/bpmn:timeDuration"); x != nil {
 			ref := x.InnerText()
-			el.Type = "timerIntermediateCatchEvent"
+			el.Type = element.TimerIntermediateCatchEvent
 			dur, err := parseDuration(ref)
 			if err != nil {
 				return fmt.Errorf("failed to parse duration: %w", err)
 			}
 			el.Execute = dur
+			return nil
+		}
+		if x := i.SelectElement("bpmn:linkEventDefinition/@name"); x != nil {
+			name := x.InnerText()
+			el.Type = element.LinkIntermediateCatchEvent
+			el.Execute = name
 			return nil
 		}
 	}
