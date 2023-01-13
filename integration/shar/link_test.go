@@ -11,7 +11,6 @@ import (
 	"os"
 	"sync"
 	"testing"
-	"time"
 )
 
 func TestLink(t *testing.T) {
@@ -50,21 +49,14 @@ func TestLink(t *testing.T) {
 	require.NoError(t, err)
 
 	// Launch the workflow
-	if _, _, err := cl.LaunchWorkflow(ctx, "LinkTest", model.Vars{}); err != nil {
-		panic(err)
-	}
-
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "LinkTest", model.Vars{})
+	require.NoError(t, err)
 	// Listen for service tasks
 	go func() {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
-	select {
-	case c := <-complete:
-		fmt.Println("completed " + c.WorkflowInstanceId)
-	case <-time.After(5 * time.Second):
-		require.Fail(t, "Timed out")
-	}
+	tst.AwaitWorkflowComplete(t, complete, wfiID)
 	assert.True(t, d.hitEnd)
 	assert.True(t, d.hitResponse)
 	tst.AssertCleanKV()
