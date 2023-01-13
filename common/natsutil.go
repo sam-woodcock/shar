@@ -189,7 +189,7 @@ func Process(ctx context.Context, js nats.JetStreamContext, traceName string, cl
 						continue
 					}
 					// Horrible, but this isn't a typed error.  This test just stops the listener printing pointless errors.
-					if err.Error() == "nats: Server Shutdown" {
+					if err.Error() == "nats: Server Shutdown" || err.Error() == "nats: connection closed" {
 						cancel()
 						continue
 					}

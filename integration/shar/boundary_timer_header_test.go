@@ -77,13 +77,8 @@ func TestExclusiveGatewayHeaders(t *testing.T) {
 		tst:              tst,
 	}
 
-	executeBoundaryTimerHeaderTest(t, complete, d)
-	select {
-	case c := <-complete:
-		fmt.Println("completed " + c.WorkflowInstanceId)
-	case <-time.After(5 * time.Second):
-		require.Fail(t, "Timed out")
-	}
+	wfiID := executeBoundaryTimerHeaderTest(t, complete, d)
+	tst.AwaitWorkflowComplete(t, complete, wfiID)
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
@@ -91,7 +86,7 @@ func TestExclusiveGatewayHeaders(t *testing.T) {
 	tst.AssertCleanKV()
 }
 
-func executeBoundaryTimerHeaderTest(t *testing.T, complete chan *model.WorkflowInstanceComplete, d *testBoundaryTimerHeaderDef) {
+func executeBoundaryTimerHeaderTest(t *testing.T, complete chan *model.WorkflowInstanceComplete, d *testBoundaryTimerHeaderDef) string {
 	d.t = t
 	// Create a starting context
 	ctx := context.Background()
@@ -120,15 +115,14 @@ func executeBoundaryTimerHeaderTest(t *testing.T, complete chan *model.WorkflowI
 	require.NoError(t, err)
 
 	// Launch the workflow
-	if _, _, err := cl.LaunchWorkflow(ctx, "PossibleTimeout", model.Vars{}); err != nil {
-		panic(err)
-	}
-
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "PossibleTimeout", model.Vars{})
+	require.NoError(t, err)
 	// Listen for service tasks
 	go func() {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
+	return wfiID
 }
 
 type testBoundaryTimerHeaderDef struct {

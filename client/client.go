@@ -12,6 +12,7 @@ import (
 	"gitlab.com/shar-workflow/shar/client/parser"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/ctxkey"
+	"gitlab.com/shar-workflow/shar/common/element"
 	"gitlab.com/shar-workflow/shar/common/header"
 	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/subj"
@@ -218,7 +219,7 @@ func (c *Client) listen(ctx context.Context) error {
 				return true, &errors2.ErrWorkflowFatal{Err: fmt.Errorf("failed to obtain headers from message: %w", err)}
 			}
 			switch ut.ElementType {
-			case "serviceTask":
+			case element.ServiceTask:
 				trackingID := common.TrackingID(ut.Id).ID()
 				job, err := c.GetJob(ctx, trackingID)
 				if err != nil {
@@ -291,7 +292,7 @@ func (c *Client) listen(ctx context.Context) error {
 				}
 				return true, nil
 
-			case "intermediateThrowEvent":
+			case element.MessageIntermediateThrowEvent:
 				trackingID := common.TrackingID(ut.Id).ID()
 				job, err := c.GetJob(ctx, trackingID)
 				if err != nil {

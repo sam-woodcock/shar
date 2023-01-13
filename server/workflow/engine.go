@@ -8,6 +8,7 @@ import (
 	"github.com/segmentio/ksuid"
 	"gitlab.com/shar-workflow/shar/client/parser"
 	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/common/element"
 	"gitlab.com/shar-workflow/shar/common/expression"
 	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/subj"
@@ -137,7 +138,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 
 	// Start all timed start events.
 	vErr = forEachTimedStartElement(wf, func(el *model.Element) error {
-		if el.Type == "timedStartEvent" {
+		if el.Type == element.TimedStartEvent {
 			timer := &model.WorkflowState{
 				Id:           ID.Push(ksuid.New().String()),
 				WorkflowId:   wfID,
@@ -237,7 +238,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 func forEachStartElement(wf *model.Workflow, fn func(element *model.Element) error) error {
 	for _, pr := range wf.Process {
 		for _, i := range pr.Elements {
-			if i.Type == "startEvent" {
+			if i.Type == element.StartEvent {
 				err := fn(i)
 				if err != nil {
 					return fmt.Errorf("failed during start event execution: %w", err)
@@ -253,7 +254,7 @@ func forEachStartElement(wf *model.Workflow, fn func(element *model.Element) err
 func forEachTimedStartElement(wf *model.Workflow, fn func(element *model.Element) error) error {
 	for _, pr := range wf.Process {
 		for _, i := range pr.Elements {
-			if i.Type == "timedStartEvent" {
+			if i.Type == element.TimedStartEvent {
 				err := fn(i)
 				if err != nil {
 					return fmt.Errorf("failed during timed start event execution: %w", err)
@@ -427,7 +428,7 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 
 	// process any supported events
 	switch el.Type {
-	case "startEvent":
+	case element.StartEvent:
 		initVars := make([]byte, 0)
 		err := vars.OutputVars(ctx, traversal.Vars, &initVars, el.OutputTransform)
 		if err != nil {
@@ -437,11 +438,11 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 		if err := c.completeActivity(ctx, activityID, el, wfi, status, traversal.Vars); err != nil {
 			return fmt.Errorf("failed during start event complete activity: %w", err)
 		}
-	case "exclusiveGateway":
+	case element.ExclusiveGateway:
 		if err := c.completeActivity(ctx, activityID, el, wfi, status, traversal.Vars); err != nil {
 			return fmt.Errorf("failed complete activity for exclusive gateway: %w", err)
 		}
-	case "serviceTask":
+	case element.ServiceTask:
 		stID, err := c.ns.GetServiceTaskRoutingKey(ctx, el.Execute)
 		if err != nil {
 			return fmt.Errorf("failed to get service task routing key during activity start processor: %w", err)
@@ -449,15 +450,15 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 		if err := c.startJob(ctx, messages.WorkflowJobServiceTaskExecute+"."+stID, wfi.WorkflowId, traversal.WorkflowInstanceId, wfi.WorkflowName, activityID, el, "", traversal.Vars); err != nil {
 			return c.engineErr(ctx, "failed to start srvice task job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
-	case "userTask":
+	case element.UserTask:
 		if err := c.startJob(ctx, messages.WorkflowJobUserTaskExecute, wfi.WorkflowId, traversal.WorkflowInstanceId, wfi.WorkflowName, activityID, el, "", traversal.Vars); err != nil {
 			return c.engineErr(ctx, "failed to start user task job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
-	case "manualTask":
+	case element.ManualTask:
 		if err := c.startJob(ctx, messages.WorkflowJobManualTaskExecute, wfi.WorkflowId, traversal.WorkflowInstanceId, wfi.WorkflowName, activityID, el, "", traversal.Vars); err != nil {
 			return c.engineErr(ctx, "failed to start manual task job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
-	case "intermediateThrowEvent":
+	case element.MessageIntermediateThrowEvent:
 		wf, err := c.ns.GetWorkflow(ctx, wfi.WorkflowId)
 		if err != nil {
 			return fmt.Errorf("failed to get workflow for intermediate throw event: %w", err)
@@ -471,7 +472,7 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 		}
 		if ix == -1 {
 			// TODO: Fatal workflow error - we shouldn't allow to send unknown messages in parser
-			return fmt.Errorf("unknown workflow message name: %s", el.Execute)
+			return &errors.ErrWorkflowFatal{Err: fmt.Errorf("unknown workflow message name: %s", el.Execute)}
 		}
 		sendMsgID, err := c.ns.GetMessageSenderRoutingKey(ctx, wf.Name, wf.Messages[ix].Name)
 		if err != nil {
@@ -480,15 +481,15 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 		if err := c.startJob(ctx, messages.WorkflowJobSendMessageExecute+"."+sendMsgID, wfi.WorkflowId, traversal.WorkflowInstanceId, wfi.WorkflowName, activityID, el, wf.Messages[ix].Execute, traversal.Vars); err != nil {
 			return c.engineErr(ctx, "failed to start message job", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
-	case "callActivity":
+	case element.CallActivity:
 		if err := c.startJob(ctx, subj.NS(messages.WorkflowJobLaunchExecute, "default"), wfi.WorkflowId, wfi.WorkflowInstanceId, wfi.WorkflowName, activityID, el, "", traversal.Vars); err != nil {
 			return c.engineErr(ctx, "failed to start message lauch", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
-	case "messageIntermediateCatchEvent":
+	case element.MessageIntermediateCatchEvent:
 		if err := c.awaitMessage(ctx, wfi.WorkflowId, traversal.WorkflowInstanceId, wfi.WorkflowName, activityID, el, traversal.Vars); err != nil {
 			return c.engineErr(ctx, "failed to await message", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
-	case "timerIntermediateCatchEvent":
+	case element.TimerIntermediateCatchEvent:
 		varmap, err := vars.Decode(ctx, traversal.Vars)
 		if err != nil {
 			return &errors.ErrWorkflowFatal{Err: err}
@@ -521,7 +522,7 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 		if err := c.ns.PublishWorkflowState(ctx, subj.NS(messages.WorkflowJobTimerTaskComplete, "default"), traversal, services.WithEmbargo(embargo)); err != nil {
 			return fmt.Errorf("failed to publish timer task execute complete: %w", err)
 		}
-	case "endEvent":
+	case element.EndEvent:
 		if wfi.ParentWorkflowInstanceId == nil || *wfi.ParentWorkflowInstanceId == "" {
 			if len(el.Errors) == 0 {
 				status = model.CancellationState_completed
@@ -532,14 +533,12 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 		if err := c.completeActivity(ctx, activityID, el, wfi, status, traversal.Vars); err != nil {
 			return fmt.Errorf("failed to complete activity for end event: %w", err)
 		}
+	case element.LinkIntermediateThrowEvent:
+		if err := c.completeActivity(ctx, activityID, el, wfi, status, traversal.Vars); err != nil {
+			return fmt.Errorf("failed default complete activity: %w", err)
+		}
 	default:
 		// if we don't support the event, just traverse to the next element
-		if err := c.traverse(ctx, wfi, activityID, el.Outbound, els, traversal.Vars); errors.IsWorkflowFatal(err) {
-			log.Error("workflow fatally terminated whilst traversing", err, slog.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), slog.String(keys.WorkflowID, wfi.WorkflowId), err, slog.String(keys.ElementName, el.Name))
-			return nil
-		} else if err != nil {
-			return c.engineErr(ctx, "failed to return to traverse", err, apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
-		}
 		if err := c.completeActivity(ctx, activityID, el, wfi, status, traversal.Vars); err != nil {
 			return fmt.Errorf("failed default complete activity: %w", err)
 		}
@@ -680,7 +679,7 @@ func (c *Engine) startJob(ctx context.Context, subject, wfID, wfiID, workflowNam
 	}
 
 	// if this is a user task, find out who can perfoem it
-	if el.Type == "userTask" {
+	if el.Type == element.UserTask {
 		owners, err := c.evaluateOwners(ctx, el.Candidates, vx)
 		if err != nil {
 			return fmt.Errorf("start job failed to evaluate owners: %w", err)
@@ -922,13 +921,28 @@ func (c *Engine) activityCompleteProcessor(ctx context.Context, state *model.Wor
 
 	els := common.ElementTable(wf)
 	newID := common.TrackingID(state.Id).Pop()
-	if err = c.traverse(ctx, wfi, newID, els[state.ElementId].Outbound, els, state.Vars); errors.IsWorkflowFatal(err) {
+	el := els[state.ElementId]
+	// intermediateLinkCatchEvent - manually attach outbound connections.
+	if el.Type == element.LinkIntermediateThrowEvent {
+		var target *model.Element
+		for _, elTest := range els {
+			if elTest.Type == element.LinkIntermediateCatchEvent && elTest.Execute == el.Execute {
+				target = elTest
+				break
+			}
+		}
+		if target == nil {
+			return &errors.ErrWorkflowFatal{Err: errors2.New("corresponding catch not found")}
+		}
+		el.Outbound = &model.Targets{Target: []*model.Target{{Target: target.Id}}}
+	}
+	if err = c.traverse(ctx, wfi, newID, el.Outbound, els, state.Vars); errors.IsWorkflowFatal(err) {
 		log.Error("workflow fatally terminated whilst traversing", err, slog.String(keys.WorkflowInstanceID, wfi.WorkflowInstanceId), slog.String(keys.WorkflowID, wfi.WorkflowId), slog.String(keys.ElementID, state.ElementId))
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("activity complete processor failed traversal attempt: %w", err)
 	}
-	if state.ElementType == "endEvent" && len(state.Id) > 2 {
+	if state.ElementType == element.EndEvent && len(state.Id) > 2 {
 		jobID := common.TrackingID(state.Id).Ancestor(2)
 		// If we are a sub workflow then complete the parent job
 		if jobID != state.WorkflowInstanceId {

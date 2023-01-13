@@ -32,6 +32,8 @@ var (
 	ErrInvalidState                   = errors.New("invalid cancellation state")                                                                 // ErrInvalidState - an attempt was made to p[erform an action witrh an invalid cancellation state.
 	ErrApiAuthZFail                   = errors.New("failed to authorize API call")                                                               // ErrApiAuthZFail - an attempt was made to call an API that failed an authorization check.
 	ErrApiAuthNFail                   = errors.New("failed to authenticate API call")                                                            // ErrApiAuthNFail - an attempt was made to call an API that failed an authentication check.
+	ErrLint                           = errors.New("Linter returned errors")                                                                     // ErrLint - Linter returned errors
+
 )
 
 const TraceLevel = -41   // TraceLevel specifies a custom level for trace logging.
