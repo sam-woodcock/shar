@@ -11,6 +11,7 @@ import (
 	"gitlab.com/shar-workflow/shar/cli/flag"
 	"gitlab.com/shar-workflow/shar/cli/output"
 	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/common/element"
 	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
 	"strings"
@@ -92,7 +93,7 @@ func TestCLI(t *testing.T) {
 	sharExecf(t, &status, "instance status %s --server %s --json", wfi.WorkflowInstanceID, tst.NatsURL)
 	assert.NotEmpty(t, status.TrackingId)
 	assert.Equal(t, "Step1", status.ID)
-	assert.Equal(t, "serviceTask", status.Type)
+	assert.Equal(t, element.ServiceTask, status.Type)
 	assert.Equal(t, "executing", status.State)
 	assert.Equal(t, "SimpleProcess", status.Executing)
 	assert.NotZero(t, status.Since)

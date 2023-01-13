@@ -1,6 +1,9 @@
 package model
 
-import "fmt"
+import (
+	"fmt"
+	"reflect"
+)
 
 // Vars is a map of variables. The variables must be primitive go types.
 type Vars map[string]any
@@ -87,4 +90,55 @@ func (vars Vars) GetFloat32(key string) (float32, error) {
 // and safely returns the result.
 func (vars Vars) GetFloat64(key string) (float64, error) {
 	return Get[float64](vars, key)
+}
+
+// Unmarshal unmarshals a SHAR compatible map-portable (map[string]interface{}) var into a struct
+func Unmarshal[T any](vars Vars, key string) (*T, error) {
+	t := new(T)
+	err := fromMap(vars[key].(map[string]interface{}), t)
+	if err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+// Marshal marshals a struct into a SHAR compatible map-portable (map[string]interface{}) var
+func Marshal[T any](v *Vars, key string, t *T) error {
+	m, err := toMap(t)
+	if err != nil {
+		return err
+	}
+	(*v)[key] = m
+	return nil
+}
+
+// toMap struct to map[string]interface{}
+func toMap(in interface{}) (map[string]interface{}, error) {
+	out := make(map[string]interface{})
+	v := reflect.ValueOf(in)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct { // Non-structural return error
+		return nil, fmt.Errorf("ToMap only accepts struct or struct pointer; got %T", v)
+	}
+	t := v.Type()
+	for i := 0; i < v.NumField(); i++ {
+		fi := t.Field(i)
+		out[fi.Name] = v.Field(i).Interface()
+	}
+	return out, nil
+}
+
+// toMap map[string]interface{} to struct
+func fromMap(m map[string]interface{}, s interface{}) error {
+	stValue := reflect.ValueOf(s).Elem()
+	sType := stValue.Type()
+	for i := 0; i < sType.NumField(); i++ {
+		field := sType.Field(i)
+		if value, ok := m[field.Name]; ok {
+			stValue.Field(i).Set(reflect.ValueOf(value))
+		}
+	}
+	return nil
 }

@@ -10,7 +10,6 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"testing"
-	"time"
 )
 
 func TestSimple(t *testing.T) {
@@ -43,21 +42,14 @@ func TestSimple(t *testing.T) {
 	require.NoError(t, err)
 
 	// Launch the workflow
-	if _, _, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{}); err != nil {
-		panic(err)
-	}
-
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{})
+	require.NoError(t, err)
 	// Listen for service tasks
 	go func() {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
-	select {
-	case c := <-complete:
-		fmt.Println("completed " + c.WorkflowInstanceId)
-	case <-time.After(5 * time.Second):
-		require.Fail(t, "Timed out")
-	}
+	tst.AwaitWorkflowComplete(t, complete, wfiID)
 	tst.AssertCleanKV()
 }
 
