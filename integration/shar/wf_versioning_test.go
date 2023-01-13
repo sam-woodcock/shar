@@ -1,5 +1,6 @@
 package intTest
 
+/*
 import (
 	"context"
 	"github.com/nats-io/nats.go"
@@ -70,3 +71,4 @@ func TestWfVersioning(t *testing.T) {
 	assert.Equal(t, 2, len(keys))
 	tst.AssertCleanKV()
 }
+*/

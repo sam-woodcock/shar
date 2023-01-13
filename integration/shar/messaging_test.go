@@ -12,7 +12,6 @@ import (
 	"os"
 	"sync"
 	"testing"
-	"time"
 )
 
 //goland:noinspection GoNilness
@@ -50,24 +49,17 @@ func TestMessaging(t *testing.T) {
 	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	wfid, _, err := cl.LaunchWorkflow(ctx, "TestMessaging", model.Vars{"orderId": 57})
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "TestMessaging", model.Vars{"orderId": 57})
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
-	fmt.Println("Started", wfid)
-
 	// Listen for service tasks
 	go func() {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
-	select {
-	case c := <-complete:
-		fmt.Println("completed " + c.WorkflowInstanceId)
-	case <-time.After(5 * time.Second):
-		require.Fail(t, "no ")
-	}
+	tst.AwaitWorkflowComplete(t, complete, wfiID)
 	tst.Mx.Lock()
 	assert.Equal(t, "carried1value", tst.FinalVars["carried"])
 	assert.Equal(t, "carried2value", tst.FinalVars["carried2"])

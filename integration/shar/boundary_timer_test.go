@@ -23,13 +23,8 @@ func TestBoundaryTimer(t *testing.T) {
 		tst: tst,
 	}
 
-	executeBoundaryTimerTest(t, complete, d)
-	select {
-	case c := <-complete:
-		fmt.Println("completed " + c.WorkflowInstanceId)
-	case <-time.After(20 * time.Second):
-		require.Fail(t, "Timed out")
-	}
+	wfiID := executeBoundaryTimerTest(t, complete, d)
+	tst.AwaitWorkflowComplete(t, complete, wfiID)
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
@@ -52,13 +47,8 @@ func TestBoundaryTimerTimeout(t *testing.T) {
 		tst:              tst,
 	}
 
-	executeBoundaryTimerTest(t, complete, d)
-	select {
-	case c := <-complete:
-		fmt.Println("completed " + c.WorkflowInstanceId)
-	case <-time.After(20 * time.Second):
-		require.Fail(t, "Timed out")
-	}
+	wfiID := executeBoundaryTimerTest(t, complete, d)
+	tst.AwaitWorkflowComplete(t, complete, wfiID)
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
@@ -77,14 +67,8 @@ func TestExclusiveGateway(t *testing.T) {
 		tst:              tst,
 	}
 
-	executeBoundaryTimerTest(t, complete, d)
-	select {
-	case c := <-complete:
-		fmt.Println("completed " + c.WorkflowInstanceId)
-	case <-time.After(5 * time.Second):
-		require.Fail(t, "Timed out")
-
-	}
+	wfiID := executeBoundaryTimerTest(t, complete, d)
+	tst.AwaitWorkflowComplete(t, complete, wfiID)
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
@@ -92,7 +76,7 @@ func TestExclusiveGateway(t *testing.T) {
 	tst.AssertCleanKV()
 }
 
-func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanceComplete, d *testBoundaryTimerDef) {
+func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanceComplete, d *testBoundaryTimerDef) string {
 
 	// Create a starting context
 	ctx := context.Background()
@@ -121,15 +105,14 @@ func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanc
 	require.NoError(t, err)
 
 	// Launch the workflow
-	if _, _, err := cl.LaunchWorkflow(ctx, "PossibleTimeout", model.Vars{}); err != nil {
-		panic(err)
-	}
-
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "PossibleTimeout", model.Vars{})
+	require.NoError(t, err)
 	// Listen for service tasks
 	go func() {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
+	return wfiID
 }
 
 type testBoundaryTimerDef struct {

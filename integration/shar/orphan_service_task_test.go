@@ -31,10 +31,6 @@ func TestRegisterOrphanServiceTask(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "SimpleWorkflowTest", b)
 	require.NoError(t, err)
 
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-
-	// Register a service task
-	cl.RegisterWorkflowInstanceComplete(complete)
 	err = cl.RegisterServiceTask(ctx, "UndefinedProcess", orphanTask)
 	require.NoError(t, err)
 	tst.AssertCleanKV()

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/common/element"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/vars"
 	"testing"
@@ -87,7 +88,7 @@ func TestTraversal(t *testing.T) {
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowId, "test-workflow-id")
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowInstanceId, "test-workflow-instance-id")
 			assert.Equal(t, args[2].(*model.WorkflowState).ElementId, "Step1")
-			assert.Equal(t, args[2].(*model.WorkflowState).ElementType, "serviceTask")
+			assert.Equal(t, args[2].(*model.WorkflowState).ElementType, element.ServiceTask)
 			assert.NotEmpty(t, args[2].(*model.WorkflowState).Id)
 		}).
 		Return(nil)
@@ -127,7 +128,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 		Once().
 		Run(func(args mock.Arguments) {
 			assert.Equal(t, args[2].(*model.WorkflowState).ElementId, "Step1")
-			assert.Equal(t, args[2].(*model.WorkflowState).ElementType, "serviceTask")
+			assert.Equal(t, args[2].(*model.WorkflowState).ElementType, element.ServiceTask)
 		}).
 		Return(nil)
 
@@ -137,7 +138,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowId, "test-workflow-id")
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowInstanceId, "test-workflow-instance-id")
 			assert.Equal(t, args[2].(*model.WorkflowState).ElementId, "Step1")
-			assert.Equal(t, args[2].(*model.WorkflowState).ElementType, "serviceTask")
+			assert.Equal(t, args[2].(*model.WorkflowState).ElementType, element.ServiceTask)
 			assert.NotEmpty(t, args[2].(*model.WorkflowState).Id)
 		}).
 		Return(nil)
@@ -148,7 +149,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 			assert.Equal(t, args[1].(*model.WorkflowState).WorkflowId, "test-workflow-id")
 			assert.Equal(t, args[1].(*model.WorkflowState).WorkflowInstanceId, "test-workflow-instance-id")
 			assert.Equal(t, args[1].(*model.WorkflowState).ElementId, "Step1")
-			assert.Equal(t, args[1].(*model.WorkflowState).ElementType, "serviceTask")
+			assert.Equal(t, args[1].(*model.WorkflowState).ElementType, element.ServiceTask)
 		}).
 		Return("test-job-id", nil)
 
@@ -158,7 +159,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowId, "test-workflow-id")
 			assert.Equal(t, args[2].(*model.WorkflowState).WorkflowInstanceId, "test-workflow-instance-id")
 			assert.Equal(t, args[2].(*model.WorkflowState).ElementId, "Step1")
-			assert.Equal(t, args[2].(*model.WorkflowState).ElementType, "serviceTask")
+			assert.Equal(t, args[2].(*model.WorkflowState).ElementType, element.ServiceTask)
 			//assert.NotEmpty(t, args[2].(*model.WorkflowState).TrackingId)
 		}).
 		Return(nil)
@@ -195,7 +196,7 @@ func TestCompleteJobProcessor(t *testing.T) {
 			WorkflowId:         "test-workflow-id",
 			WorkflowInstanceId: "test-workflow-instance-id",
 			ElementId:          "Step1",
-			ElementType:        "serviceTask",
+			ElementType:        element.ServiceTask,
 			Id:                 []string{trackingID},
 			Execute:            nil,
 			State:              model.CancellationState_executing,
