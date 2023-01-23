@@ -9,14 +9,16 @@ const (
 	ElementType = "el.type"
 	// WorkflowInstanceID is the key for the unique identifier for the executing workflow instance.
 	WorkflowInstanceID = "wf.iid"
+	// ProcessInstanceID is the key for the unique identifier for the executing workflow instance.
+	ProcessInstanceID = "pi.id"
 	// WorkflowID is the key for the originating versioned workflow that started the instance.
 	WorkflowID = "wf.id"
 	// JobType is the key for the name of the job type associated with an executing Job.
 	JobType = "job.type"
 	// JobID is the key for the executing job ID.
 	JobID = "job.id"
-	// ParentWorkflowInstanceID is the key for the a parent workflow instance if this is a sub workflow instance.
-	ParentWorkflowInstanceID = "wf.parent.iid"
+	// ParentProcessInstanceID is the key for the parent process instance if this is a spawned process
+	ParentProcessInstanceID = "wf.parent.iid"
 	// WorkflowName is the key for the originator workflow name.
 	WorkflowName = "wf.name"
 	// ParentInstanceElementID is the key for the element in the parent instance that launched a sub workflow instance.

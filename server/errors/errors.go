@@ -7,6 +7,7 @@ import (
 var (
 	ErrClosing                        = errors.New("SHAR server is shutting down")                                                               // ErrClosing si-gnifies SHAR server is shutting down.
 	ErrWorkflowInstanceNotFound       = errors.New("workflow instance not found")                                                                // ErrWorkflowInstanceNotFound - workflow instance not found.
+	ErrProcessInstanceNotFound        = errors.New("process instance not found")                                                                 // ErrProcessInstanceNotFound - process instance not found.
 	ErrWorkflowNotFound               = errors.New("workflow not found")                                                                         // ErrWorkflowNotFound - workflow not found.
 	ErrWorkflowVersionNotFound        = errors.New("workflow version not found")                                                                 // ErrWorkflowVersionNotFound - workflow version not found.
 	ErrElementNotFound                = errors.New("element not found")                                                                          // ErrElementNotFound - element not found.

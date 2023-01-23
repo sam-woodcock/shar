@@ -11,8 +11,16 @@ import (
 func GetHash(wf *model.Workflow) ([]byte, error) {
 	b2 := wf.GzipSource
 	wf.GzipSource = nil
+	md := map[string]*model.Metadata{}
+	for k, v := range wf.Process {
+		md[k] = v.Metadata
+		v.Metadata = nil
+	}
 	defer func(wf *model.Workflow) {
 		wf.GzipSource = b2
+		for k, v := range wf.Process {
+			v.Metadata = md[k]
+		}
 	}(wf)
 	b, err := json.Marshal(wf)
 	if err != nil {

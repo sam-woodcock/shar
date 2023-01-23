@@ -19,7 +19,6 @@ func TestBoundaryTimerHeaders(t *testing.T) {
 	tst := &support.Integration{}
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
-
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	d := &testBoundaryTimerHeaderDef{tst: tst}
 

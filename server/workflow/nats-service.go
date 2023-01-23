@@ -19,7 +19,7 @@ type NatsService interface {
 	GetWorkflowVersions(ctx context.Context, workflowName string) (*model.WorkflowVersions, error)
 	CreateWorkflowInstance(ctx context.Context, wfInstance *model.WorkflowInstance) (*model.WorkflowInstance, error)
 	GetWorkflowInstance(ctx context.Context, workflowInstanceID string) (*model.WorkflowInstance, error)
-	DestroyWorkflowInstance(ctx context.Context, workflowInstanceID string, state model.CancellationState, wfError *model.Error) error
+	XDestroyWorkflowInstance(ctx context.Context, state *model.WorkflowState, cancellationState model.CancellationState, wfError *model.Error) error
 	GetServiceTaskRoutingKey(ctx context.Context, taskName string) (string, error)
 	GetMessageSenderRoutingKey(ctx context.Context, workflowName string, messageName string) (string, error)
 	GetLatestVersion(ctx context.Context, workflowName string) (string, error)
@@ -46,4 +46,8 @@ type NatsService interface {
 	OwnerID(name string) (string, error)
 	OwnerName(id string) (string, error)
 	GetOldState(ctx context.Context, id string) (*model.WorkflowState, error)
+	CreateProcessInstance(ctx context.Context, workflowInstanceID string, parentProcessID string, parentElementID string, processName string) (*model.ProcessInstance, error)
+	GetProcessInstance(ctx context.Context, processInstanceID string) (*model.ProcessInstance, error)
+	DestroyProcessInstance(ctx context.Context, state *model.WorkflowState, pi *model.ProcessInstance, wi *model.WorkflowInstance) error
+	SatisfyProcess(ctx context.Context, workflowInstance *model.WorkflowInstance, processName string) error
 }

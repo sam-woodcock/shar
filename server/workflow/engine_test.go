@@ -33,11 +33,10 @@ func TestLaunchWorkflow(t *testing.T) {
 	svc.On("CreateWorkflowInstance", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.WorkflowInstance")).
 		Once().
 		Return(&model.WorkflowInstance{
-			WorkflowInstanceId:       "test-workflow-instance-id",
-			ParentWorkflowInstanceId: nil,
-			ParentElementId:          nil,
-			WorkflowId:               "test-workflow-id",
-			WorkflowName:             "TestWorkflow",
+			WorkflowInstanceId: "test-workflow-instance-id",
+			ParentElementId:    nil,
+			WorkflowId:         "test-workflow-id",
+			WorkflowName:       "TestWorkflow",
 		}, nil)
 
 	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.valueCtx"), "WORKFLOW.%s.State.Traversal.Execute", mock.AnythingOfType("*model.WorkflowState")).
@@ -75,11 +74,10 @@ func TestTraversal(t *testing.T) {
 	common.IndexProcessElements(process.Elements, els)
 
 	wfi := &model.WorkflowInstance{
-		WorkflowInstanceId:       "test-workflow-instance-id",
-		ParentWorkflowInstanceId: nil,
-		ParentElementId:          nil,
-		WorkflowId:               "test-workflow-id",
-		WorkflowName:             "TestWorkflow",
+		WorkflowInstanceId: "test-workflow-instance-id",
+		ParentElementId:    nil,
+		WorkflowId:         "test-workflow-id",
+		WorkflowName:       "TestWorkflow",
 	}
 
 	svc.On("PublishWorkflowState", mock.AnythingOfType("*context.valueCtx"), "WORKFLOW.%s.State.Traversal.Execute", mock.AnythingOfType("*model.WorkflowState")).
@@ -113,11 +111,10 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 	svc.On("GetWorkflowInstance", mock.AnythingOfType("*context.valueCtx"), "test-workflow-instance-id").
 		Once().
 		Return(&model.WorkflowInstance{
-			WorkflowInstanceId:       "test-workflow-instance-id",
-			ParentWorkflowInstanceId: nil,
-			ParentElementId:          nil,
-			WorkflowId:               "test-workflow-id",
-			WorkflowName:             "TestWorkflow",
+			WorkflowInstanceId: "test-workflow-instance-id",
+			ParentElementId:    nil,
+			WorkflowId:         "test-workflow-id",
+			WorkflowName:       "TestWorkflow",
 		}, nil)
 
 	svc.On("GetWorkflow", mock.AnythingOfType("*context.valueCtx"), "test-workflow-id").

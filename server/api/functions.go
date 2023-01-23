@@ -223,14 +223,13 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 	}
 	if !found {
 		werr := &errors2.ErrWorkflowFatal{Err: fmt.Errorf("workflow-fatal: can't handle error code %s as the workflow doesn't support it: %w", req.ErrorCode, errors2.ErrWorkflowErrorNotFound)}
-		if _, err := s.cancelWorkflowInstance(ctx, &model.CancelWorkflowInstanceRequest{Id: job.WorkflowInstanceId, State: model.CancellationState_errored}); err != nil {
-			return nil, fmt.Errorf("failed to cancel workflow instance: %w", werr)
-		}
 		// TODO: This always assumes service task.  Wrong!
 		if err := s.ns.PublishWorkflowState(ctx, subj.NS(messages.WorkflowJobServiceTaskAbort, "default"), job); err != nil {
 			return nil, fmt.Errorf("failed to cencel job: %w", werr)
 		}
-
+		if _, err := s.cancelWorkflowInstance(ctx, &model.CancelWorkflowInstanceRequest{Id: job.WorkflowInstanceId, State: model.CancellationState_errored}); err != nil {
+			return nil, fmt.Errorf("failed to cancel workflow instance: %w", werr)
+		}
 		return nil, fmt.Errorf("workflow halted: %w", werr)
 	}
 
@@ -268,6 +267,8 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		Id:                 common.TrackingID(job.Id).Pop().Pop(),
 		Vars:               oldState.Vars,
 		WorkflowName:       wf.Name,
+		ProcessInstanceId:  job.ProcessInstanceId,
+		ProcessName:        job.ProcessName,
 	}); err != nil {
 		log := slog.FromContext(ctx)
 		log.Error("failed to publish workflow state", err)
@@ -282,6 +283,8 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		Id:                 job.Id,
 		Vars:               job.Vars,
 		WorkflowName:       wf.Name,
+		ProcessInstanceId:  job.ProcessInstanceId,
+		ProcessName:        job.ProcessName,
 	}); err != nil {
 		log := slog.FromContext(ctx)
 		log.Error("failed to publish workflow state", err)
