@@ -8,7 +8,6 @@ import (
 	"gitlab.com/shar-workflow/shar/client"
 	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
-	"gitlab.com/shar-workflow/shar/server/tools/tracer"
 	"os"
 	"sync"
 	"testing"
@@ -21,8 +20,6 @@ func TestConcurrentMessaging(t *testing.T) {
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 	tst.Cooldown = 5 * time.Second
-	sub := tracer.Trace(tst.NatsURL)
-	defer sub.Drain()
 
 	handlers := &testConcurrentMessagingHandlerDef{}
 	handlers.tst = tst

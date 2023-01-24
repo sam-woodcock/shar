@@ -8,7 +8,6 @@ import (
 	"gitlab.com/shar-workflow/shar/client"
 	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
-	"gitlab.com/shar-workflow/shar/server/tools/tracer"
 	"os"
 	"sync"
 	"testing"
@@ -19,8 +18,7 @@ func TestTimedStart(t *testing.T) {
 	tst := &support.Integration{}
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
-	dbg := tracer.Trace(tst.NatsURL)
-	defer dbg.Drain()
+
 	// Create a starting context
 	ctx := context.Background()
 

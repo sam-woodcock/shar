@@ -66,7 +66,6 @@ type NatsService struct {
 	allowOrphanServiceTasks        bool
 	completeActivityFunc           CompleteActivityFunc
 	abortFunc                      AbortFunc
-	processCompleteProcessor       ProcessCompleteProcessorFunc
 }
 
 // WorkflowStats obtains the running counts for the engine
@@ -797,6 +796,7 @@ func (s *NatsService) processTraversals(ctx context.Context) error {
 	return nil
 }
 
+// HasValidProcess - checks for a valid process and instance for a workflow process and instance ids
 func (s *NatsService) HasValidProcess(ctx context.Context, processInstanceId, workflowInstanceId string) (*model.ProcessInstance, *model.WorkflowInstance, error) {
 	wfi, err := s.hasValidInstance(ctx, workflowInstanceId)
 	if err != nil {
@@ -993,10 +993,6 @@ func (s *NatsService) processWorkflowEvents(ctx context.Context) error {
 		if err := proto.Unmarshal(msg.Data, &job); err != nil {
 			return false, fmt.Errorf("failed to load workflow state processing workflow event: %w", err)
 		}
-		if strings.HasSuffix(msg.Subject, ".State.Workflow.Execute") {
-
-		}
-
 		if strings.HasSuffix(msg.Subject, ".State.Workflow.Complete") {
 			if _, err := s.hasValidInstance(ctx, job.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
 				log := slog.FromContext(ctx)
@@ -1482,6 +1478,7 @@ func (s *NatsService) SaveState(ctx context.Context, id string, state *model.Wor
 	return nil
 }
 
+// CreateProcessInstance creates a new instance of a process and attatches it to the workflow instance.
 func (s *NatsService) CreateProcessInstance(ctx context.Context, workflowInstanceID string, parentProcessID string, parentElementID string, processName string) (*model.ProcessInstance, error) {
 	id := ksuid.New().String()
 	pi := &model.ProcessInstance{
@@ -1511,6 +1508,7 @@ func (s *NatsService) CreateProcessInstance(ctx context.Context, workflowInstanc
 	return pi, nil
 }
 
+// GetProcessInstance returns a process instance for a given process ID
 func (s *NatsService) GetProcessInstance(ctx context.Context, processInstanceID string) (*model.ProcessInstance, error) {
 	pi := &model.ProcessInstance{}
 	err := common.LoadObj(ctx, s.wfProcessInstance, processInstanceID, pi)
@@ -1523,6 +1521,7 @@ func (s *NatsService) GetProcessInstance(ctx context.Context, processInstanceID 
 	return pi, nil
 }
 
+// DestroyProcessInstance deletes a process instance and removes the workflow instance dependant on all process instances being satisfied.
 func (s *NatsService) DestroyProcessInstance(ctx context.Context, state *model.WorkflowState, pi *model.ProcessInstance, wi *model.WorkflowInstance) error {
 	wfi := &model.WorkflowInstance{}
 	err := common.UpdateObj(ctx, s.wfInstance, wi.WorkflowInstanceId, wfi, func(v *model.WorkflowInstance) (*model.WorkflowInstance, error) {
@@ -1538,6 +1537,9 @@ func (s *NatsService) DestroyProcessInstance(ctx context.Context, state *model.W
 		return fmt.Errorf("destroy process instance failed to delete process instance: %w", err)
 	}
 	def, err := s.GetWorkflow(ctx, pi.WorkflowId)
+	if err != nil {
+		return fmt.Errorf("destroy process instance failed to fetch workflow: %w", err)
+	}
 	var lock bool
 	for _, p := range def.Process {
 		_, satisfied := wi.SatisfiedProcesses[p.Name]
@@ -1565,6 +1567,7 @@ func (s *NatsService) populateMetadata(wf *model.Workflow) {
 	}
 }
 
+// SatisfyProcess sets a process as "satisfied" ie. it may no longer trigger.
 func (s *NatsService) SatisfyProcess(ctx context.Context, workflowInstance *model.WorkflowInstance, processName string) error {
 	err := common.UpdateObj(ctx, s.wfInstance, workflowInstance.WorkflowInstanceId, workflowInstance, func(wi *model.WorkflowInstance) (*model.WorkflowInstance, error) {
 		wi.SatisfiedProcesses[processName] = true

@@ -144,13 +144,13 @@ func (_m *MockNatsService) DeleteJob(ctx context.Context, trackingID string) err
 	return r0
 }
 
-// DestroyProcessInstance provides a mock function with given fields: ctx, state
-func (_m *MockNatsService) DestroyProcessInstance(ctx context.Context, state *model.WorkflowState) error {
-	ret := _m.Called(ctx, state)
+// DestroyProcessInstance provides a mock function with given fields: ctx, state, pi, wi
+func (_m *MockNatsService) DestroyProcessInstance(ctx context.Context, state *model.WorkflowState, pi *model.ProcessInstance, wi *model.WorkflowInstance) error {
+	ret := _m.Called(ctx, state, pi, wi)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState) error); ok {
-		r0 = rf(ctx, state)
+	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState, *model.ProcessInstance, *model.WorkflowInstance) error); ok {
+		r0 = rf(ctx, state, pi, wi)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -631,13 +631,13 @@ func (_m *MockNatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow
 	return r0, r1
 }
 
-// XDestroyWorkflowInstance provides a mock function with given fields: ctx, workflowInstanceID, state, wfError
-func (_m *MockNatsService) XDestroyWorkflowInstance(ctx context.Context, workflowInstanceID string, state model.CancellationState, wfError *model.Error) error {
-	ret := _m.Called(ctx, workflowInstanceID, state, wfError)
+// XDestroyWorkflowInstance provides a mock function with given fields: ctx, state, cancellationState, wfError
+func (_m *MockNatsService) XDestroyWorkflowInstance(ctx context.Context, state *model.WorkflowState, cancellationState model.CancellationState, wfError *model.Error) error {
+	ret := _m.Called(ctx, state, cancellationState, wfError)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, model.CancellationState, *model.Error) error); ok {
-		r0 = rf(ctx, workflowInstanceID, state, wfError)
+	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState, model.CancellationState, *model.Error) error); ok {
+		r0 = rf(ctx, state, cancellationState, wfError)
 	} else {
 		r0 = ret.Error(0)
 	}

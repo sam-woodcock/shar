@@ -88,26 +88,29 @@ func (c *Engine) Launch(ctx context.Context, workflowName string, vars []byte) (
 
 // launch contains the underlying logic to start a workflow.  It is also called to spawn new instances of child workflows.
 func (c *Engine) launch(ctx context.Context, workflowName string, ID common.TrackingID, vrs []byte, parentpiID string, parentElID string) (string, string, error) {
+	var reterr error
 	ctx, log := logx.ContextWith(ctx, "engine.launch")
 	// get the last ID of the workflow
 	wfID, err := c.ns.GetLatestVersion(ctx, workflowName)
 	if err != nil {
-		return "", "", c.engineErr(ctx, "failed to get latest version of workflow", err,
+		reterr = c.engineErr(ctx, "failed to get latest version of workflow", err,
 			slog.String(keys.ParentInstanceElementID, parentElID),
 			slog.String(keys.ParentProcessInstanceID, parentpiID),
 			slog.String(keys.WorkflowName, workflowName),
 		)
+		return "", "", reterr
 	}
 
 	// get the last version of the workflow
 	wf, err := c.ns.GetWorkflow(ctx, wfID)
 	if err != nil {
-		return "", "", c.engineErr(ctx, "failed to get workflow", err,
+		reterr = c.engineErr(ctx, "failed to get workflow", err,
 			slog.String(keys.ParentInstanceElementID, parentElID),
 			slog.String(keys.ParentProcessInstanceID, parentpiID),
 			slog.String(keys.WorkflowName, workflowName),
 			slog.String(keys.WorkflowID, wfID),
 		)
+		return "", "", reterr
 	}
 
 	wfi, err := c.ns.CreateWorkflowInstance(ctx, &model.WorkflowInstance{
@@ -118,13 +121,20 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 	})
 
 	if err != nil {
-		return "", "", c.engineErr(ctx, "failed to create workflow instance", err,
+		reterr = c.engineErr(ctx, "failed to create workflow instance", err,
 			slog.String(keys.ParentInstanceElementID, parentElID),
 			slog.String(keys.ParentProcessInstanceID, parentpiID),
 			slog.String(keys.WorkflowName, workflowName),
 			slog.String(keys.WorkflowID, wfID),
 		)
+		return "", "", reterr
 	}
+
+	defer func() {
+		if reterr != nil {
+			c.rollBackLaunch(ctx, wfi)
+		}
+	}()
 
 	wiState := &model.WorkflowState{
 		WorkflowInstanceId: wfi.WorkflowInstanceId,
@@ -136,10 +146,11 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 
 	// fire off the new workflow state
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowInstanceExecute, wiState); err != nil {
-		return "", "", c.engineErr(ctx, "failed to publish workflow instance execute", err,
+		reterr = c.engineErr(ctx, "failed to publish workflow instance execute", err,
 			slog.String(keys.WorkflowName, workflowName),
 			slog.String(keys.WorkflowID, wfID),
 		)
+		return "", "", reterr
 	}
 
 	testVars, err := vars.Decode(ctx, vrs)
@@ -168,7 +179,8 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 		})
 
 		if vErr != nil {
-			return "", "", fmt.Errorf("failed to initialize all workflow start events: %w", vErr)
+			reterr = fmt.Errorf("failed to initialize all workflow start events: %w", vErr)
+			return "", "", reterr
 		}
 
 		// Start all timed start events.
@@ -196,15 +208,17 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 			return nil
 		})
 
+		if vErr != nil {
+			reterr = fmt.Errorf("failed to initialize all workflow timed start events: %w", vErr)
+			return "", "", reterr
+		}
+
 		if hasStartEvents {
 
 			pi, err := c.ns.CreateProcessInstance(ctx, wfi.WorkflowInstanceId, parentpiID, parentElID, pr.Name)
 			if err != nil {
-				return "", "", fmt.Errorf("launch failed to create new process instance: %w", vErr)
-			}
-
-			if vErr != nil {
-				return "", "", vErr
+				reterr = fmt.Errorf("launch failed to create new process instance: %w", err)
+				return "", "", reterr
 			}
 
 			errs := make(chan error)
@@ -233,21 +247,38 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 				return nil
 			})
 			if startErr != nil {
+				reterr = startErr
 				return "", "", startErr
 			}
 			// wait for all paths to be started
 			close(errs)
 			if err := <-errs; err != nil {
-				return "", "", c.engineErr(ctx, "failed initial traversal", err,
+				reterr = c.engineErr(ctx, "failed initial traversal", err,
 					slog.String(keys.ParentInstanceElementID, parentElID),
 					slog.String(keys.ParentProcessInstanceID, parentpiID),
 					slog.String(keys.WorkflowName, workflowName),
 					slog.String(keys.WorkflowID, wfID),
 				)
+				return "", "", reterr
 			}
 		}
 	}
 	return wfi.WorkflowInstanceId, wfID, nil
+}
+
+func (c *Engine) rollBackLaunch(ctx context.Context, wfi *model.WorkflowInstance) {
+	log := slog.FromContext(ctx)
+	log.Info("rolling back workflow launch")
+	err := c.ns.PublishWorkflowState(ctx, messages.WorkflowInstanceAbort, &model.WorkflowState{
+		Id:                 []string{wfi.WorkflowInstanceId},
+		WorkflowInstanceId: wfi.WorkflowInstanceId,
+		WorkflowName:       wfi.WorkflowName,
+		WorkflowId:         wfi.WorkflowId,
+		State:              model.CancellationState_terminated,
+	})
+	if err != nil {
+		log.Error("workflow fatally terminated, however the termination signal could not be sent", err)
+	}
 }
 
 // forEachStartElement finds all start elements for a given process and executes a function on the element.

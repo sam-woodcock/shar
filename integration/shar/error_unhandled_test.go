@@ -8,7 +8,6 @@ import (
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
-	"gitlab.com/shar-workflow/shar/server/tools/tracer"
 	"os"
 	"testing"
 )
@@ -17,8 +16,7 @@ func TestUnhandledError(t *testing.T) {
 	tst := &support.Integration{}
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
-	sub := tracer.Trace(tst.NatsURL)
-	defer sub.Drain()
+
 	//sub := tracer.Trace(NatsURL)
 	//defer sub.Drain()
 

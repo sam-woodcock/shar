@@ -9,7 +9,6 @@ import (
 	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/messages"
-	"gitlab.com/shar-workflow/shar/server/tools/tracer"
 	"os"
 	"sync"
 	"testing"
@@ -20,8 +19,7 @@ func TestMessaging(t *testing.T) {
 	tst := &support.Integration{}
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
-	sub := tracer.Trace(tst.NatsURL)
-	defer sub.Drain()
+
 	// Create a starting context
 	ctx := context.Background()
 
