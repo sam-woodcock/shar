@@ -47,7 +47,7 @@ func (s *Integration) Setup(t *testing.T, authZFn authz.APIFunc, authNFn authn.C
 	s.NatsPort = 4459 + rand2.Intn(500)
 	s.NatsURL = fmt.Sprintf("nats://%s:%v", s.NatsHost, s.NatsPort)
 	logx.SetDefault(slog.DebugLevel, false, "shar-Integration-tests")
-	s.Cooldown = 2 * time.Second
+	s.Cooldown = 4 * time.Second
 	s.Test = t
 	s.FinalVars = make(map[string]interface{})
 	ss, ns, err := zensvr.GetServers(s.NatsHost, s.NatsPort, 10, authZFn, authNFn)
@@ -84,7 +84,7 @@ func (s *Integration) AssertCleanKV() {
 			return
 		default:
 			var cont = true
-			for cont == true {
+			for cont {
 				err = s.checkCleanKV()
 				if err == nil {
 					close(errs)
@@ -101,16 +101,13 @@ func (s *Integration) AssertCleanKV() {
 			}
 		}
 	}()
-	select {
-	case err := <-errs:
-		if err != nil {
-			assert.Fail(s.Test, err.Error())
-		}
+
+	if err := <-errs; err != nil {
+		assert.Fail(s.Test, err.Error())
 	}
 }
 
 func (s *Integration) checkCleanKV() error {
-	time.Sleep(s.Cooldown)
 	js, err := s.GetJetstream()
 	require.NoError(s.Test, err)
 
@@ -146,29 +143,35 @@ func (s *Integration) checkCleanKV() error {
 
 	b, err := js.KeyValue("WORKFLOW_USERTASK")
 	if err != nil && errors.Is(err, nats.ErrNoKeysFound) {
-		if err != nil {
-			return err
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("checkCleanKV failed to get usertasks: %w", err)
+	}
+
+	keys, err := b.Keys()
+	if err != nil {
+		if err == nats.ErrNoKeysFound {
+			return nil
 		}
-		keys, err := b.Keys()
+		return fmt.Errorf("checkCleanKV failed to get user task keys: %w", err)
+	}
+
+	for _, k := range keys {
+		bts, err := b.Get(k)
 		if err != nil {
-			return err
+			return fmt.Errorf("checkCleanKV failed to get user task value: %w", err)
 		}
-		for _, k := range keys {
-			bts, err := b.Get(k)
-			if err != nil {
-				return err
-			}
-			msg := &model.UserTasks{}
-			err = proto.Unmarshal(bts.Value(), msg)
-			if err != nil {
-				s.Test.Error(err)
-				return err
-			}
-			if len(msg.Id) > 0 {
-				return fmt.Errorf("unexpected UserTask %s found in WORKFLOW_USERTASK: %w", msg.Id, errDirtyKV)
-			}
+		msg := &model.UserTasks{}
+		err = proto.Unmarshal(bts.Value(), msg)
+		if err != nil {
+			return fmt.Errorf("checkCleanKV failed to unmarshal user task: %w", err)
+		}
+		if len(msg.Id) > 0 {
+			return fmt.Errorf("unexpected UserTask %s found in WORKFLOW_USERTASK: %w", msg.Id, errDirtyKV)
 		}
 	}
+
 	return nil
 }
 

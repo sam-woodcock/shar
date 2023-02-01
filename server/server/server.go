@@ -23,6 +23,7 @@ import (
 // Server is the shar server type responsible for hosting the SHAR API.
 type Server struct {
 	sig                     chan os.Signal
+	healthServiceEnabled    bool
 	healthService           *health.Checker
 	grpcServer              *gogrpc.Server
 	api                     *api.SharServer
@@ -42,6 +43,7 @@ func New(options ...Option) *Server {
 		healthService:           health.New(),
 		panicRecovery:           true,
 		allowOrphanServiceTasks: true,
+		healthServiceEnabled:    true,
 		concurrency:             6,
 	}
 	for _, i := range options {
@@ -77,7 +79,7 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 	// Capture SIGTERM and SIGINT
 	signal.Notify(s.sig, syscall.SIGTERM, syscall.SIGINT)
 
-	if s.healthService != nil {
+	if s.healthServiceEnabled {
 		// Create health server and expose on GRPC
 		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
 		if err != nil {
@@ -101,7 +103,6 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 		slog.Info("shar grpc health started")
 	} else {
 		// Create private health server
-		s.healthService = &health.Checker{}
 		s.healthService.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
 	}
 
@@ -131,11 +132,10 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 // Shutdown gracefully shuts down the GRPC server, and requests that
 func (s *Server) Shutdown() {
 
-	if s.healthService != nil {
-		s.healthService.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
-	}
+	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
+
 	s.api.Shutdown()
-	if s.grpcServer != nil {
+	if s.healthServiceEnabled {
 		s.grpcServer.GracefulStop()
 		slog.Info("shar grpc health stopped")
 	}
