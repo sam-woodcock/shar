@@ -23,6 +23,8 @@ import (
 	"time"
 )
 
+var errDirtyKV = errors.New("KV contains values when expected empty")
+
 // Integration - the integration test support framework.
 type Integration struct {
 	testNatsServer *server.Server
@@ -69,6 +71,45 @@ func (s *Integration) Setup(t *testing.T, authZFn authz.APIFunc, authNFn authn.C
 
 // AssertCleanKV - ensures SHAR has cleans up after itself, and there are no records left in the KV.
 func (s *Integration) AssertCleanKV() {
+	cancelled := make(chan struct{})
+	errs := make(chan error)
+	go func() {
+		var err error
+		select {
+		case <-cancelled:
+			return
+		case <-time.After(s.Cooldown):
+			close(cancelled)
+			errs <- err
+			return
+		default:
+			var cont = true
+			for cont == true {
+				err = s.checkCleanKV()
+				if err == nil {
+					close(errs)
+					close(cancelled)
+					return
+				}
+				if errors.Is(err, errDirtyKV) {
+					time.Sleep(500 * time.Millisecond)
+					continue
+				}
+				errs <- err
+				close(cancelled)
+				return
+			}
+		}
+	}()
+	select {
+	case err := <-errs:
+		if err != nil {
+			assert.Fail(s.Test, err.Error())
+		}
+	}
+}
+
+func (s *Integration) checkCleanKV() error {
 	time.Sleep(s.Cooldown)
 	js, err := s.GetJetstream()
 	require.NoError(s.Test, err)
@@ -97,36 +138,38 @@ func (s *Integration) AssertCleanKV() {
 			"WORKFLOW_USERTASK":
 			//noop
 		default:
-			assert.Len(s.Test, keys, 0, n.Bucket())
+			if len(keys) > 0 {
+				return fmt.Errorf("%d unexpected keys found in %s: %w", len(keys), name, errDirtyKV)
+			}
 		}
 	}
 
 	b, err := js.KeyValue("WORKFLOW_USERTASK")
 	if err != nil && errors.Is(err, nats.ErrNoKeysFound) {
 		if err != nil {
-			s.Test.Error(err)
-			return
+			return err
 		}
 		keys, err := b.Keys()
 		if err != nil {
-			s.Test.Error(err)
-			return
+			return err
 		}
 		for _, k := range keys {
 			bts, err := b.Get(k)
 			if err != nil {
-				s.Test.Error(err)
-				return
+				return err
 			}
 			msg := &model.UserTasks{}
 			err = proto.Unmarshal(bts.Value(), msg)
 			if err != nil {
 				s.Test.Error(err)
-				return
+				return err
 			}
-			assert.Len(s.Test, msg.Id, 0)
+			if len(msg.Id) > 0 {
+				return fmt.Errorf("unexpected UserTask %s found in WORKFLOW_USERTASK: %w", msg.Id, errDirtyKV)
+			}
 		}
 	}
+	return nil
 }
 
 // Teardown - resposible for shutting down the integration test framework.

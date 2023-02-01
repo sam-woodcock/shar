@@ -125,6 +125,7 @@ func GetServers(natsHost string, natsPort int, sharConcurrency int, apiAuth auth
 		sharsvr.EphemeralStorage(),
 		sharsvr.PanicRecovery(false),
 		sharsvr.Concurrency(sharConcurrency),
+		sharsvr.WithNoHealthServer(),
 	}
 	if apiAuth != nil {
 		options = append(options, sharsvr.WithApiAuthorizer(apiAuth))
@@ -133,7 +134,7 @@ func GetServers(natsHost string, natsPort int, sharConcurrency int, apiAuth auth
 		options = append(options, sharsvr.WithAuthentication(authN))
 	}
 	ssvr := sharsvr.New(options...)
-	go ssvr.Listen(natsHost+":"+strconv.Itoa(natsPort), 55002)
+	go ssvr.Listen(natsHost+":"+strconv.Itoa(natsPort), 0)
 	for {
 		if ssvr.Ready() {
 			break
