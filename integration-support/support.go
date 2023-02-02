@@ -66,6 +66,7 @@ func (s *Integration) Setup(t *testing.T, authZFn authz.APIFunc, authNFn authn.C
 	}
 	s.testSharServer = ss
 	s.testNatsServer = ns
+	s.Test.Logf("Starting test support for " + s.Test.Name())
 	s.Test.Logf("\033[1;36m%s\033[0m", "> Setup completed\n")
 }
 
