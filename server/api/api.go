@@ -87,8 +87,8 @@ func (s *SharServer) Listen() error {
 	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
 		return fmt.Errorf("APIListWorkflows failed: %w", err)
 	}
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetWorkflowStatus, &model.GetWorkflowInstanceStatusRequest{}, s.getWorkflowInstanceStatus); err != nil {
-		return fmt.Errorf("APIGetWorkflowStatus failed: %w", err)
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIListWorkflowInstanceProcesses, &model.ListWorkflowInstanceProcessesRequest{}, s.listWorkflowInstanceProcesses); err != nil {
+		return fmt.Errorf("APIListWorkflowInstanceProcesses failed: %w", err)
 	}
 	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
 		return fmt.Errorf("APIListWorkflowInstance failed: %w", err)
@@ -135,7 +135,11 @@ func (s *SharServer) Listen() error {
 	}
 
 	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetWorkflow, &model.GetWorkflowRequest{}, s.getWorkflow); err != nil {
-		return fmt.Errorf("APIGetWorkflowVersions failed: %w", err)
+		return fmt.Errorf("APIGetWorkflow failed: %w", err)
+	}
+
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetProcessInstanceStatus, &model.GetProcessInstanceStatusRequest{}, s.getProcessInstanceStatus); err != nil {
+		return fmt.Errorf("APIGetProcessInstanceStatus failed: %w", err)
 	}
 
 	slog.Info("shar api listener started")

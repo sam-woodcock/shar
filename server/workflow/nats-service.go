@@ -27,7 +27,7 @@ type NatsService interface {
 	GetJob(ctx context.Context, id string) (*model.WorkflowState, error)
 	GetElement(ctx context.Context, state *model.WorkflowState) (*model.Element, error)
 	ListWorkflowInstance(ctx context.Context, workflowName string) (chan *model.ListWorkflowInstanceResult, chan error)
-	GetWorkflowInstanceStatus(ctx context.Context, id string) (*model.WorkflowInstanceStatus, error)
+	ListWorkflowInstanceProcesses(ctx context.Context, id string) ([]string, error)
 	StartProcessing(ctx context.Context) error
 	SetEventProcessor(processor services.EventProcessorFunc)
 	SetMessageCompleteProcessor(processor services.MessageCompleteProcessorFunc)

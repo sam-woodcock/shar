@@ -583,14 +583,24 @@ func (s *NatsService) ListWorkflowInstance(ctx context.Context, workflowName str
 	return wch, errs
 }
 
-// GetWorkflowInstanceStatus gets the current status for a workflow instance.
-func (s *NatsService) GetWorkflowInstanceStatus(ctx context.Context, id string) (*model.WorkflowInstanceStatus, error) {
+// ListWorkflowInstanceProcesses gets the current processIDs for a workflow instance.
+func (s *NatsService) ListWorkflowInstanceProcesses(ctx context.Context, id string) ([]string, error) {
+	v := &model.WorkflowInstance{}
+	err := common.LoadObj(ctx, s.wfInstance, id, v)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load workflow instance from KV: %w", err)
+	}
+	return v.ProcessInstanceId, nil
+}
+
+// GetProcessInstanceStatus returns a list of workflow statuses for the specified process instance ID.
+func (s *NatsService) GetProcessInstanceStatus(ctx context.Context, id string) ([]*model.WorkflowState, error) {
 	v := &model.WorkflowState{}
 	err := common.LoadObj(ctx, s.wfTracking, id, v)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load workflow instance status from KV: %w", err)
+		return nil, fmt.Errorf("function GetProcessInstanceStatus failed to load from KV: %w", err)
 	}
-	return &model.WorkflowInstanceStatus{State: []*model.WorkflowState{v}}, nil
+	return []*model.WorkflowState{v}, nil
 }
 
 // StartProcessing begins listening to all of the message processing queues.

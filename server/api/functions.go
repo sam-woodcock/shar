@@ -17,16 +17,24 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func (s *SharServer) getWorkflowInstanceStatus(ctx context.Context, req *model.GetWorkflowInstanceStatusRequest) (*model.WorkflowInstanceStatus, error) {
+func (s *SharServer) getProcessInstanceStatus(ctx context.Context, req *model.GetProcessInstanceStatusRequest) (*model.GetProcessInstanceStatusResult, error) {
+	ps, err := s.ns.GetProcessInstanceStatus(ctx, req.Id)
+	if err != nil {
+		return nil, fmt.Errorf("getProcessInstanceStatus failed with: %w", err)
+	}
+	return &model.GetProcessInstanceStatusResult{ProcessState: ps}, fmt.Errorf("getProcessinstace status failed with: %w", err)
+}
+
+func (s *SharServer) listWorkflowInstanceProcesses(ctx context.Context, req *model.ListWorkflowInstanceProcessesRequest) (*model.ListWorkflowInstanceProcessesResult, error) {
 	ctx, instance, err2 := s.authFromInstanceID(ctx, req.Id)
 	if err2 != nil {
 		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
-	res, err := s.ns.GetWorkflowInstanceStatus(ctx, instance.WorkflowInstanceId)
+	res, err := s.ns.ListWorkflowInstanceProcesses(ctx, instance.WorkflowInstanceId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow instance status: %w", err)
 	}
-	return res, nil
+	return &model.ListWorkflowInstanceProcessesResult{ProcessInstanceId: res}, nil
 }
 
 func (s *SharServer) listWorkflows(ctx context.Context, _ *emptypb.Empty) (*model.ListWorkflowsResponse, error) {

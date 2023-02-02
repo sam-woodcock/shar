@@ -217,8 +217,20 @@ message CancelWorkflowInstanceRequest {
   Error error = 3;
 }
 
-message GetWorkflowInstanceStatusRequest {
+message ListWorkflowInstanceProcessesRequest {
   string id = 1;
+}
+
+message ListWorkflowInstanceProcessesResult {
+    repeated string processInstanceId = 1; // ProcessInstance - process instances berlonging to this workflow instance.
+}
+
+message GetProcessInstanceStatusRequest {
+  string id = 1;
+}
+
+message GetProcessInstanceStatusResult {
+  repeated WorkflowState processState = 1; // ProcessInstance - process instances berlonging to this workflow instance.
 }
 
 message ListWorkflowInstanceRequest {
