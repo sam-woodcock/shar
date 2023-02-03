@@ -95,9 +95,10 @@ func run(cmd *cobra.Command, args []string) error {
 				log.Error("unable to unmarshal message", err)
 				return fmt.Errorf("failed to unmarshal status trace message: %w", err)
 			}
-			if state.WorkflowInstanceId == wfiID {
-				output.Current.OutputWorkflowInstanceStatus([]*model.WorkflowState{&state})
-			}
+			//if state.WorkflowInstanceId == wfiID {
+			//TODO: Re- implement
+			//	output.Current.OutputWorkflowInstanceStatus(wfiID, []*model.WorkflowState{&state})
+			//}
 			// Check end states once they are implemented
 			// if state.State == "" {
 			// 	close(closer)

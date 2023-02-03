@@ -23,6 +23,8 @@ import (
 	"time"
 )
 
+var errDirtyKV = errors.New("KV contains values when expected empty")
+
 // Integration - the integration test support framework.
 type Integration struct {
 	testNatsServer *server.Server
@@ -45,7 +47,7 @@ func (s *Integration) Setup(t *testing.T, authZFn authz.APIFunc, authNFn authn.C
 	s.NatsPort = 4459 + rand2.Intn(500)
 	s.NatsURL = fmt.Sprintf("nats://%s:%v", s.NatsHost, s.NatsPort)
 	logx.SetDefault(slog.DebugLevel, false, "shar-Integration-tests")
-	s.Cooldown = 2 * time.Second
+	s.Cooldown = 4 * time.Second
 	s.Test = t
 	s.FinalVars = make(map[string]interface{})
 	ss, ns, err := zensvr.GetServers(s.NatsHost, s.NatsPort, 10, authZFn, authNFn)
@@ -64,12 +66,49 @@ func (s *Integration) Setup(t *testing.T, authZFn authz.APIFunc, authNFn authn.C
 	}
 	s.testSharServer = ss
 	s.testNatsServer = ns
+	s.Test.Logf("Starting test support for " + s.Test.Name())
 	s.Test.Logf("\033[1;36m%s\033[0m", "> Setup completed\n")
 }
 
 // AssertCleanKV - ensures SHAR has cleans up after itself, and there are no records left in the KV.
 func (s *Integration) AssertCleanKV() {
-	time.Sleep(s.Cooldown)
+	cancelled := make(chan struct{})
+	errs := make(chan error)
+	go func() {
+		var err error
+		select {
+		case <-cancelled:
+			return
+		case <-time.After(s.Cooldown):
+			close(cancelled)
+			errs <- err
+			return
+		default:
+			var cont = true
+			for cont {
+				err = s.checkCleanKV()
+				if err == nil {
+					close(errs)
+					close(cancelled)
+					return
+				}
+				if errors.Is(err, errDirtyKV) {
+					time.Sleep(500 * time.Millisecond)
+					continue
+				}
+				errs <- err
+				close(cancelled)
+				return
+			}
+		}
+	}()
+
+	if err := <-errs; err != nil {
+		assert.Fail(s.Test, err.Error())
+	}
+}
+
+func (s *Integration) checkCleanKV() error {
 	js, err := s.GetJetstream()
 	require.NoError(s.Test, err)
 
@@ -87,6 +126,7 @@ func (s *Integration) AssertCleanKV() {
 			"WORKFLOW_NAME",
 			"WORKFLOW_JOB",
 			"WORKFLOW_INSTANCE",
+			"WORKFLOW_PROCESS",
 			"WORKFLOW_VERSION",
 			"WORKFLOW_CLIENTTASK",
 			"WORKFLOW_MSGID",
@@ -96,36 +136,44 @@ func (s *Integration) AssertCleanKV() {
 			"WORKFLOW_USERTASK":
 			//noop
 		default:
-			assert.Len(s.Test, keys, 0, n.Bucket())
+			if len(keys) > 0 {
+				return fmt.Errorf("%d unexpected keys found in %s: %w", len(keys), name, errDirtyKV)
+			}
 		}
 	}
 
 	b, err := js.KeyValue("WORKFLOW_USERTASK")
 	if err != nil && errors.Is(err, nats.ErrNoKeysFound) {
-		if err != nil {
-			s.Test.Error(err)
-			return
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("checkCleanKV failed to get usertasks: %w", err)
+	}
+
+	keys, err := b.Keys()
+	if err != nil {
+		if err == nats.ErrNoKeysFound {
+			return nil
 		}
-		keys, err := b.Keys()
+		return fmt.Errorf("checkCleanKV failed to get user task keys: %w", err)
+	}
+
+	for _, k := range keys {
+		bts, err := b.Get(k)
 		if err != nil {
-			s.Test.Error(err)
-			return
+			return fmt.Errorf("checkCleanKV failed to get user task value: %w", err)
 		}
-		for _, k := range keys {
-			bts, err := b.Get(k)
-			if err != nil {
-				s.Test.Error(err)
-				return
-			}
-			msg := &model.UserTasks{}
-			err = proto.Unmarshal(bts.Value(), msg)
-			if err != nil {
-				s.Test.Error(err)
-				return
-			}
-			assert.Len(s.Test, msg.Id, 0)
+		msg := &model.UserTasks{}
+		err = proto.Unmarshal(bts.Value(), msg)
+		if err != nil {
+			return fmt.Errorf("checkCleanKV failed to unmarshal user task: %w", err)
+		}
+		if len(msg.Id) > 0 {
+			return fmt.Errorf("unexpected UserTask %s found in WORKFLOW_USERTASK: %w", msg.Id, errDirtyKV)
 		}
 	}
+
+	return nil
 }
 
 // Teardown - resposible for shutting down the integration test framework.

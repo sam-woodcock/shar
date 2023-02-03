@@ -5,6 +5,9 @@ type sharContextKey string
 // WorkflowInstanceID - the context key for the workflow instance ID
 var WorkflowInstanceID = sharContextKey("WORKFLOW_INSTANCE_ID")
 
+// ProcessInstanceID - the context key for the process instance ID
+var ProcessInstanceID = sharContextKey("PROCESS_INSTANCE_ID")
+
 // TrackingID - the context key for the workflow tracking ID
 var TrackingID = sharContextKey("WF_TRACKING_ID")
 

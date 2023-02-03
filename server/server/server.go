@@ -23,6 +23,7 @@ import (
 // Server is the shar server type responsible for hosting the SHAR API.
 type Server struct {
 	sig                     chan os.Signal
+	healthServiceEnabled    bool
 	healthService           *health.Checker
 	grpcServer              *gogrpc.Server
 	api                     *api.SharServer
@@ -42,6 +43,7 @@ func New(options ...Option) *Server {
 		healthService:           health.New(),
 		panicRecovery:           true,
 		allowOrphanServiceTasks: true,
+		healthServiceEnabled:    true,
 		concurrency:             6,
 	}
 	for _, i := range options {
@@ -77,34 +79,41 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 	// Capture SIGTERM and SIGINT
 	signal.Notify(s.sig, syscall.SIGTERM, syscall.SIGINT)
 
-	// Create health server
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
-	if err != nil {
-		slog.Error("failed to listen", err, slog.Int64("grpcPort", int64(grpcPort)))
-		panic(err)
-	}
-
-	s.grpcServer = gogrpc.NewServer()
-	if err := registerServer(s.grpcServer, s.healthService); err != nil {
-		slog.Error("failed to register grpc health server", err, slog.Int64("grpcPort", int64(grpcPort)))
-		panic(err)
-	}
-
-	// Start health server
-	go func() {
-		if err := s.grpcServer.Serve(lis); err != nil {
-			errs <- err
+	if s.healthServiceEnabled {
+		// Create health server and expose on GRPC
+		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
+		if err != nil {
+			slog.Error("failed to listen", err, slog.Int64("grpcPort", int64(grpcPort)))
+			panic(err)
 		}
-		close(errs)
-	}()
-	slog.Info("shar grpc health started")
+
+		s.grpcServer = gogrpc.NewServer()
+		if err := registerServer(s.grpcServer, s.healthService); err != nil {
+			slog.Error("failed to register grpc health server", err, slog.Int64("grpcPort", int64(grpcPort)))
+			panic(err)
+		}
+
+		// Start health server
+		go func() {
+			if err := s.grpcServer.Serve(lis); err != nil {
+				errs <- err
+			}
+			close(errs)
+		}()
+		slog.Info("shar grpc health started")
+	} else {
+		// Create private health server
+		s.healthService.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
+	}
 
 	ns := s.createServices(natsURL, s.ephemeralStorage, s.allowOrphanServiceTasks)
-	s.api, err = api.New(ns, s.panicRecovery, s.apiAuthorizer, s.apiAuthenticator)
+	api, err := api.New(ns, s.panicRecovery, s.apiAuthorizer, s.apiAuthenticator)
 	if err != nil {
 		panic(err)
 	}
+	s.api = api
 	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_SERVING)
+
 	if err := s.api.Listen(); err != nil {
 		panic(err)
 	}
@@ -124,10 +133,12 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 func (s *Server) Shutdown() {
 
 	s.healthService.SetStatus(grpcHealth.HealthCheckResponse_NOT_SERVING)
-	s.api.Shutdown()
-	s.grpcServer.GracefulStop()
-	slog.Info("shar grpc health stopped")
 
+	s.api.Shutdown()
+	if s.healthServiceEnabled {
+		s.grpcServer.GracefulStop()
+		slog.Info("shar grpc health stopped")
+	}
 }
 
 func (s *Server) createServices(natsURL string, ephemeral bool, allowOrphanServiceTasks bool) *services.NatsService {
@@ -164,7 +175,11 @@ func (s *Server) createServices(natsURL string, ephemeral bool, allowOrphanServi
 
 // Ready returns true if the SHAR server is servicing API calls.
 func (s *Server) Ready() bool {
-	return s.healthService.GetStatus() == grpcHealth.HealthCheckResponse_SERVING
+	if s.healthService != nil {
+		return s.healthService.GetStatus() == grpcHealth.HealthCheckResponse_SERVING
+	} else {
+		return false
+	}
 }
 
 func registerServer(s *gogrpc.Server, hs *health.Checker) error {

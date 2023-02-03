@@ -46,20 +46,24 @@ func (c *Text) OutputCancelledWorkflow(id string) {
 }
 
 // OutputWorkflowInstanceStatus outputs a workflow instance status
-func (c *Text) OutputWorkflowInstanceStatus(status []*model.WorkflowState) {
-	st := status[0]
-	fmt.Println("Instance: " + st.WorkflowInstanceId)
+func (c *Text) OutputWorkflowInstanceStatus(workflowInstanceID string, states map[string][]*model.WorkflowState) {
+	fmt.Println("Instance: " + workflowInstanceID)
 
-	leveledList := pterm.LeveledList{
-		pterm.LeveledListItem{Level: 0, Text: "Tracking ID: " + common.TrackingID(st.Id).ID()},
-		pterm.LeveledListItem{Level: 1, Text: "Element"},
-		pterm.LeveledListItem{Level: 2, Text: "ID: " + st.ElementId},
-		pterm.LeveledListItem{Level: 2, Text: "Type: " + st.ElementType},
-		pterm.LeveledListItem{Level: 1, Text: "State: " + st.State.String()},
-		pterm.LeveledListItem{Level: 1, Text: "Executing: " + readStringPtr(st.Execute)},
-		pterm.LeveledListItem{Level: 1, Text: "Since: " + time.Unix(0, st.UnixTimeNano).Format("“2006-01-02T15:04:05.999999999Z07:00”")},
+	ll := make(pterm.LeveledList, 0, len(states)*7+1)
+
+	for p, sts := range states {
+		ll = append(ll, pterm.LeveledListItem{Level: 0, Text: "Process ID: " + p})
+		for _, st := range sts {
+			ll = append(ll, pterm.LeveledListItem{Level: 0, Text: "Tracking ID: " + common.TrackingID(st.Id).ID()})
+			ll = append(ll, pterm.LeveledListItem{Level: 1, Text: "Element"})
+			ll = append(ll, pterm.LeveledListItem{Level: 2, Text: "ID: " + st.ElementId})
+			ll = append(ll, pterm.LeveledListItem{Level: 2, Text: "Type: " + st.ElementType})
+			ll = append(ll, pterm.LeveledListItem{Level: 1, Text: "State: " + st.State.String()})
+			ll = append(ll, pterm.LeveledListItem{Level: 1, Text: "Executing: " + readStringPtr(st.Execute)})
+			ll = append(ll, pterm.LeveledListItem{Level: 1, Text: "Since: " + time.Unix(0, st.UnixTimeNano).Format("“2006-01-02T15:04:05.999999999Z07:00”")})
+		}
 	}
-	root := putils.TreeFromLeveledList(leveledList)
+	root := putils.TreeFromLeveledList(ll)
 	op, err := pterm.DefaultTree.WithRoot(root).Srender()
 	if err != nil {
 		panic(fmt.Errorf("error during render: %w", err))

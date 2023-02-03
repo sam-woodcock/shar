@@ -78,3 +78,14 @@ type authenticationOption struct{ value authn.Check }
 func (o authenticationOption) configure(server *Server) {
 	server.apiAuthenticator = o.value
 }
+
+// WithNoHealthServer specifies a handler function for API authorization.
+func WithNoHealthServer() noHealthServerOption { //nolint
+	return noHealthServerOption{}
+}
+
+type noHealthServerOption struct{}
+
+func (o noHealthServerOption) configure(server *Server) {
+	server.healthServiceEnabled = false
+}

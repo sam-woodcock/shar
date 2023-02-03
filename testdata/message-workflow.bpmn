@@ -15,6 +15,7 @@
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0gbijao</bpmn:incoming>
+      <bpmn:outgoing>Flow_0c318cv</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MessageEventDefinition_1darjdw" />
     </bpmn:intermediateThrowEvent>
     <bpmn:startEvent id="StartEvent_1">
@@ -35,6 +36,10 @@
       <bpmn:outgoing>Flow_0gbijao</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_0gbijao" sourceRef="Step1" targetRef="SendMessage" />
+    <bpmn:endEvent id="Event_0hug18e">
+      <bpmn:incoming>Flow_0c318cv</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0c318cv" sourceRef="SendMessage" targetRef="Event_0hug18e" />
   </bpmn:process>
   <bpmn:process id="Process_03llwnm" isExecutable="false">
     <bpmn:intermediateCatchEvent id="ReceiveMessage" name="Receive Continue Message">
@@ -97,6 +102,9 @@
         <dc:Bounds x="250" y="120" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0hug18e_di" bpmnElement="Event_0hug18e">
+        <dc:Bounds x="602" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_06ow1k2_di" bpmnElement="Flow_06ow1k2">
         <di:waypoint x="215" y="160" />
         <di:waypoint x="250" y="160" />
@@ -104,6 +112,10 @@
       <bpmndi:BPMNEdge id="Flow_0gbijao_di" bpmnElement="Flow_0gbijao">
         <di:waypoint x="350" y="160" />
         <di:waypoint x="382" y="160" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0c318cv_di" bpmnElement="Flow_0c318cv">
+        <di:waypoint x="418" y="160" />
+        <di:waypoint x="602" y="160" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="Participant_0pzg05b_di" bpmnElement="Participant_0pzg05b" isHorizontal="true">
         <dc:Bounds x="129" y="240" width="551" height="160" />

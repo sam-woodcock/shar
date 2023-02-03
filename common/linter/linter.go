@@ -1,6 +1,7 @@
 package linter
 
 import (
+	errors2 "errors"
 	"fmt"
 	"gitlab.com/shar-workflow/shar/common/element"
 	"gitlab.com/shar-workflow/shar/model"
@@ -14,6 +15,10 @@ const (
 	MessageTypeError   MessageType = iota // MessageTypeError - an error linter message.
 	MessageTypeWarning                    // MessageTypeWarning - a warning linter message.
 	MessageTypeInfo                       // MessageTypeInfo -
+)
+
+var (
+	ErrMissingEndEvent = errors2.New("missing end event") // ErrMissingEndEvent indicates that a procewss terminates without an end event.
 )
 
 // Message - a linter finding
@@ -33,6 +38,19 @@ func Lint(wf *model.Workflow, warningsAsErrors bool) ([]Message, error) {
 	// process level rules
 	for _, p := range wf.Process {
 		linkEventRules(&m, p)
+		err := startDirectedScan(p, &directedTraversalInstruction{
+			EndOfProcess: func(elem *model.Element) error {
+				switch elem.Type {
+				case element.EndEvent:
+				default:
+					return fmt.Errorf("last event '%s' is %s not a %s: %w", elem.Name, elem.Type, element.EndEvent, ErrMissingEndEvent)
+				}
+				return nil
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("a directed scan of the process revealed errors: %w", err)
+		}
 	}
 	for _, x := range m {
 		if int(x.Type) <= min {

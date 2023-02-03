@@ -62,6 +62,15 @@ func init() {
 			MaxRequestBatch: 1,
 		},
 		{
+			Durable:         "ProcessCompleteConsumer",
+			Description:     "Process complete processing queue",
+			AckPolicy:       nats.AckExplicitPolicy,
+			AckWait:         30 * time.Second,
+			MaxAckPending:   65535,
+			FilterSubject:   subj.NS(messages.WorkflowProcessComplete, "*"),
+			MaxRequestBatch: 1,
+		},
+		{
 			Durable:         "JobCompleteConsumer",
 			Description:     "Job complete processing queue",
 			AckPolicy:       nats.AckExplicitPolicy,

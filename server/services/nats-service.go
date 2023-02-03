@@ -45,6 +45,7 @@ type NatsService struct {
 	wfMsgSub                       nats.KeyValue
 	wfInstance                     nats.KeyValue
 	wfMessageName                  nats.KeyValue
+	wfProcessInstance              nats.KeyValue
 	wfMessageID                    nats.KeyValue
 	wfUserTasks                    nats.KeyValue
 	wfVarState                     nats.KeyValue
@@ -169,6 +170,7 @@ func NewNatsService(conn common.NatsConn, txConn common.NatsConn, storageType na
 	kvs[messages.KvOwnerName] = &ms.ownerName
 	kvs[messages.KvClientTaskID] = &ms.wfClientTask
 	kvs[messages.KvVarState] = &ms.wfVarState
+	kvs[messages.KvProcessInstance] = &ms.wfProcessInstance
 	ks := make([]string, 0, len(kvs))
 	for k := range kvs {
 		ks = append(ks, k)
@@ -190,6 +192,9 @@ func NewNatsService(conn common.NatsConn, txConn common.NatsConn, storageType na
 
 // StoreWorkflow stores a workflow definition and returns a unique ID
 func (s *NatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow) (string, error) {
+
+	// Populate Metadata
+	s.populateMetadata(wf)
 
 	// get this workflow name if it has already been registered
 	_, err := s.wfName.Get(wf.Name)
@@ -331,8 +336,11 @@ func (s *NatsService) GetWorkflowVersions(ctx context.Context, workflowName stri
 // CreateWorkflowInstance given a workflow, starts a new workflow instance and returns its ID
 func (s *NatsService) CreateWorkflowInstance(ctx context.Context, wfInstance *model.WorkflowInstance) (*model.WorkflowInstance, error) {
 	wfiID := ksuid.New().String()
+	log := slog.FromContext(ctx)
+	log.Info("creating workflow instance", slog.String(keys.WorkflowInstanceID, wfiID))
 	wfInstance.WorkflowInstanceId = wfiID
-	wfInstance.InFlight = make(map[string]bool)
+	wfInstance.ProcessInstanceId = []string{}
+	wfInstance.SatisfiedProcesses = map[string]bool{".": true}
 	if err := common.SaveObj(ctx, s.wfInstance, wfiID, wfInstance); err != nil {
 		return nil, fmt.Errorf("failed to save workflow instance object to KV: %w", err)
 	}
@@ -388,37 +396,29 @@ func (s *NatsService) GetMessageSenderRoutingKey(ctx context.Context, workflowNa
 	return string(b), nil
 }
 
-// SetInFlight updates a workflow instance with the currently executing activity.
-func (s *NatsService) SetInFlight(ctx context.Context, wfiID string, activityID string, inFlight bool) error {
-	wfi := &model.WorkflowInstance{}
-	if err := common.UpdateObj(ctx, s.wfInstance, wfiID, wfi, func(i *model.WorkflowInstance) (*model.WorkflowInstance, error) {
-		if i.InFlight == nil {
-			i.InFlight = make(map[string]bool)
-		}
-		if inFlight {
-			i.InFlight[activityID] = true
-		} else {
-			delete(i.InFlight, activityID)
-		}
-		return i, nil
-	}); err != nil {
-		return fmt.Errorf("failed to set workflow inflight: %w", err)
-	}
-	return nil
-}
-
-// DestroyWorkflowInstance terminates a running workflow instance with a cancellation reason and error
-func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceID string, state model.CancellationState, wfError *model.Error) error {
+// XDestroyWorkflowInstance terminates a running workflow instance with a cancellation reason and error
+func (s *NatsService) XDestroyWorkflowInstance(ctx context.Context, state *model.WorkflowState, cancellationState model.CancellationState, wfError *model.Error) error {
 	log := slog.FromContext(ctx)
+	log.Info("destroying workflow instance", slog.String(keys.WorkflowInstanceID, state.WorkflowInstanceId))
 	// Get the workflow instance
 	wfi := &model.WorkflowInstance{}
-	if err := common.LoadObj(ctx, s.wfInstance, workflowInstanceID, wfi); err != nil {
+	if err := common.LoadObj(ctx, s.wfInstance, state.WorkflowInstanceId, wfi); err != nil {
 		log.Warn("Could not fetch workflow instance",
-			slog.String(keys.WorkflowInstanceID, workflowInstanceID),
+			slog.String(keys.WorkflowInstanceID, state.WorkflowInstanceId),
 		)
 		return s.expectPossibleMissingKey(ctx, "error fetching workflow instance", err)
 	}
-
+	// TODO: soft error
+	for _, piID := range wfi.ProcessInstanceId {
+		pi, err := s.GetProcessInstance(ctx, piID)
+		if err != nil {
+			return err
+		}
+		err = s.DestroyProcessInstance(ctx, state, pi, wfi)
+		if err != nil {
+			return err
+		}
+	}
 	// Get the workflow
 	wf := &model.Workflow{}
 	if wfi.WorkflowId != "" {
@@ -430,7 +430,6 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 			)
 		}
 	}
-
 	// Get all the subscriptions
 	subs := &model.WorkflowInstanceSubscribers{}
 	if err := common.LoadObj(ctx, s.wfMsgSubs, wfi.WorkflowInstanceId, subs); err != nil {
@@ -442,7 +441,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		)
 	}
 
-	if err := common.UpdateObj(ctx, s.wfMsgSubs, workflowInstanceID, &model.WorkflowInstanceSubscribers{}, func(subs *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
+	if err := common.UpdateObj(ctx, s.wfMsgSubs, state.WorkflowInstanceId, &model.WorkflowInstanceSubscribers{}, func(subs *model.WorkflowInstanceSubscribers) (*model.WorkflowInstanceSubscribers, error) {
 		for i := 0; i < len(subs.List); i++ {
 			err := s.wfMsgSub.Delete(subs.List[i])
 			if err != nil {
@@ -459,7 +458,7 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 	tState := &model.WorkflowState{
 		WorkflowId:         wf.Name,
 		WorkflowInstanceId: wfi.WorkflowInstanceId,
-		State:              state,
+		State:              cancellationState,
 		Error:              wfError,
 		UnixTimeNano:       time.Now().UnixNano(),
 		WorkflowName:       wf.Name,
@@ -469,13 +468,27 @@ func (s *NatsService) DestroyWorkflowInstance(ctx context.Context, workflowInsta
 		tState.State = model.CancellationState_errored
 	}
 
-	if err := s.deleteWorkflow(tState); err != nil {
+	if err := s.deleteWorkflowInstance(ctx, tState); err != nil {
 		return fmt.Errorf("failed to delete workflow state whilst destroying workflow instance: %w", err)
 	}
-	if err := s.PublishWorkflowState(ctx, messages.WorkflowInstanceTerminated, tState); err != nil {
-		return fmt.Errorf("failed to publish workflow instance terminated whilst destroying workflow instance: %w", err)
-	}
 	s.incrementWorkflowCompleted()
+	return nil
+}
+
+func (s *NatsService) deleteWorkflowInstance(ctx context.Context, state *model.WorkflowState) error {
+	if err := s.wfInstance.Delete(state.WorkflowInstanceId); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
+		return fmt.Errorf("could not delete workflow instance: %w", err)
+	}
+	if err := s.wfMsgSubs.Delete(state.WorkflowInstanceId); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
+		return fmt.Errorf("could not delete message subscriptions: %w", err)
+	}
+
+	if err := s.wfTracking.Delete(state.WorkflowInstanceId); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
+		return fmt.Errorf("could not delete workflow tracking: %w", err)
+	}
+	if err := s.PublishWorkflowState(ctx, messages.WorkflowInstanceTerminated, state); err != nil {
+		return fmt.Errorf("could not send workflow terminate message: %w", err)
+	}
 	return nil
 }
 
@@ -570,14 +583,24 @@ func (s *NatsService) ListWorkflowInstance(ctx context.Context, workflowName str
 	return wch, errs
 }
 
-// GetWorkflowInstanceStatus gets the current status for a workflow instance.
-func (s *NatsService) GetWorkflowInstanceStatus(ctx context.Context, id string) (*model.WorkflowInstanceStatus, error) {
+// ListWorkflowInstanceProcesses gets the current processIDs for a workflow instance.
+func (s *NatsService) ListWorkflowInstanceProcesses(ctx context.Context, id string) ([]string, error) {
+	v := &model.WorkflowInstance{}
+	err := common.LoadObj(ctx, s.wfInstance, id, v)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load workflow instance from KV: %w", err)
+	}
+	return v.ProcessInstanceId, nil
+}
+
+// GetProcessInstanceStatus returns a list of workflow statuses for the specified process instance ID.
+func (s *NatsService) GetProcessInstanceStatus(ctx context.Context, id string) ([]*model.WorkflowState, error) {
 	v := &model.WorkflowState{}
 	err := common.LoadObj(ctx, s.wfTracking, id, v)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load workflow instance status from KV: %w", err)
+		return nil, fmt.Errorf("function GetProcessInstanceStatus failed to load from KV: %w", err)
 	}
-	return &model.WorkflowInstanceStatus{State: []*model.WorkflowState{v}}, nil
+	return []*model.WorkflowState{v}, nil
 }
 
 // StartProcessing begins listening to all of the message processing queues.
@@ -613,6 +636,10 @@ func (s *NatsService) StartProcessing(ctx context.Context) error {
 	if err := s.processLaunch(ctx); err != nil {
 		return fmt.Errorf("failed to start launch handler: %w", err)
 	}
+	if err := s.processProcessComplete(ctx); err != nil {
+		return fmt.Errorf("failed to start process complete handler: %w", err)
+	}
+
 	return nil
 }
 
@@ -751,6 +778,14 @@ func (s *NatsService) processTraversals(ctx context.Context) error {
 			return false, fmt.Errorf("could not unmarshal traversal proto: %w", err)
 		}
 
+		if _, _, err := s.HasValidProcess(ctx, traversal.ProcessInstanceId, traversal.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
+			log := slog.FromContext(ctx)
+			log.Log(slog.InfoLevel, "processTraversals aborted due to a missing process")
+			return true, nil
+		} else if err != nil {
+			return false, err
+		}
+
 		if s.eventProcessor != nil {
 			activityID := ksuid.New().String()
 			if err := s.SaveState(ctx, activityID, &traversal); err != nil {
@@ -771,6 +806,33 @@ func (s *NatsService) processTraversals(ctx context.Context) error {
 	return nil
 }
 
+// HasValidProcess - checks for a valid process and instance for a workflow process and instance ids
+func (s *NatsService) HasValidProcess(ctx context.Context, processInstanceId, workflowInstanceId string) (*model.ProcessInstance, *model.WorkflowInstance, error) {
+	wfi, err := s.hasValidInstance(ctx, workflowInstanceId)
+	if err != nil {
+		return nil, nil, err
+	}
+	pi, err := s.GetProcessInstance(ctx, processInstanceId)
+	if errors2.Is(err, errors.ErrProcessInstanceNotFound) {
+		return nil, nil, fmt.Errorf("orphaned activity: %w", err)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	return pi, wfi, err
+}
+
+func (s *NatsService) hasValidInstance(ctx context.Context, workflowInstanceId string) (*model.WorkflowInstance, error) {
+	wfi, err := s.GetWorkflowInstance(ctx, workflowInstanceId)
+	if errors2.Is(err, errors.ErrWorkflowInstanceNotFound) {
+		return nil, fmt.Errorf("orphaned activity: %w", err)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return wfi, err
+}
+
 func (s *NatsService) processTracking(ctx context.Context) error {
 	err := common.Process(ctx, s.js, "tracking", s.closing, "WORKFLOW.>", "Tracking", 1, s.track)
 	if err != nil {
@@ -784,6 +846,13 @@ func (s *NatsService) processCompletedJobs(ctx context.Context) error {
 		var job model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &job); err != nil {
 			return false, fmt.Errorf("failed to unmarshal completed job state: %w", err)
+		}
+		if _, _, err := s.HasValidProcess(ctx, job.ProcessInstanceId, job.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
+			log := slog.FromContext(ctx)
+			log.Log(slog.InfoLevel, "processCompletedJobs aborted due to a missing process")
+			return true, nil
+		} else if err != nil {
+			return false, err
 		}
 		if s.eventJobCompleteProcessor != nil {
 			if err := s.eventJobCompleteProcessor(ctx, &job); err != nil {
@@ -802,6 +871,7 @@ func (s *NatsService) track(ctx context.Context, log *slog.Logger, msg *nats.Msg
 	sj := msg.Subject
 	switch {
 	case strings.HasSuffix(sj, ".State.Workflow.Execute"),
+		strings.HasSuffix(sj, ".State.Process.Execute"),
 		strings.HasSuffix(sj, ".State.Traversal.Execute"),
 		strings.HasSuffix(sj, ".State.Activity.Execute"),
 		strings.Contains(sj, ".State.Job.Execute."):
@@ -813,6 +883,7 @@ func (s *NatsService) track(ctx context.Context, log *slog.Logger, msg *nats.Msg
 			return false, fmt.Errorf("failed to save tracking information: %w", err)
 		}
 	case strings.HasSuffix(sj, ".State.Workflow.Complete"),
+		strings.HasSuffix(sj, ".State.Process.Complete"),
 		strings.HasSuffix(sj, ".State.Traversal.Complete"),
 		strings.HasSuffix(sj, ".State.Activity.Complete"),
 		strings.Contains(sj, ".State.Job.Complete."):
@@ -933,7 +1004,14 @@ func (s *NatsService) processWorkflowEvents(ctx context.Context) error {
 			return false, fmt.Errorf("failed to load workflow state processing workflow event: %w", err)
 		}
 		if strings.HasSuffix(msg.Subject, ".State.Workflow.Complete") {
-			if err := s.DestroyWorkflowInstance(ctx, job.WorkflowInstanceId, job.State, job.Error); err != nil {
+			if _, err := s.hasValidInstance(ctx, job.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
+				log := slog.FromContext(ctx)
+				log.Log(slog.InfoLevel, "processWorkflowEvents aborted due to a missing process")
+				return true, nil
+			} else if err != nil {
+				return false, err
+			}
+			if err := s.XDestroyWorkflowInstance(ctx, &job, job.State, job.Error); err != nil {
 				return false, fmt.Errorf("failed to destroy workflow instance whilst processing workflow events: %w", err)
 			}
 		}
@@ -954,6 +1032,13 @@ func (s *NatsService) processActivities(ctx context.Context) error {
 		case strings.HasSuffix(msg.Subject, ".State.Activity.Complete"):
 			if err := proto.Unmarshal(msg.Data, &activity); err != nil {
 				return false, fmt.Errorf("failed to unmarshal state activity complete: %w", err)
+			}
+			if _, _, err := s.HasValidProcess(ctx, activity.ProcessInstanceId, activity.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
+				log := slog.FromContext(ctx)
+				log.Log(slog.InfoLevel, "processActivities aborted due to a missing process")
+				return true, nil
+			} else if err != nil {
+				return false, err
 			}
 			activityID := common.TrackingID(activity.Id).ID()
 			if err := s.eventActivityCompleteProcessor(ctx, &activity); err != nil {
@@ -1115,13 +1200,17 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 				m := msg[0]
 				//				log.Debug("Process:"+traceName, slog.String("subject", msg[0].Subject))
 				cancel()
-				if embargo := m.Header.Get("embargo"); embargo != "" && embargo != "0" {
-					e, err := strconv.Atoi(embargo)
-					if err != nil {
-						log.Error("bad embargo value", err)
-						continue
-					}
-					offset := time.Duration(int64(e) - time.Now().UnixNano())
+				embargoA := m.Header.Get("embargo")
+				if embargoA == "" {
+					embargoA = "0"
+				}
+				embargo, err := strconv.Atoi(embargoA)
+				if err != nil {
+					log.Error("bad embargo value", err)
+					continue
+				}
+				if embargo != 0 {
+					offset := time.Duration(int64(embargo) - time.Now().UnixNano())
 					if offset > 0 {
 						if err != m.NakWithDelay(offset) {
 							log.Warn("failed to nak with delay")
@@ -1140,6 +1229,14 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 					}
 					continue
 				}
+				wi, err := s.hasValidInstance(sctx, state.WorkflowInstanceId)
+				if errors2.Is(err, errors.ErrWorkflowInstanceNotFound) {
+					log := slog.FromContext(sctx)
+					log.Log(slog.InfoLevel, "listenForTimer aborted due to a missing instance")
+					continue
+				} else if err != nil {
+					continue
+				}
 				var cid string
 				if cid = msg[0].Header.Get(logx.CorrelationHeader); cid == "" {
 					log.Error("correlation key missing", errors.ErrMissingCorrelation)
@@ -1156,15 +1253,15 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 					continue
 				}
 				if strings.HasSuffix(msg[0].Subject, ".Timers.ElementExecute") {
-					wfi, err := s.GetWorkflowInstance(ctx, state.WorkflowInstanceId)
-					if errors2.Is(err, errors.ErrWorkflowInstanceNotFound) {
+					pi, err := s.GetProcessInstance(ctx, state.ProcessInstanceId)
+					if errors2.Is(err, errors.ErrProcessInstanceNotFound) {
 						if err := msg[0].Ack(); err != nil {
-							log.Error("failed to ack message after workflow instance not found", err)
+							log.Error("failed to ack message after process instance not found", err)
 							continue
 						}
 						continue
 					}
-					wf, err := s.GetWorkflow(ctx, wfi.WorkflowId)
+					wf, err := s.GetWorkflow(ctx, pi.WorkflowId)
 					if err != nil {
 						log.Error("failed to get workflow", err)
 						continue
@@ -1182,7 +1279,7 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 					}
 					els := common.ElementTable(wf)
 					parent := common.TrackingID(state.Id).Pop()
-					if err := s.traverslFunc(ctx, wfi, parent, &model.Targets{Target: []*model.Target{{Id: "timer-target", Target: *state.Execute}}}, els, state.Vars); err != nil {
+					if err := s.traverslFunc(ctx, pi, parent, &model.Targets{Target: []*model.Target{{Id: "timer-target", Target: *state.Execute}}}, els, state.Vars); err != nil {
 						log.Error("failed to traverse", err)
 						continue
 					}
@@ -1197,8 +1294,7 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 					}
 					continue
 				}
-
-				ack, delay, err := s.messageProcessor(ctx, state)
+				ack, delay, err := s.messageProcessor(ctx, state, wi, int64(embargo))
 				if err != nil {
 					if errors.IsWorkflowFatal(err) {
 						if err := msg[0].Ack(); err != nil {
@@ -1255,6 +1351,13 @@ func (s *NatsService) processLaunch(ctx context.Context) error {
 		if err := proto.Unmarshal(msg.Data, &job); err != nil {
 			return false, fmt.Errorf("failed to unmarshal during process launch: %w", err)
 		}
+		if _, _, err := s.HasValidProcess(ctx, job.ProcessInstanceId, job.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
+			log := slog.FromContext(ctx)
+			log.Log(slog.InfoLevel, "processLaunch aborted due to a missing process")
+			return true, err
+		} else if err != nil {
+			return false, err
+		}
 		if err := s.launchFunc(ctx, &job); err != nil {
 			return false, fmt.Errorf("failed to execute launch function: %w", err)
 		}
@@ -1272,7 +1375,13 @@ func (s *NatsService) processJobAbort(ctx context.Context) error {
 		if err := proto.Unmarshal(msg.Data, &state); err != nil {
 			return false, fmt.Errorf("job abort consumer failed to unmarshal state: %w", err)
 		}
-
+		if _, _, err := s.HasValidProcess(ctx, state.ProcessInstanceId, state.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
+			log := slog.FromContext(ctx)
+			log.Log(slog.InfoLevel, "processJobAbort aborted due to a missing process")
+			return true, err
+		} else if err != nil {
+			return false, err
+		}
 		//TODO: Make these idempotently work given missing values
 		switch {
 		case strings.Contains(msg.Subject, ".State.Job.Abort.ServiceTask"):
@@ -1290,13 +1399,39 @@ func (s *NatsService) processJobAbort(ctx context.Context) error {
 	return nil
 }
 
+func (s *NatsService) processProcessComplete(ctx context.Context) error {
+	err := common.Process(ctx, s.js, "processComplete", s.closing, subj.NS(messages.WorkflowProcessComplete, "*"), "ProcessCompleteConsumer", s.concurrency, func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
+		var state model.WorkflowState
+		if err := proto.Unmarshal(msg.Data, &state); err != nil {
+			return false, fmt.Errorf("failed to unmarshal during general abort processor: %w", err)
+		}
+		pi, wi, err := s.HasValidProcess(ctx, state.ProcessInstanceId, state.WorkflowInstanceId)
+		if errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
+			log := slog.FromContext(ctx)
+			log.Log(slog.InfoLevel, "processProcessComplete aborted due to a missing process")
+			return true, err
+		} else if err != nil {
+			return false, err
+		}
+		state.State = model.CancellationState_completed
+		if err := s.DestroyProcessInstance(ctx, &state, pi, wi); err != nil {
+			return false, fmt.Errorf("failed to delete prcess: %w", err)
+		}
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to start general abort processor: %w", err)
+	}
+	return nil
+
+}
+
 func (s *NatsService) processGeneralAbort(ctx context.Context) error {
 	err := common.Process(ctx, s.js, "abort", s.closing, subj.NS(messages.WorkflowGeneralAbortAll, "*"), "GeneralAbortConsumer", s.concurrency, func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
 		var state model.WorkflowState
 		if err := proto.Unmarshal(msg.Data, &state); err != nil {
 			return false, fmt.Errorf("failed to unmarshal during general abort processor: %w", err)
 		}
-
 		//TODO: Make these idempotently work given missing values
 		switch {
 		case strings.HasSuffix(msg.Subject, ".State.Activity.Abort"):
@@ -1304,7 +1439,7 @@ func (s *NatsService) processGeneralAbort(ctx context.Context) error {
 				return false, fmt.Errorf("failed to delete activity during general abort processor: %w", err)
 			}
 		case strings.HasSuffix(msg.Subject, ".State.Workflow.Abort"):
-			if err := s.deleteWorkflow(&state); err != nil {
+			if err := s.XDestroyWorkflowInstance(ctx, &state, model.CancellationState_terminated, state.Error); err != nil {
 				return false, fmt.Errorf("failed to delete workflow during general abort processor: %w", err)
 			}
 		default:
@@ -1314,20 +1449,6 @@ func (s *NatsService) processGeneralAbort(ctx context.Context) error {
 	})
 	if err != nil {
 		return fmt.Errorf("failed to start general abort processor: %w", err)
-	}
-	return nil
-}
-
-func (s *NatsService) deleteWorkflow(state *model.WorkflowState) error {
-	if err := s.wfInstance.Delete(state.WorkflowInstanceId); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
-		return fmt.Errorf("could not delete workflow instance: %w", err)
-	}
-	if err := s.wfMsgSubs.Delete(state.WorkflowInstanceId); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
-		return fmt.Errorf("could not delete message subscriptions: %w", err)
-	}
-
-	if err := s.wfTracking.Delete(state.WorkflowInstanceId); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
-		return fmt.Errorf("could not delete workflow tracking: %w", err)
 	}
 	return nil
 }
@@ -1363,6 +1484,107 @@ func (s *NatsService) SaveState(ctx context.Context, id string, state *model.Wor
 	}
 	if err := common.Save(ctx, s.wfVarState, id, data); err != nil {
 		return fmt.Errorf("failed to save state: %w", err)
+	}
+	return nil
+}
+
+// CreateProcessInstance creates a new instance of a process and attatches it to the workflow instance.
+func (s *NatsService) CreateProcessInstance(ctx context.Context, workflowInstanceID string, parentProcessID string, parentElementID string, processName string) (*model.ProcessInstance, error) {
+	id := ksuid.New().String()
+	pi := &model.ProcessInstance{
+		ProcessInstanceId:  id,
+		ProcessName:        processName,
+		WorkflowInstanceId: workflowInstanceID,
+		ParentProcessId:    &parentProcessID,
+		ParentElementId:    &parentElementID,
+	}
+	wfi, err := s.GetWorkflowInstance(ctx, workflowInstanceID)
+	if err != nil {
+		return nil, fmt.Errorf("create process instance failed to get workflow instance: %w", err)
+	}
+	pi.WorkflowName = wfi.WorkflowName
+	pi.WorkflowId = wfi.WorkflowId
+	err = common.SaveObj(ctx, s.wfProcessInstance, pi.ProcessInstanceId, pi)
+	if err != nil {
+		return nil, fmt.Errorf("create process instance failed to save process instance: %w", err)
+	}
+	err = common.UpdateObj(ctx, s.wfInstance, workflowInstanceID, wfi, func(v *model.WorkflowInstance) (*model.WorkflowInstance, error) {
+		v.ProcessInstanceId = append(v.ProcessInstanceId, pi.ProcessInstanceId)
+		return v, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create process instance failed to update workflow instance: %w", err)
+	}
+	return pi, nil
+}
+
+// GetProcessInstance returns a process instance for a given process ID
+func (s *NatsService) GetProcessInstance(ctx context.Context, processInstanceID string) (*model.ProcessInstance, error) {
+	pi := &model.ProcessInstance{}
+	err := common.LoadObj(ctx, s.wfProcessInstance, processInstanceID, pi)
+	if errors2.Is(err, nats.ErrKeyNotFound) {
+		return nil, fmt.Errorf("get process instance failed to load instance: %w", errors.ErrProcessInstanceNotFound)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get process instance failed to load instance: %w", err)
+	}
+	return pi, nil
+}
+
+// DestroyProcessInstance deletes a process instance and removes the workflow instance dependant on all process instances being satisfied.
+func (s *NatsService) DestroyProcessInstance(ctx context.Context, state *model.WorkflowState, pi *model.ProcessInstance, wi *model.WorkflowInstance) error {
+	wfi := &model.WorkflowInstance{}
+	err := common.UpdateObj(ctx, s.wfInstance, wi.WorkflowInstanceId, wfi, func(v *model.WorkflowInstance) (*model.WorkflowInstance, error) {
+		v.ProcessInstanceId = remove(v.ProcessInstanceId, pi.ProcessInstanceId)
+		return v, nil
+	})
+	if err != nil {
+		return fmt.Errorf("destroy process instance failed to update workflow instance: %w", err)
+	}
+	err = common.Delete(s.wfProcessInstance, pi.ProcessInstanceId)
+	// TODO: Key not found
+	if err != nil {
+		return fmt.Errorf("destroy process instance failed to delete process instance: %w", err)
+	}
+	def, err := s.GetWorkflow(ctx, pi.WorkflowId)
+	if err != nil {
+		return fmt.Errorf("destroy process instance failed to fetch workflow: %w", err)
+	}
+	var lock bool
+	for _, p := range def.Process {
+		_, satisfied := wi.SatisfiedProcesses[p.Name]
+		if p.Metadata.TimedStart && !satisfied {
+			lock = true
+			break
+		}
+	}
+	if len(wfi.ProcessInstanceId) == 0 && !lock {
+		if err := s.PublishWorkflowState(ctx, messages.WorkflowInstanceComplete, state); err != nil {
+			return fmt.Errorf("destroy process instance failed initiaite completing workflow instance: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *NatsService) populateMetadata(wf *model.Workflow) {
+	for _, process := range wf.Process {
+		process.Metadata = &model.Metadata{}
+		for _, elem := range process.Elements {
+			if elem.Type == element.TimedStartEvent {
+				process.Metadata.TimedStart = true
+			}
+		}
+	}
+}
+
+// SatisfyProcess sets a process as "satisfied" ie. it may no longer trigger.
+func (s *NatsService) SatisfyProcess(ctx context.Context, workflowInstance *model.WorkflowInstance, processName string) error {
+	err := common.UpdateObj(ctx, s.wfInstance, workflowInstance.WorkflowInstanceId, workflowInstance, func(wi *model.WorkflowInstance) (*model.WorkflowInstance, error) {
+		wi.SatisfiedProcesses[processName] = true
+		return wi, nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to satify process: %w", err)
 	}
 	return nil
 }

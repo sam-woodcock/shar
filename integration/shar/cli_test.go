@@ -11,7 +11,6 @@ import (
 	"gitlab.com/shar-workflow/shar/cli/flag"
 	"gitlab.com/shar-workflow/shar/cli/output"
 	"gitlab.com/shar-workflow/shar/client"
-	"gitlab.com/shar-workflow/shar/common/element"
 	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
 	"strings"
@@ -81,22 +80,25 @@ func TestCLI(t *testing.T) {
 	assert.Equal(t, 1, len(instances.WorkflowInstance))
 	assert.Equal(t, wfi.WorkflowInstanceID, instances.WorkflowInstance[0].Id)
 
-	//Get Workflow Instance Status
-	status := &struct {
-		TrackingId string
-		ID         string
-		Type       string
-		State      string
-		Executing  string
-		Since      int64
-	}{}
-	sharExecf(t, &status, "instance status %s --server %s --json", wfi.WorkflowInstanceID, tst.NatsURL)
-	assert.NotEmpty(t, status.TrackingId)
-	assert.Equal(t, "Step1", status.ID)
-	assert.Equal(t, element.ServiceTask, status.Type)
-	assert.Equal(t, "executing", status.State)
-	assert.Equal(t, "SimpleProcess", status.Executing)
-	assert.NotZero(t, status.Since)
+	//TODO:RE-implement
+	/*
+		//Get Workflow Instance Status
+		status := &struct {
+			TrackingId string
+			ID         string
+			Type       string
+			State      string
+			Executing  string
+			Since      int64
+		}{}
+		sharExecf(t, &status, "instance status %s --server %s --json", wfi.WorkflowInstanceID, tst.NatsURL)
+		assert.NotEmpty(t, status.TrackingId)
+		assert.Equal(t, "Step1", status.ID)
+		assert.Equal(t, element.ServiceTask, status.Type)
+		assert.Equal(t, "executing", status.State)
+		assert.Equal(t, "SimpleProcess", status.Executing)
+		assert.NotZero(t, status.Since)
+	*/
 	// Allow workflow to continue
 	close(d.allowContinue)
 

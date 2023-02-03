@@ -214,6 +214,7 @@ func (c *Client) listen(ctx context.Context) error {
 				return false, fmt.Errorf("failed during service task listener: %w", err)
 			}
 			ctx = context.WithValue(ctx, ctxkey.WorkflowInstanceID, ut.WorkflowInstanceId)
+			ctx = context.WithValue(ctx, ctxkey.ProcessInstanceID, ut.ProcessInstanceId)
 			ctx, err := header.FromMsgHeaderToCtx(ctx, msg.Header)
 			if err != nil {
 				return true, &errors2.ErrWorkflowFatal{Err: fmt.Errorf("failed to obtain headers from message: %w", err)}
@@ -527,14 +528,24 @@ func (c *Client) ListWorkflows(ctx context.Context) ([]*model.ListWorkflowResult
 	return res.Result, nil
 }
 
-// GetWorkflowInstanceStatus get the current execution state for a workflow instance.
-func (c *Client) GetWorkflowInstanceStatus(ctx context.Context, id string) ([]*model.WorkflowState, error) {
-	req := &model.GetWorkflowInstanceStatusRequest{Id: id}
-	res := &model.WorkflowInstanceStatus{}
-	if err := callAPI(ctx, c.txCon, messages.APIGetWorkflowStatus, req, res); err != nil {
+// ListWorkflowInstanceProcesses lists the current process IDs for a workflow instance.
+func (c *Client) ListWorkflowInstanceProcesses(ctx context.Context, id string) (*model.ListWorkflowInstanceProcessesResult, error) {
+	req := &model.ListWorkflowInstanceProcessesRequest{Id: id}
+	res := &model.ListWorkflowInstanceProcessesResult{}
+	if err := callAPI(ctx, c.txCon, messages.APIListWorkflowInstanceProcesses, req, res); err != nil {
 		return nil, c.clientErr(ctx, err)
 	}
-	return res.State, nil
+	return res, nil
+}
+
+// GetProcessInstanceStatus lists the current workflow states for a process instance.
+func (c *Client) GetProcessInstanceStatus(ctx context.Context, id string) (*model.GetProcessInstanceStatusResult, error) {
+	req := &model.GetProcessInstanceStatusRequest{Id: id}
+	res := &model.GetProcessInstanceStatusResult{}
+	if err := callAPI(ctx, c.txCon, messages.APIGetProcessInstanceStatus, req, res); err != nil {
+		return nil, c.clientErr(ctx, err)
+	}
+	return res, nil
 }
 
 func (c *Client) getServiceTaskRoutingID(ctx context.Context, id string) (string, error) {
