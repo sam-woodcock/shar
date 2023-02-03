@@ -20,8 +20,6 @@ func TestConcurrentMessaging(t *testing.T) {
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 	tst.Cooldown = 5 * time.Second
-	//tracer.Trace("127.0.0.1:4459")
-	//defer tracer.Close()
 
 	handlers := &testConcurrentMessagingHandlerDef{}
 	handlers.tst = tst

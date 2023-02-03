@@ -2,7 +2,6 @@ package output
 
 import (
 	"encoding/json"
-	"fmt"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/model"
 )
@@ -50,25 +49,37 @@ func (c *Json) OutputUserTaskIDs(ut []*model.GetUserTaskResponse) {
 }
 
 // OutputWorkflowInstanceStatus outputs a workflow instance status to console
-func (c *Json) OutputWorkflowInstanceStatus(status []*model.WorkflowState) {
-	st := status[0]
-	fmt.Println("Instance: " + st.WorkflowInstanceId)
-
-	outJson(struct {
+func (c *Json) OutputWorkflowInstanceStatus(workflowInstanceID string, states map[string][]*model.WorkflowState) {
+	type retState struct {
 		TrackingId string
 		ID         string
 		Type       string
 		State      string
 		Executing  string
 		Since      int64
-	}{
-		TrackingId: common.TrackingID(st.Id).ID(),
-		ID:         st.ElementId,
-		Type:       st.ElementType,
-		State:      st.State.String(),
-		Executing:  readStringPtr(st.Execute),
-		Since:      st.UnixTimeNano,
-	})
+	}
+
+	type retInstance struct {
+		InstanceId string
+		Processes  map[string][]retState
+	}
+
+	rs := make(map[string][]retState, len(states))
+	for pi, sts := range states {
+		rsa := make([]retState, 0, len(sts))
+		for _, st := range sts {
+			rsa = append(rsa, retState{
+				TrackingId: common.TrackingID(st.Id).ID(),
+				ID:         st.ElementId,
+				Type:       st.ElementType,
+				State:      st.State.String(),
+				Executing:  readStringPtr(st.Execute),
+				Since:      st.UnixTimeNano,
+			})
+		}
+		rs[pi] = rsa
+	}
+	outJson(retInstance{InstanceId: workflowInstanceID, Processes: rs})
 }
 
 // OutputLoadResult returns a CLI response

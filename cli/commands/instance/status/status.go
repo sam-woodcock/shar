@@ -2,11 +2,14 @@ package status
 
 import (
 	"context"
+	errors2 "errors"
 	"fmt"
 	"github.com/spf13/cobra"
 	"gitlab.com/shar-workflow/shar/cli/flag"
 	"gitlab.com/shar-workflow/shar/cli/output"
 	"gitlab.com/shar-workflow/shar/client"
+	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/errors"
 )
 
 // Cmd is the cobra command object
@@ -28,10 +31,18 @@ func run(cmd *cobra.Command, args []string) error {
 	if err := shar.Dial(flag.Value.Server); err != nil {
 		return fmt.Errorf("error dialling server: %w", err)
 	}
-	status, err := shar.GetWorkflowInstanceStatus(ctx, instanceID)
+	status, err := shar.ListWorkflowInstanceProcesses(ctx, instanceID)
 	if err != nil {
 		return fmt.Errorf("error getting workflow instance status: %w", err)
 	}
-	output.Current.OutputWorkflowInstanceStatus(status)
+	states := make(map[string][]*model.WorkflowState)
+	for _, i := range status.ProcessInstanceId {
+		res, err := shar.GetProcessInstanceStatus(ctx, i)
+		if errors2.Is(err, errors.ErrProcessInstanceNotFound) {
+			continue
+		}
+		states[i] = res.ProcessState
+	}
+	output.Current.OutputWorkflowInstanceStatus(instanceID, states)
 	return nil
 }

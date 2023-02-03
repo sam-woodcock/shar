@@ -84,6 +84,29 @@ func (_m *MockNatsService) CreateJob(ctx context.Context, job *model.WorkflowSta
 	return r0, r1
 }
 
+// CreateProcessInstance provides a mock function with given fields: ctx, workflowInstanceID, parentProcessID, parentElementID, processName
+func (_m *MockNatsService) CreateProcessInstance(ctx context.Context, workflowInstanceID string, parentProcessID string, parentElementID string, processName string) (*model.ProcessInstance, error) {
+	ret := _m.Called(ctx, workflowInstanceID, parentProcessID, parentElementID, processName)
+
+	var r0 *model.ProcessInstance
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) *model.ProcessInstance); ok {
+		r0 = rf(ctx, workflowInstanceID, parentProcessID, parentElementID, processName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*model.ProcessInstance)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, string) error); ok {
+		r1 = rf(ctx, workflowInstanceID, parentProcessID, parentElementID, processName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // CreateWorkflowInstance provides a mock function with given fields: ctx, wfInstance
 func (_m *MockNatsService) CreateWorkflowInstance(ctx context.Context, wfInstance *model.WorkflowInstance) (*model.WorkflowInstance, error) {
 	ret := _m.Called(ctx, wfInstance)
@@ -121,13 +144,13 @@ func (_m *MockNatsService) DeleteJob(ctx context.Context, trackingID string) err
 	return r0
 }
 
-// DestroyWorkflowInstance provides a mock function with given fields: ctx, workflowInstanceID, state, wfError
-func (_m *MockNatsService) DestroyWorkflowInstance(ctx context.Context, workflowInstanceID string, state model.CancellationState, wfError *model.Error) error {
-	ret := _m.Called(ctx, workflowInstanceID, state, wfError)
+// DestroyProcessInstance provides a mock function with given fields: ctx, state, pi, wi
+func (_m *MockNatsService) DestroyProcessInstance(ctx context.Context, state *model.WorkflowState, pi *model.ProcessInstance, wi *model.WorkflowInstance) error {
+	ret := _m.Called(ctx, state, pi, wi)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, model.CancellationState, *model.Error) error); ok {
-		r0 = rf(ctx, workflowInstanceID, state, wfError)
+	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState, *model.ProcessInstance, *model.WorkflowInstance) error); ok {
+		r0 = rf(ctx, state, pi, wi)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -246,6 +269,29 @@ func (_m *MockNatsService) GetOldState(ctx context.Context, id string) (*model.W
 	return r0, r1
 }
 
+// GetProcessInstance provides a mock function with given fields: ctx, processInstanceID
+func (_m *MockNatsService) GetProcessInstance(ctx context.Context, processInstanceID string) (*model.ProcessInstance, error) {
+	ret := _m.Called(ctx, processInstanceID)
+
+	var r0 *model.ProcessInstance
+	if rf, ok := ret.Get(0).(func(context.Context, string) *model.ProcessInstance); ok {
+		r0 = rf(ctx, processInstanceID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*model.ProcessInstance)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, processInstanceID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetServiceTaskRoutingKey provides a mock function with given fields: ctx, taskName
 func (_m *MockNatsService) GetServiceTaskRoutingKey(ctx context.Context, taskName string) (string, error) {
 	ret := _m.Called(ctx, taskName)
@@ -313,29 +359,6 @@ func (_m *MockNatsService) GetWorkflowInstance(ctx context.Context, workflowInst
 	return r0, r1
 }
 
-// GetWorkflowInstanceStatus provides a mock function with given fields: ctx, id
-func (_m *MockNatsService) GetWorkflowInstanceStatus(ctx context.Context, id string) (*model.WorkflowInstanceStatus, error) {
-	ret := _m.Called(ctx, id)
-
-	var r0 *model.WorkflowInstanceStatus
-	if rf, ok := ret.Get(0).(func(context.Context, string) *model.WorkflowInstanceStatus); ok {
-		r0 = rf(ctx, id)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*model.WorkflowInstanceStatus)
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, id)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // GetWorkflowVersions provides a mock function with given fields: ctx, workflowName
 func (_m *MockNatsService) GetWorkflowVersions(ctx context.Context, workflowName string) (*model.WorkflowVersions, error) {
 	ret := _m.Called(ctx, workflowName)
@@ -379,6 +402,29 @@ func (_m *MockNatsService) ListWorkflowInstance(ctx context.Context, workflowNam
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).(chan error)
 		}
+	}
+
+	return r0, r1
+}
+
+// ListWorkflowInstanceProcesses provides a mock function with given fields: ctx, id
+func (_m *MockNatsService) ListWorkflowInstanceProcesses(ctx context.Context, id string) ([]string, error) {
+	ret := _m.Called(ctx, id)
+
+	var r0 []string
+	if rf, ok := ret.Get(0).(func(context.Context, string) []string); ok {
+		r0 = rf(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
 	}
 
 	return r0, r1
@@ -486,6 +532,20 @@ func (_m *MockNatsService) PublishWorkflowState(ctx context.Context, stateName s
 	return r0
 }
 
+// SatisfyProcess provides a mock function with given fields: ctx, workflowInstance, processName
+func (_m *MockNatsService) SatisfyProcess(ctx context.Context, workflowInstance *model.WorkflowInstance, processName string) error {
+	ret := _m.Called(ctx, workflowInstance, processName)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowInstance, string) error); ok {
+		r0 = rf(ctx, workflowInstance, processName)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // SetAbort provides a mock function with given fields: processor
 func (_m *MockNatsService) SetAbort(processor services.AbortFunc) {
 	_m.Called(processor)
@@ -569,6 +629,20 @@ func (_m *MockNatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow
 	}
 
 	return r0, r1
+}
+
+// XDestroyWorkflowInstance provides a mock function with given fields: ctx, state, cancellationState, wfError
+func (_m *MockNatsService) XDestroyWorkflowInstance(ctx context.Context, state *model.WorkflowState, cancellationState model.CancellationState, wfError *model.Error) error {
+	ret := _m.Called(ctx, state, cancellationState, wfError)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState, model.CancellationState, *model.Error) error); ok {
+		r0 = rf(ctx, state, cancellationState, wfError)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 type mockConstructorTestingTNewMockNatsService interface {
