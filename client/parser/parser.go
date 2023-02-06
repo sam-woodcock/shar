@@ -44,6 +44,8 @@ func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 		wf.Process[pr.Name] = pr
 	}
 
+	tagWorkflow(wf)
+
 	if err := validModel(wf); err != nil {
 		return nil, fmt.Errorf("model is invalid: %w", err)
 	}
@@ -116,6 +118,15 @@ func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i 
 			if err := parseStartEvent(i, el); err != nil {
 				return fmt.Errorf("failed to parse start events: %w", err)
 			}
+		case "exclusiveGateway":
+			el.Type = element.Gateway
+			el.Gateway = &model.GatewaySpec{Type: model.GatewayType_exclusive}
+		case "parallelGateway":
+			el.Type = element.Gateway
+			el.Gateway = &model.GatewaySpec{Type: model.GatewayType_parallel}
+		case "inclusiveGateway":
+			el.Type = element.Gateway
+			el.Gateway = &model.GatewaySpec{Type: model.GatewayType_inclusive}
 		}
 
 		parseCoreValues(i, el)
@@ -362,11 +373,5 @@ func parseFlowInOut(doc *xmlquery.Node, i *xmlquery.Node, el *model.Element) {
 			Target:     tg.SelectElement("@id").InnerText(),
 			Conditions: parseConditions(sf),
 		})
-	}
-	if len(elo) > 0 {
-		el.Outbound = &model.Targets{
-			Target:    elo,
-			Exclusive: i.Data == "exclusiveGateway",
-		}
 	}
 }

@@ -355,10 +355,6 @@ func (c *Engine) traverse(ctx context.Context, pr *model.ProcessInstance, tracki
 				log.Error("failed to publish workflow state", err)
 				return fmt.Errorf("failed to publish workflow state: %w", err)
 			}
-
-			if outbound.Exclusive {
-				break
-			}
 		}
 	}
 	return nil
@@ -499,7 +495,7 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 		if err := c.completeActivity(ctx, activityID, el, pi, status, traversal.Vars); err != nil {
 			return fmt.Errorf("failed during start event complete activity: %w", err)
 		}
-	case element.ExclusiveGateway:
+	case element.Gateway:
 		if err := c.completeActivity(ctx, activityID, el, pi, status, traversal.Vars); err != nil {
 			return fmt.Errorf("failed complete activity for exclusive gateway: %w", err)
 		}
