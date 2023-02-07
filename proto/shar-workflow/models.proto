@@ -75,6 +75,7 @@ message GatewaySpec {
   GatewayType type = 1;
   GatewayDirection direction = 2;
   string reciprocalId = 3;
+  repeated string fixedExpectations = 4;
 }
 
 // Timer specifies a timed transition to another state.

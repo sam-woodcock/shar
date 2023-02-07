@@ -44,7 +44,9 @@ func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 		wf.Process[pr.Name] = pr
 	}
 
-	tagWorkflow(wf)
+	if err := tagWorkflow(wf); err != nil {
+		return nil, fmt.Errorf("an error occured parsing the workflow: %w", err)
+	}
 
 	if err := validModel(wf); err != nil {
 		return nil, fmt.Errorf("model is invalid: %w", err)
@@ -373,5 +375,10 @@ func parseFlowInOut(doc *xmlquery.Node, i *xmlquery.Node, el *model.Element) {
 			Target:     tg.SelectElement("@id").InnerText(),
 			Conditions: parseConditions(sf),
 		})
+	}
+	if len(elo) > 0 {
+		el.Outbound = &model.Targets{
+			Target: elo,
+		}
 	}
 }
