@@ -69,15 +69,21 @@ func tagReciprocal(gw *model.Element, backLink map[string][]string, index map[st
 	stack := 0
 	result := make(map[string]struct{})
 	recurseRecip(gw, gw, backLink, result, stack, index)
-	if _, ok := result["[<<null>>]"]; len(result) > 1 && ok {
-		return fmt.Errorf("gateway %s (%s) has a path which does not lead to a gateway: %w", gw.Name, gw.Id, errors2.New("bad gateway design"))
+	// This has paths which lead to no gateway
+	if _, ok := result["[<<null>>]"]; ok {
+		// This is a gateway without a reciprocal, so set fixed expectations on the gateway
+		// so treat this as a solitary gateway
+		if expectations, ok := backLink[gw.Id]; ok {
+			gw.Gateway.FixedExpectations = expectations
+		}
+		return nil
 	}
 	if len(result) > 1 {
-		return fmt.Errorf("gateway %s (%s) has multiple reciprocal gateways: %w", gw.Name, gw.Id, errors2.New("bad gateway design"))
-	}
-	if _, ok := result["[<<null>>]"]; len(result) == 1 && ok {
-		// This is a gateway without a reciprocal, so set fixed expectations on the gateway
-		gw.Gateway.FixedExpectations = backLink[gw.Id]
+		// This is a gateway with multiple inbound gateways
+		// so treat this as a solitary gateway
+		if expectations, ok := backLink[gw.Id]; ok {
+			gw.Gateway.FixedExpectations = expectations
+		}
 		return nil
 	}
 	// set the reciprocal
