@@ -11,6 +11,7 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/vars"
 	"testing"
+	"time"
 )
 
 func TestLaunchWorkflow(t *testing.T) {
@@ -100,11 +101,22 @@ func TestTraversal(t *testing.T) {
 	//	WorkflowName:       "TestWorkflow",
 	//}
 
+	currentState := &model.WorkflowState{
+		WorkflowId:         "test-workflow-id",
+		WorkflowInstanceId: "test-workflow-instance-id",
+		ElementId:          "StartEvent",
+		ElementType:        element.StartEvent,
+		Id:                 common.TrackingID{"test-id"},
+		State:              model.CancellationState_executing,
+		UnixTimeNano:       time.Now().UnixNano(),
+		WorkflowName:       "TestWorkflow",
+		ProcessName:        "TestProcess",
+		ProcessInstanceId:  "test-process-instance-id",
+	}
+
 	pi := &model.ProcessInstance{
 		ProcessInstanceId:  "test-process-instance-id",
 		WorkflowInstanceId: "test-workflow-instance-id",
-		ParentProcessId:    nil,
-		ParentElementId:    nil,
 		WorkflowId:         "test-workflow-id",
 		WorkflowName:       "TestWorkflow",
 		ProcessName:        "TestProcess",
@@ -121,7 +133,7 @@ func TestTraversal(t *testing.T) {
 		}).
 		Return(nil)
 
-	err := eng.traverse(ctx, pi, []string{ksuid.New().String()}, els["StartEvent"].Outbound, els, &model.WorkflowState{})
+	err := eng.traverse(ctx, pi, []string{ksuid.New().String()}, els["StartEvent"].Outbound, els, currentState)
 	assert.NoError(t, err)
 	svc.AssertExpectations(t)
 
@@ -209,6 +221,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 	err = eng.activityStartProcessor(ctx, "", &model.WorkflowState{
 		WorkflowInstanceId: "test-workflow-instance-id",
 		ElementId:          els["Step1"].Id,
+		ElementType:        els["Step1"].Type,
 		Id:                 []string{trackingID},
 		Vars:               v,
 		WorkflowName:       "TestWorkflow",
