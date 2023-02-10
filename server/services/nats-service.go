@@ -35,7 +35,7 @@ type NatsService struct {
 	messageCompleteProcessor       MessageCompleteProcessorFunc
 	eventProcessor                 EventProcessorFunc
 	eventJobCompleteProcessor      CompleteJobProcessorFunc
-	traverslFunc                   TraversalFunc
+	traversalFunc                  TraversalFunc
 	launchFunc                     LaunchFunc
 	messageProcessor               MessageProcessorFunc
 	storageType                    nats.StorageType
@@ -603,7 +603,7 @@ func (s *NatsService) GetProcessInstanceStatus(ctx context.Context, id string) (
 	return []*model.WorkflowState{v}, nil
 }
 
-// StartProcessing begins listening to all of the message processing queues.
+// StartProcessing begins listening to all the message processing queues.
 func (s *NatsService) StartProcessing(ctx context.Context) error {
 
 	if err := s.processTraversals(ctx); err != nil {
@@ -675,7 +675,7 @@ func (s *NatsService) SetLaunchFunc(processor LaunchFunc) {
 
 // SetTraversalProvider sets the callback used to handle traversals.
 func (s *NatsService) SetTraversalProvider(provider TraversalFunc) {
-	s.traverslFunc = provider
+	s.traversalFunc = provider
 }
 
 // SetCompleteActivity sets the callback which generates complete activity events.
@@ -683,7 +683,7 @@ func (s *NatsService) SetCompleteActivity(processor CompleteActivityFunc) {
 	s.completeActivityFunc = processor
 }
 
-// SetAbort sets the funcation called when a workflow object aborts.
+// SetAbort sets the function called when a workflow object aborts.
 func (s *NatsService) SetAbort(processor AbortFunc) {
 	s.abortFunc = processor
 }
@@ -1073,17 +1073,17 @@ func (s *NatsService) CloseUserTask(ctx context.Context, trackingID string) erro
 	}
 
 	// TODO: abstract group and user names, return all errors
-	var reterr error
+	var retErr error
 	allIDs := append(job.Owners, job.Groups...)
 	for _, i := range allIDs {
 		if err := common.UpdateObj(ctx, s.wfUserTasks, i, &model.UserTasks{}, func(msg *model.UserTasks) (*model.UserTasks, error) {
 			msg.Id = remove(msg.Id, trackingID)
 			return msg, nil
 		}); err != nil {
-			reterr = fmt.Errorf("faiiled to update user tasks object when closing user task: %w", err)
+			retErr = fmt.Errorf("faiiled to update user tasks object when closing user task: %w", err)
 		}
 	}
-	return reterr
+	return retErr
 }
 
 func (s *NatsService) openUserTask(ctx context.Context, owner string, id string) error {
@@ -1163,8 +1163,8 @@ func (s *NatsService) expectPossibleMissingKey(ctx context.Context, msg string, 
 	return fmt.Errorf("error: %w", err)
 }
 
-func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamContext, closer chan struct{}, concurrency int) error {
-	log := slog.FromContext(sctx)
+func (s *NatsService) listenForTimer(sCtx context.Context, js nats.JetStreamContext, closer chan struct{}, concurrency int) error {
+	log := slog.FromContext(sCtx)
 	subject := subj.NS("WORKFLOW.%s.Timers.>", "*")
 	durable := "workflowTimers"
 	for i := 0; i < concurrency; i++ {
@@ -1181,7 +1181,7 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 					return
 				default:
 				}
-				reqCtx, cancel := context.WithTimeout(sctx, 30*time.Second)
+				reqCtx, cancel := context.WithTimeout(sCtx, 30*time.Second)
 				msg, err := sub.Fetch(1, nats.Context(reqCtx))
 				if err != nil {
 					if errors2.Is(err, context.DeadlineExceeded) {
@@ -1229,9 +1229,9 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 					}
 					continue
 				}
-				wi, err := s.hasValidInstance(sctx, state.WorkflowInstanceId)
+				wi, err := s.hasValidInstance(sCtx, state.WorkflowInstanceId)
 				if errors2.Is(err, errors.ErrWorkflowInstanceNotFound) {
-					log := slog.FromContext(sctx)
+					log := slog.FromContext(sCtx)
 					log.Log(slog.InfoLevel, "listenForTimer aborted due to a missing instance")
 					continue
 				} else if err != nil {
@@ -1243,7 +1243,7 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 					return
 				}
 
-				ctx, log := logx.NatsMessageLoggingEntrypoint(sctx, "shar-server", msg[0].Header)
+				ctx, log := logx.NatsMessageLoggingEntrypoint(sCtx, "shar-server", msg[0].Header)
 				ctx, err = header.FromMsgHeaderToCtx(ctx, m.Header)
 				if err != nil {
 					log.Error("failed to get header values from incoming process message", &errors.ErrWorkflowFatal{Err: err})
@@ -1279,7 +1279,7 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 					}
 					els := common.ElementTable(wf)
 					parent := common.TrackingID(state.Id).Pop()
-					if err := s.traverslFunc(ctx, pi, parent, &model.Targets{Target: []*model.Target{{Id: "timer-target", Target: *state.Execute}}}, els, state.Vars); err != nil {
+					if err := s.traversalFunc(ctx, pi, parent, &model.Targets{Target: []*model.Target{{Id: "timer-target", Target: *state.Execute}}}, els, state); err != nil {
 						log.Error("failed to traverse", err)
 						continue
 					}
@@ -1303,7 +1303,7 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 						log.Error("a fatal error occurred processing a message: %s", err)
 						continue
 					}
-					log.Error("an error occured processing a message: %s", err)
+					log.Error("an error occurred processing a message: %s", err)
 					continue
 				}
 				if ack {
@@ -1488,7 +1488,7 @@ func (s *NatsService) SaveState(ctx context.Context, id string, state *model.Wor
 	return nil
 }
 
-// CreateProcessInstance creates a new instance of a process and attatches it to the workflow instance.
+// CreateProcessInstance creates a new instance of a process and attaches it to the workflow instance.
 func (s *NatsService) CreateProcessInstance(ctx context.Context, workflowInstanceID string, parentProcessID string, parentElementID string, processName string) (*model.ProcessInstance, error) {
 	id := ksuid.New().String()
 	pi := &model.ProcessInstance{
@@ -1531,7 +1531,7 @@ func (s *NatsService) GetProcessInstance(ctx context.Context, processInstanceID 
 	return pi, nil
 }
 
-// DestroyProcessInstance deletes a process instance and removes the workflow instance dependant on all process instances being satisfied.
+// DestroyProcessInstance deletes a process instance and removes the workflow instance dependent on all process instances being satisfied.
 func (s *NatsService) DestroyProcessInstance(ctx context.Context, state *model.WorkflowState, pi *model.ProcessInstance, wi *model.WorkflowInstance) error {
 	wfi := &model.WorkflowInstance{}
 	err := common.UpdateObj(ctx, s.wfInstance, wi.WorkflowInstanceId, wfi, func(v *model.WorkflowInstance) (*model.WorkflowInstance, error) {
@@ -1577,7 +1577,7 @@ func (s *NatsService) populateMetadata(wf *model.Workflow) {
 	}
 }
 
-// SatisfyProcess sets a process as "satisfied" ie. it may no longer trigger.
+// SatisfyProcess sets a process as "satisfied" i.e. it may no longer trigger.
 func (s *NatsService) SatisfyProcess(ctx context.Context, workflowInstance *model.WorkflowInstance, processName string) error {
 	err := common.UpdateObj(ctx, s.wfInstance, workflowInstance.WorkflowInstanceId, workflowInstance, func(wi *model.WorkflowInstance) (*model.WorkflowInstance, error) {
 		wi.SatisfiedProcesses[processName] = true

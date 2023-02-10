@@ -34,7 +34,7 @@ func TestTimedStart(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TimedStartTest", b)
 	require.NoError(t, err)
 
-	d := &timedStartHandlerDef{tst: tst}
+	d := &timedStartHandlerDef{tst: tst, t: t}
 
 	// Register a service task
 	err = cl.RegisterServiceTask(ctx, "SimpleProcess", d.integrationSimple)
@@ -71,11 +71,11 @@ type timedStartHandlerDef struct {
 	mx    sync.Mutex
 	count int
 	tst   *support.Integration
+	t     *testing.T
 }
 
 func (d *timedStartHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
-	fmt.Println("Hi")
-	fmt.Println("carried", vars["carried"])
+	assert.Equal(d.t, 32768, vars["carried"])
 	d.mx.Lock()
 	defer d.mx.Unlock()
 	d.tst.FinalVars = vars

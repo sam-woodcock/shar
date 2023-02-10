@@ -308,19 +308,21 @@ func forEachTimedStartElement(pr *model.Process, fn func(element *model.Element)
 }
 
 // traverse traverses all outbound connections provided the conditions passed if available.
-func (c *Engine) traverse(ctx context.Context, pr *model.ProcessInstance, trackingID common.TrackingID, outbound *model.Targets, el map[string]*model.Element, v []byte) error {
+func (c *Engine) traverse(ctx context.Context, pr *model.ProcessInstance, trackingID common.TrackingID, outbound *model.Targets, el map[string]*model.Element, state *model.WorkflowState) error {
 	ctx, log := logx.ContextWith(ctx, "engine.traverse")
 	if outbound == nil {
 		return nil
 	}
+	commit := map[string]struct{}{}
 	// Traverse along all outbound edges
 	for _, t := range outbound.Target {
-		ok := true
+		ws := proto.Clone(state).(*model.WorkflowState)
 		// Evaluate conditions
+		ok := true
 		for _, ex := range t.Conditions {
 
 			// TODO: Cache compilation.
-			exVars, err := vars.Decode(ctx, v)
+			exVars, err := vars.Decode(ctx, ws.Vars)
 			if err != nil {
 				return fmt.Errorf("failed to decode variables for condition evaluation: %w", err)
 			}
@@ -335,23 +337,47 @@ func (c *Engine) traverse(ctx context.Context, pr *model.ProcessInstance, tracki
 				break
 			}
 		}
-
-		target := el[t.Target]
-
-		// If the conditions passed commit a traversal
 		if ok {
+			commit[t.Id] = struct{}{}
+		}
+	}
+
+	elem := el[state.ElementId]
+
+	// Check traversals from a reciprocated divergent gateway
+	if elem.Type == element.Gateway && elem.Gateway.Direction == model.GatewayDirection_divergent && elem.Gateway.ReciprocalId != "" {
+		keys := make([]string, 0, len(commit))
+		for k := range commit {
+			keys = append(keys, k)
+		}
+		if state.GatewayExpectations == nil {
+			state.GatewayExpectations = make(map[string]*model.GatewayExpectations)
+		}
+		state.GatewayExpectations[elem.Gateway.ReciprocalId] = &model.GatewayExpectations{
+			ExpectedPaths: keys,
+		}
+		log.Info(fmt.Sprintf("gateway %+v", state.GatewayExpectations))
+	}
+
+	for _, t := range outbound.Target {
+		// If the conditions passed commit a traversal
+		if _, ok := commit[t.Id]; ok {
+			ws := proto.Clone(state).(*model.WorkflowState)
 			tID := trackingID.Push(ksuid.New().String())
-			if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowTraversalExecute, &model.WorkflowState{
-				ElementType:        target.Type,
-				ElementId:          target.Id,
-				WorkflowId:         pr.WorkflowId,
-				WorkflowInstanceId: pr.WorkflowInstanceId,
-				Id:                 tID,
-				Vars:               v,
-				WorkflowName:       pr.WorkflowName,
-				ProcessInstanceId:  pr.ProcessInstanceId,
-				ProcessName:        pr.ProcessName,
-			}); err != nil {
+			target := el[t.Target]
+			ws.Id = tID
+			ws.ElementType = target.Type
+			ws.ElementId = target.Id
+
+			// Check traversals that lead to solitary convergent gateways
+			if target.Type == element.Gateway && target.Gateway.Direction == model.GatewayDirection_convergent {
+				if ws.SatisfiesGatewayExpectation == nil {
+					ws.SatisfiesGatewayExpectation = make(map[string]string)
+				}
+				ws.SatisfiesGatewayExpectation[target.Id] = t.Id
+			}
+
+			if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowTraversalExecute, ws); err != nil {
 				log.Error("failed to publish workflow state", err)
 				return fmt.Errorf("failed to publish workflow state: %w", err)
 			}
@@ -1006,7 +1032,7 @@ func (c *Engine) activityCompleteProcessor(ctx context.Context, state *model.Wor
 		}
 		el.Outbound = &model.Targets{Target: []*model.Target{{Target: target.Id}}}
 	}
-	if err = c.traverse(ctx, pi, newID, el.Outbound, els, state.Vars); errors.IsWorkflowFatal(err) {
+	if err = c.traverse(ctx, pi, newID, el.Outbound, els, state); errors.IsWorkflowFatal(err) {
 		log.Error("workflow fatally terminated whilst traversing", err, slog.String(keys.ProcessInstanceID, pi.ProcessInstanceId), slog.String(keys.WorkflowID, pi.WorkflowId), slog.String(keys.ElementID, state.ElementId))
 		return nil
 	} else if err != nil {
@@ -1118,7 +1144,7 @@ func (c *Engine) timedExecuteProcessor(ctx context.Context, state *model.Workflo
 				log.Error("error merging variables", err)
 				return false, 0, nil
 			}
-			if err := c.traverse(ctx, pi, []string{ksuid.New().String()}, el.Outbound, els, newTimer.Vars); err != nil {
+			if err := c.traverse(ctx, pi, []string{ksuid.New().String()}, el.Outbound, els, state); err != nil {
 				log.Error("error traversing for timed workflow instance", err)
 				return false, 0, nil
 			}

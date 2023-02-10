@@ -121,7 +121,7 @@ func TestTraversal(t *testing.T) {
 		}).
 		Return(nil)
 
-	err := eng.traverse(ctx, pi, []string{ksuid.New().String()}, els["StartEvent"].Outbound, els, []byte{})
+	err := eng.traverse(ctx, pi, []string{ksuid.New().String()}, els["StartEvent"].Outbound, els, &model.WorkflowState{})
 	assert.NoError(t, err)
 	svc.AssertExpectations(t)
 

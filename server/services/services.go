@@ -22,7 +22,7 @@ type CompleteJobProcessorFunc func(ctx context.Context, job *model.WorkflowState
 type MessageCompleteProcessorFunc func(ctx context.Context, state *model.WorkflowState) error
 
 // TraversalFunc is the callback function type used to handle traversals.
-type TraversalFunc func(ctx context.Context, pr *model.ProcessInstance, trackingId common.TrackingID, outbound *model.Targets, el map[string]*model.Element, v []byte) error
+type TraversalFunc func(ctx context.Context, pr *model.ProcessInstance, trackingId common.TrackingID, outbound *model.Targets, el map[string]*model.Element, state *model.WorkflowState) error
 
 // LaunchFunc is the callback function type used to start child workflows.
 type LaunchFunc func(ctx context.Context, state *model.WorkflowState) error
