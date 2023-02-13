@@ -489,11 +489,16 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 			return fmt.Errorf("failed to get output vars for start event: %w", err)
 		}
 		traversal.Vars = initVars
-		if err := c.completeActivity(ctx, activityID, el, pi, status, traversal.Vars); err != nil {
+		completeActivityState := common.CopyWorkflowState(newState)
+		completeActivityState.State = status
+		completeActivityState.Vars = traversal.Vars
+		if err := c.completeActivity(ctx, completeActivityState); err != nil {
 			return fmt.Errorf("failed during start event complete activity: %w", err)
 		}
 	case element.Gateway:
-		if err := c.completeActivity(ctx, activityID, el, pi, status, traversal.Vars); err != nil {
+		completeActivityState := common.CopyWorkflowState(newState)
+		completeActivityState.State = status
+		if err := c.completeActivity(ctx, completeActivityState); err != nil {
 			return fmt.Errorf("failed complete activity for exclusive gateway: %w", err)
 		}
 	case element.ServiceTask:
@@ -545,7 +550,7 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 			return c.engineErr(ctx, "failed to start message lauch", err, apErrFields(pi.ProcessInstanceId, pi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case element.MessageIntermediateCatchEvent:
-		if err := c.awaitMessage(ctx, pi.WorkflowId, pi.WorkflowInstanceId, traversal.ProcessInstanceId, pi.ProcessName, pi.WorkflowName, activityID, el, traversal.Vars); err != nil {
+		if err := c.awaitMessage(ctx, newState, el); err != nil {
 			return c.engineErr(ctx, "failed to await message", err, apErrFields(pi.ProcessInstanceId, pi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 		}
 	case element.TimerIntermediateCatchEvent:
@@ -589,16 +594,22 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 				status = model.CancellationState_errored
 			}
 		}
-		if err := c.completeActivity(ctx, activityID, el, pi, status, traversal.Vars); err != nil {
+		completeActivityState := common.CopyWorkflowState(newState)
+		completeActivityState.State = status
+		if err := c.completeActivity(ctx, completeActivityState); err != nil {
 			return fmt.Errorf("failed to complete activity for end event: %w", err)
 		}
 	case element.LinkIntermediateThrowEvent:
-		if err := c.completeActivity(ctx, activityID, el, pi, status, traversal.Vars); err != nil {
+		completeActivityState := common.CopyWorkflowState(newState)
+		completeActivityState.State = status
+		if err := c.completeActivity(ctx, completeActivityState); err != nil {
 			return fmt.Errorf("failed default complete activity: %w", err)
 		}
 	default:
 		// if we don't support the event, just traverse to the next element
-		if err := c.completeActivity(ctx, activityID, el, pi, status, traversal.Vars); err != nil {
+		completeActivityState := common.CopyWorkflowState(newState)
+		completeActivityState.State = status
+		if err := c.completeActivity(ctx, completeActivityState); err != nil {
 			return fmt.Errorf("failed default complete activity: %w", err)
 		}
 	}
@@ -616,21 +627,9 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 	return nil
 }
 
-func (c *Engine) completeActivity(ctx context.Context, trackingID common.TrackingID, el *model.Element, pi *model.ProcessInstance, cancellationState model.CancellationState, vrs []byte) error {
+func (c *Engine) completeActivity(ctx context.Context, state *model.WorkflowState) error {
 	// tell the world that we processed the activity
-	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowActivityComplete, &model.WorkflowState{
-		Id:                 trackingID,
-		ElementType:        el.Type,
-		ElementId:          el.Id,
-		WorkflowId:         pi.WorkflowId,
-		WorkflowInstanceId: pi.WorkflowInstanceId,
-		State:              cancellationState,
-		Error:              el.Error,
-		Vars:               vrs,
-		WorkflowName:       pi.WorkflowName,
-		ProcessName:        pi.ProcessName,
-		ProcessInstanceId:  pi.ProcessInstanceId,
-	}); err != nil {
+	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowActivityComplete, state); err != nil {
 		return c.engineErr(ctx, "failed to publish workflow cancellationState", err)
 		//TODO: report this without process: apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)
 	}
@@ -704,7 +703,12 @@ func (c *Engine) completeJobProcessor(ctx context.Context, job *model.WorkflowSt
 	if err := vars.OutputVars(ctx, job.Vars, &oldState.Vars, el.OutputTransform); err != nil {
 		return fmt.Errorf("complete job processor failed to transform variables: %w", err)
 	}
-	if err := c.completeActivity(ctx, newID, el, pi, job.State, oldState.Vars); err != nil {
+	completeActivityState := common.CopyWorkflowState(oldState)
+	completeActivityState.Id = newID
+	completeActivityState.State = job.State
+	completeActivityState.ElementId = el.Id
+	completeActivityState.ElementType = el.Type
+	if err := c.completeActivity(ctx, completeActivityState); err != nil {
 		return fmt.Errorf("complete job processor failed to complete activity: %w", err)
 	}
 	if err := c.ns.DeleteJob(ctx, common.TrackingID(job.Id).ID()); err != nil {
@@ -820,22 +824,15 @@ func (c *Engine) CancelWorkflowInstance(ctx context.Context, id string, state mo
 }
 
 // awaitMessage signals that the workflow instance will resume after a message is received
-func (c *Engine) awaitMessage(ctx context.Context, wfID string, wfiID string, piID string, processName string, workflowName string, parentTrackingID common.TrackingID, el *model.Element, vars []byte) error {
-	trackingID := parentTrackingID.Push(ksuid.New().String())
-	awaitMsg := &model.WorkflowState{
-		WorkflowId:         wfID,
-		WorkflowInstanceId: wfiID,
-		ElementId:          el.Id,
-		ElementType:        el.Type,
-		Error:              el.Error,
-		Id:                 trackingID,
-		Execute:            &el.Execute,
-		Condition:          &el.Msg,
-		Vars:               vars,
-		WorkflowName:       workflowName,
-		ProcessInstanceId:  piID,
-		ProcessName:        processName,
-	}
+func (c *Engine) awaitMessage(ctx context.Context, state *model.WorkflowState, el *model.Element) error {
+	trackingID := common.TrackingID(state.Id).Push(ksuid.New().String())
+	awaitMsg := common.CopyWorkflowState(state)
+	awaitMsg.ElementId = el.Id
+	awaitMsg.ElementType = el.Type
+	awaitMsg.Error = el.Error
+	awaitMsg.Id = trackingID
+	awaitMsg.Execute = &el.Execute
+	awaitMsg.Condition = &el.Msg
 
 	err := c.ns.AwaitMsg(ctx, awaitMsg)
 	if err != nil {
@@ -844,7 +841,7 @@ func (c *Engine) awaitMessage(ctx context.Context, wfID string, wfiID string, pi
 			slog.String(keys.ElementID, el.Id),
 			slog.String(keys.ElementType, el.Type),
 			slog.String(keys.JobType, awaitMsg.ElementType),
-			slog.String(keys.WorkflowInstanceID, wfiID),
+			slog.String(keys.WorkflowInstanceID, awaitMsg.WorkflowInstanceId),
 			slog.String(keys.Execute, *awaitMsg.Execute),
 		)
 	}
@@ -853,21 +850,18 @@ func (c *Engine) awaitMessage(ctx context.Context, wfID string, wfiID string, pi
 
 func (c *Engine) messageCompleteProcessor(ctx context.Context, state *model.WorkflowState) error {
 	ctx, log := logx.ContextWith(ctx, "engine.messageCompleteProcessor")
-	pi, err := c.ns.GetProcessInstance(ctx, state.ProcessInstanceId)
+	_, err := c.ns.GetProcessInstance(ctx, state.ProcessInstanceId)
 	if errors2.Is(err, nats.ErrKeyNotFound) {
 		log.Warn("workflow instance not found, cancelling message processing", err, slog.String(keys.WorkflowInstanceID, state.WorkflowInstanceId))
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("message complete processor failed to get the workflow instance: %w", err)
 	}
-	wf, err := c.ns.GetWorkflow(ctx, state.WorkflowId)
-	if err != nil {
-		return fmt.Errorf("message complete processor failed to get the workflow: %w", err)
-	}
-	els := common.ElementTable(wf)
-	el := els[state.ElementId]
-	id := common.TrackingID(state.Id).Pop()
-	if err := c.completeActivity(ctx, id, el, pi, state.State, state.Vars); err != nil {
+
+	completeActivityState := common.CopyWorkflowState(state)
+	completeActivityState.Id = common.TrackingID(state.Id).Pop()
+	log.Info("MessageComplete " + completeActivityState.ElementId)
+	if err := c.completeActivity(ctx, completeActivityState); err != nil {
 		return fmt.Errorf("message complete processor failed to complete the activity: %w", err)
 	}
 	return nil
@@ -953,6 +947,7 @@ func (c *Engine) CompleteUserTask(ctx context.Context, job *model.WorkflowState,
 func (c *Engine) activityCompleteProcessor(ctx context.Context, state *model.WorkflowState) error {
 	ctx, log := logx.ContextWith(ctx, "engine.activityCompleteProcessor")
 	if old, err := c.ns.GetOldState(ctx, common.TrackingID(state.Id).ID()); errors2.Is(err, errors.ErrStateNotFound) {
+		log.Warn("old state not found", slog.Any("error", err))
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("activity complete processor failed to get old state: %w", err)

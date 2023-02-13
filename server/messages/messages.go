@@ -69,7 +69,6 @@ var LogLevels = []WorkflowLogLevel{
 // AllMessages provides the list of subscriptions for the WORKFLOW stream.
 var AllMessages = []string{
 	//subj.NS(WorkflowAbortAll, "*"),
-	APIAll,
 	subj.NS(WorkFlowJobAbortAll, "*"),
 	subj.NS(WorkFlowJobCompleteAll, "*"),
 	subj.NS(WorkflowActivityAbort, "*"),
@@ -98,7 +97,7 @@ var AllMessages = []string{
 var WorkflowMessageFormat = "WORKFLOW.%s.Message.%s.%s"
 
 const (
-	APIAll                           = "Workflow.Api.*"                             // APIAll is all API message subjects.
+	APIAll                           = "WORKFLOW.Api.*"                             // APIAll is all API message subjects.
 	APIStoreWorkflow                 = "WORKFLOW.Api.StoreWorkflow"                 // APIStoreWorkflow is the store Workflow API subject.
 	APILaunchWorkflow                = "WORKFLOW.Api.LaunchWorkflow"                // APILaunchWorkflow is the launch workflow API subject.
 	APIListWorkflows                 = "WORKFLOW.Api.ListWorkflows"                 // APIListWorkflows is the list workflows API subject.

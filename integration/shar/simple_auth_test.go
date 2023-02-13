@@ -97,6 +97,7 @@ func TestNoAuthN(t *testing.T) {
 func TestSimpleNoAuthZ(t *testing.T) {
 
 	tst := &support.Integration{}
+	tst.WithTrace = true
 	tst.Setup(t, testAuthZFn, testAuthNFn)
 	defer tst.Teardown()
 

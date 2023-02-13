@@ -1033,6 +1033,7 @@ func (s *NatsService) processActivities(ctx context.Context) error {
 			if err := proto.Unmarshal(msg.Data, &activity); err != nil {
 				return false, fmt.Errorf("failed to unmarshal state activity complete: %w", err)
 			}
+
 			if _, _, err := s.HasValidProcess(ctx, activity.ProcessInstanceId, activity.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
 				log := slog.FromContext(ctx)
 				log.Log(slog.InfoLevel, "processActivities aborted due to a missing process")

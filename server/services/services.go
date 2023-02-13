@@ -31,7 +31,7 @@ type LaunchFunc func(ctx context.Context, state *model.WorkflowState) error
 type MessageProcessorFunc func(ctx context.Context, state *model.WorkflowState, workflowInstance *model.WorkflowInstance, due int64) (bool, int, error)
 
 // CompleteActivityFunc is the callback function type which generates complete activity events.
-type CompleteActivityFunc func(ctx context.Context, trackingId common.TrackingID, el *model.Element, pi *model.ProcessInstance, cancellationState model.CancellationState, vrs []byte) error
+type CompleteActivityFunc func(ctx context.Context, state *model.WorkflowState) error
 
 // AbortFunc is the callback function type called when a workflow object aborts.
 type AbortFunc func(ctx context.Context, abort AbortType, state *model.WorkflowState) (bool, error)

@@ -13,6 +13,7 @@ import (
 	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/model"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
+	"gitlab.com/shar-workflow/shar/server/tools/tracer"
 	server2 "gitlab.com/shar-workflow/shar/telemetry/server"
 	zensvr "gitlab.com/shar-workflow/shar/zen-shar/server"
 	rand2 "golang.org/x/exp/rand"
@@ -35,10 +36,11 @@ type Integration struct {
 	Cooldown       time.Duration
 	WithTelemetry  server2.Exporter
 	testTelemetry  *server2.Server
-
-	NatsURL  string // NatsURL is the default testing URL for the NATS host.
-	NatsPort int    // NatsPort is the default testing port for the NATS host.
-	NatsHost string // NatsHost is the default NATS host.
+	WithTrace      bool
+	traceSub       *nats.Subscription
+	NatsURL        string // NatsURL is the default testing URL for the NATS host.
+	NatsPort       int    // NatsPort is the default testing port for the NATS host.
+	NatsHost       string // NatsHost is the default NATS host.
 }
 
 // Setup - sets up the test NATS and SHAR servers.
@@ -53,6 +55,9 @@ func (s *Integration) Setup(t *testing.T, authZFn authz.APIFunc, authNFn authn.C
 	ss, ns, err := zensvr.GetServers(s.NatsHost, s.NatsPort, 10, authZFn, authNFn)
 	if err != nil {
 		panic(err)
+	}
+	if s.WithTrace {
+		s.traceSub = tracer.Trace(s.NatsURL)
 	}
 	if s.WithTelemetry != nil {
 		ctx := context.Background()
@@ -178,7 +183,9 @@ func (s *Integration) checkCleanKV() error {
 
 // Teardown - resposible for shutting down the integration test framework.
 func (s *Integration) Teardown() {
-
+	if s.WithTrace {
+		s.traceSub.Drain()
+	}
 	n, err := s.GetJetstream()
 	require.NoError(s.Test, err)
 
