@@ -212,7 +212,7 @@ func apiError(code codes.Code, msg any) []byte {
 }
 
 func (s *SharServer) authorize(ctx context.Context, workflowName string) (context.Context, error) {
-	vals := ctx.Value(header.HeaderContextKey).(header.Values)
+	vals := ctx.Value(header.ContextKey).(header.Values)
 	res, authErr := s.apiAuthNFn(ctx, &model.ApiAuthenticationRequest{Headers: vals})
 	if authErr != nil || !res.Authenticated {
 		return ctx, fmt.Errorf("failed to authenticate: %w", errors2.ErrApiAuthNFail)

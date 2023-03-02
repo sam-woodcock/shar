@@ -3,7 +3,7 @@ linters:
   enable:
     - revive
     - gosec
-    - wrapcheck  # conformance in progress
+    - wrapcheck
 linters-settings:
   revive:
     rules:

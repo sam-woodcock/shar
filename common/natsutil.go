@@ -137,6 +137,39 @@ func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string,
 	})
 }
 
+// UpdateObjIsNew saves an protobuf message to a key value store after using updateFN to update the message, and returns true if this is a new value.
+func UpdateObjIsNew[T proto.Message](ctx context.Context, wf nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) (bool, error) {
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.TraceLevel) {
+		log.Log(errors2.TraceLevel, "update KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("fn", reflect.TypeOf(updateFn)))
+	}
+	isNew := false
+	if oldk, err := wf.Get(k); errors.Is(err, nats.ErrKeyNotFound) || (err == nil && oldk.Value() == nil) {
+		if err := SaveObj(ctx, wf, k, msg); err != nil {
+			return false, fmt.Errorf("failed to save during update object: %w", err)
+		}
+		isNew = true
+	}
+
+	if err := updateKV(wf, k, msg, func(bv []byte, msg proto.Message) ([]byte, error) {
+		if err := proto.Unmarshal(bv, msg); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal proto for KV update: %w", err)
+		}
+		uv, err := updateFn(msg.(T))
+		if err != nil {
+			return nil, fmt.Errorf("failed during update function: %w", err)
+		}
+		b, err := proto.Marshal(uv)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal updated proto: %w", err)
+		}
+		return b, nil
+	}); err != nil {
+		return false, fmt.Errorf("update obj is new failed: %w", err)
+	}
+	return isNew, nil
+}
+
 // Delete deletes an item from a key value store.
 func Delete(kv nats.KeyValue, key string) error {
 	if err := kv.Delete(key); err != nil {

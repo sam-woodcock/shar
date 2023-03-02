@@ -51,6 +51,7 @@ func TestNestedExclusiveParse(t *testing.T) {
 
 func TestExclusiveRun(t *testing.T) {
 	tst := &support.Integration{}
+	//	tst.WithTrace = true
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
@@ -89,6 +90,53 @@ func TestExclusiveRun(t *testing.T) {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
+	fmt.Println("Awaiting ", wfiID)
+	tst.AwaitWorkflowComplete(t, complete, wfiID)
+	tst.AssertCleanKV()
+
+}
+
+func TestInclusiveRun(t *testing.T) {
+	tst := &support.Integration{}
+	tst.WithTrace = true
+	tst.Setup(t, nil, nil)
+	defer tst.Teardown()
+
+	// Create a starting context
+	ctx := context.Background()
+
+	// Dial shar
+	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
+	err := cl.Dial(tst.NatsURL)
+
+	require.NoError(t, err)
+	// Load BPMN workflow
+	b, err := os.ReadFile("../../testdata/gateway-inclusive-out-and-in-test.bpmn")
+	require.NoError(t, err)
+
+	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "InclusiveGatewayTest", b)
+	require.NoError(t, err)
+
+	err = cl.RegisterServiceTask(ctx, "stage1", stage1)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "stage2", stage2)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "stage3", stage3)
+	require.NoError(t, err)
+	complete := make(chan *model.WorkflowInstanceComplete, 100)
+
+	// Register a service task
+	cl.RegisterWorkflowInstanceComplete(complete)
+
+	// Launch the workflow
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "InclusiveGatewayTest", model.Vars{"testValue": 32768})
+	require.NoError(t, err)
+
+	// Listen for service tasks
+	go func() {
+		err := cl.Listen(ctx)
+		require.NoError(t, err)
+	}()
 	tst.AwaitWorkflowComplete(t, complete, wfiID)
 	tst.AssertCleanKV()
 
@@ -101,10 +149,10 @@ func stage3(ctx context.Context, jobClient client.JobClient, vars model.Vars) (m
 
 func stage2(ctx context.Context, jobClient client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Stage 2")
-	return vars, nil
+	return model.Vars{"value2": 2}, nil
 }
 
 func stage1(ctx context.Context, jobClient client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Stage 1")
-	return vars, nil
+	return model.Vars{"value1": 1}, nil
 }

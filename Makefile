@@ -4,11 +4,13 @@ configure:
 	@echo "\033[92mConfigure\033[0m"
 	go version
 	go get -d google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1
-	go get -d google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
+	go get -d google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
 	go get -d github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go get -d github.com/vektra/mockery/v2@v2.20.2
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/vektra/mockery/v2@v2.20.2
 
 all: proto server tracing cli zen-shar
 
@@ -53,7 +55,9 @@ clean: .FORCE
 	cd telemetry/cmd/shar-telemetry; go clean
 	rm -f telemetry/cmd/shar-telemetry/shar-telemetry
 	rm -f model/*.pb.go
-test: proto server tracing .FORCE
+generated-code: configure .FORCE
+	go generate server/workflow/nats-service.go
+test: configure generated-code proto server tracing .FORCE
 	@echo "\033[92mCleaning test cache\033[0m"
 	go clean -testcache
 	@echo "\033[92mRunning tests\033[0m"
@@ -66,4 +70,6 @@ race: proto server tracing .FORCE
 	go clean -testcache
 	@echo "\033[92mRunning tests\033[0m"
 	go test ./... --race
+wasm:
+	cd validator && GOOS=js GOARCH=wasm go build -o json.wasm
 .FORCE:

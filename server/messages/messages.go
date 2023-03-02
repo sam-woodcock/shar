@@ -34,6 +34,11 @@ const (
 	WorkflowJobUserTaskAbort          = "WORKFLOW.%s.State.Job.Abort.UserTask"        // WorkflowJobUserTaskAbort is the state message subject for aborting a user task.
 	WorkflowJobUserTaskComplete       = "WORKFLOW.%s.State.Job.Complete.UserTask"     // WorkflowJobUserTaskComplete is the state message subject for completing a user task.
 	WorkflowJobUserTaskExecute        = "WORKFLOW.%s.State.Job.Execute.UserTask"      // WorkflowJobUserTaskExecute is the state message subject for executing a user task.
+	WorkflowJobGatewayTaskComplete    = "WORKFLOW.%s.State.Job.Complete.Gateway"      // WorkflowJobGatewayTaskComplete is the state message subject for completing a gateway task.
+	WorkflowJobGatewayTaskExecute     = "WORKFLOW.%s.State.Job.Execute.Gateway"       // WorkflowJobGatewayTaskExecute is the state message subject for executing a gateway task.
+	WorkflowJobGatewayTaskActivate    = "WORKFLOW.%s.State.Job.Activate.Gateway"      // WorkflowJobGatewayTaskActivate is the state message subject for activating a gateway task for creation or re-entry.
+	WorkflowJobGatewayTaskReEnter     = "WORKFLOW.%s.State.Job.ReEnter.Gateway"       // WorkflowJobGatewayTaskReEnter is the state message subject for re entering an existing gateway task.
+	WorkflowJobGatewayTaskAbort       = "WORKFLOW.%s.State.Job.Abort.Gateway"         // WorkflowJobGatewayTaskAbort is the state message subject for aborting a gateway task.
 	WorkflowLog                       = "WORKFLOW.%s.State.Log"                       // WorkflowLog is the state message subject for logging messages to a workflow activity.
 	WorkflowLogAll                    = "WORKFLOW.%s.State.Log.*"                     // WorkflowLogAll is the wildcard state message subject for all logging messages.
 	WorkflowMessages                  = "WORKFLOW.%s.Message.>"                       // WorkflowMessages is the wildcard state message subject for all workflow messages.
@@ -81,6 +86,7 @@ var AllMessages = []string{
 	subj.NS(WorkflowJobManualTaskExecute, "*"),
 	subj.NS(WorkflowJobSendMessageExecuteWild, "*"),
 	subj.NS(WorkflowJobServiceTaskExecuteWild, "*"),
+	subj.NS(WorkflowJobGatewayTaskExecute, "*"),
 	subj.NS(WorkflowJobTimerTaskExecute, "*"),
 	subj.NS(WorkflowJobUserTaskExecute, "*"),
 	subj.NS(WorkflowLogAll, "*"),
@@ -91,6 +97,8 @@ var AllMessages = []string{
 	subj.NS(WorkflowTimedExecute, "*"),
 	subj.NS(WorkflowTraversalComplete, "*"),
 	subj.NS(WorkflowTraversalExecute, "*"),
+	subj.NS(WorkflowJobGatewayTaskActivate, "*"),
+	subj.NS(WorkflowJobGatewayTaskReEnter, "*"),
 }
 
 // WorkflowMessageFormat provides the template for sending workflow messages.
@@ -137,4 +145,5 @@ var (
 	KvWfName          = "WORKFLOW_NAME"       // KvWfName is the name of the key value store that holds workflow IDs for workflow names.
 	KvVarState        = "WORKFLOW_VARSTATE"   // KvVarState is the name of the key value store that holds the state of variables upon entering a task.
 	KvProcessInstance = "WORKFLOW_PROCESS"    // KvProcessInstance is the name of the key value store holding process instances.
+	KvGateway         = "WORKFLOW_GATEWAY"    // KvGateway is the name of the key value store holding gateway instances.
 )

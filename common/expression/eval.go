@@ -97,8 +97,8 @@ type variableWalker struct {
 	v map[string]struct{}
 }
 
-// Enter is called from the visitor to iterate all IdentifierNode types
-func (w *variableWalker) Enter(n *ast.Node) {
+// Visit is called from the visitor to iterate all IdentifierNode types
+func (w *variableWalker) Visit(n *ast.Node) {
 	switch t := (*n).(type) {
 	case *ast.IdentifierNode:
 		w.v[t.Value] = struct{}{}

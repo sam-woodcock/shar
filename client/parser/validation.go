@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gitlab.com/shar-workflow/shar/common/element"
 	"gitlab.com/shar-workflow/shar/common/expression"
+	"gitlab.com/shar-workflow/shar/common/linter"
 	"gitlab.com/shar-workflow/shar/model"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"regexp"
@@ -25,6 +26,10 @@ func validModel(workflow *model.Workflow) error {
 			case element.ServiceTask:
 				if err := validServiceTask(j); err != nil {
 					return fmt.Errorf("invalid service task: %w", err)
+				}
+			case element.Gateway:
+				if j.Gateway.Direction == model.GatewayDirection_convergent && j.Gateway.ReciprocalId == "" {
+					return fmt.Errorf("gateway %s(%s) has no opening gateway: %w", j.Name, j.Id, linter.ErrMissingOpeningGateway)
 				}
 			}
 		}
@@ -118,6 +123,7 @@ func (e valError) Error() string {
 	return fmt.Sprintf("%s: %s\n", e.Err.Error(), e.Context)
 }
 
+//goland:noinspection GoUnnecessarilyExportedIdentifiers
 func (e valError) Unwrap() error {
 	return e.Err
 }

@@ -50,7 +50,7 @@
       <bpmn:outgoing>Flow_1p0yiqa</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_1sw5yio" sourceRef="Gateway_01xjq2a" targetRef="Activity_1ijdzv9">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=tesstValue &gt; 5</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=testValue &gt; 5</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_00fv8il" sourceRef="Gateway_01xjq2a" targetRef="Activity_1kkc3w4">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=testValue &gt; 10</bpmn:conditionExpression>
@@ -96,16 +96,6 @@
         <di:waypoint x="188" y="200" />
         <di:waypoint x="265" y="200" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_00fv8il_di" bpmnElement="Flow_00fv8il">
-        <di:waypoint x="290" y="175" />
-        <di:waypoint x="290" y="120" />
-        <di:waypoint x="440" y="120" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1sw5yio_di" bpmnElement="Flow_1sw5yio">
-        <di:waypoint x="290" y="225" />
-        <di:waypoint x="290" y="280" />
-        <di:waypoint x="440" y="280" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_0d994rj_di" bpmnElement="Flow_0d994rj">
         <di:waypoint x="540" y="120" />
         <di:waypoint x="670" y="120" />
@@ -123,6 +113,16 @@
       <bpmndi:BPMNEdge id="Flow_1p0yiqa_di" bpmnElement="Flow_1p0yiqa">
         <di:waypoint x="850" y="200" />
         <di:waypoint x="942" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1sw5yio_di" bpmnElement="Flow_1sw5yio">
+        <di:waypoint x="290" y="225" />
+        <di:waypoint x="290" y="280" />
+        <di:waypoint x="440" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_00fv8il_di" bpmnElement="Flow_00fv8il">
+        <di:waypoint x="290" y="175" />
+        <di:waypoint x="290" y="120" />
+        <di:waypoint x="440" y="120" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

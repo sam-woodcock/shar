@@ -50,9 +50,11 @@ func New(options ...Option) *Server {
 		i.configure(s)
 	}
 	if s.apiAuthorizer == nil {
+		slog.Warn("No AuthZ set")
 		s.apiAuthorizer = noopAuthZ
 	}
 	if s.apiAuthenticator == nil {
+		slog.Warn("No AuthN set")
 		s.apiAuthenticator = noopAuthN
 	}
 	return s
