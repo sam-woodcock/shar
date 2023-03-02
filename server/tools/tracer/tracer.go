@@ -9,8 +9,21 @@ import (
 	"strings"
 )
 
+// OpenTrace represents a running trace.
+type OpenTrace struct {
+	sub *nats.Subscription
+}
+
+// Close closes a trace and the underlying connection.
+func (o *OpenTrace) Close() {
+	err := o.sub.Drain()
+	if err != nil {
+		panic(err)
+	}
+}
+
 // Trace sets a consumer onto the workflow messages and outputs them to the console
-func Trace(natsURL string) *nats.Subscription {
+func Trace(natsURL string) *OpenTrace {
 	nc, _ := nats.Connect(natsURL)
 	sub, err := nc.Subscribe("WORKFLOW.>", func(msg *nats.Msg) {
 		if strings.HasPrefix(msg.Subject, "WORKFLOW.default.State.") {
@@ -27,7 +40,7 @@ func Trace(natsURL string) *nats.Subscription {
 	if err != nil {
 		panic(err)
 	}
-	return sub
+	return &OpenTrace{sub: sub}
 }
 
 func last4(s string) string {

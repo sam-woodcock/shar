@@ -3,6 +3,7 @@ package logx
 import (
 	"context"
 	"fmt"
+	"github.com/go-logr/logr"
 	"github.com/nats-io/nats.go"
 	"golang.org/x/exp/slog"
 	"os"
@@ -22,11 +23,13 @@ const (
 
 // Err will output error message to the log and return the error with additional attributes.
 func Err(ctx context.Context, message string, err error, atts ...any) error {
-	l := slog.FromContext(ctx)
-	if !l.Enabled(slog.ErrorLevel) {
+	l, err2 := logr.FromContext(ctx)
+	if err2 != nil {
 		return fmt.Errorf("error: %w", err)
 	}
-	l.Error(message, err, atts)
+	if l.Enabled() {
+		l.Error(err, message, atts)
+	}
 	return fmt.Errorf(message+" %s : %w", fmt.Sprint(atts...), err)
 }
 

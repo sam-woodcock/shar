@@ -106,8 +106,34 @@ func init() {
 			MaxAckPending:   1,
 			MaxRequestBatch: 1,
 		},
+		{
+			Durable:         "GatewayExecuteConsumer",
+			Description:     "Tracking queue for gateway execution",
+			AckPolicy:       nats.AckExplicitPolicy,
+			AckWait:         30 * time.Second,
+			FilterSubject:   subj.NS(messages.WorkflowJobGatewayTaskExecute, "*"),
+			MaxAckPending:   65535,
+			MaxRequestBatch: 1,
+		},
+		{
+			Durable:         "GatewayActivateConsumer",
+			Description:     "Tracking queue for gateway activation",
+			AckPolicy:       nats.AckExplicitPolicy,
+			AckWait:         30 * time.Second,
+			FilterSubject:   subj.NS(messages.WorkflowJobGatewayTaskActivate, "*"),
+			MaxAckPending:   1,
+			MaxRequestBatch: 1,
+		},
+		{
+			Durable:         "GatewayReEnterConsumer",
+			Description:     "Tracking queue for gateway activation",
+			AckPolicy:       nats.AckExplicitPolicy,
+			AckWait:         30 * time.Second,
+			FilterSubject:   subj.NS(messages.WorkflowJobGatewayTaskReEnter, "*"),
+			MaxAckPending:   65535,
+			MaxRequestBatch: 1,
+		},
 	}
-
 	ConsumerDurableNames = make(map[string]struct{}, len(consumerConfig))
 	for _, v := range consumerConfig {
 		ConsumerDurableNames[v.Durable] = struct{}{}

@@ -3,7 +3,7 @@ package element
 const (
 	CallActivity                  = "callActivity"                  // CallActivity - the name of the sub process launch element type.
 	EndEvent                      = "endEvent"                      // EndEvent - the name of the process end event element type.
-	ExclusiveGateway              = "exclusiveGateway"              // ExclusiveGateway - the name of the exclusive decision element type.
+	Gateway                       = "Gateway"                       // Gateway - the name of the decision or merge element type.
 	LinkIntermediateCatchEvent    = "intermediateLinkCatchEvent"    // LinkIntermediateCatchEvent - the name of the link receiver element type.
 	LinkIntermediateThrowEvent    = "intermediateLinkThrowEvent"    // LinkIntermediateThrowEvent - the name of the link sender element type.
 	ManualTask                    = "manualTask"                    // ManualTask - the name of the manual task element type.

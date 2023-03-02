@@ -56,6 +56,26 @@ message Element {
   map<string, string> outputTransform = 15; // OutputTransform - a transformation to poerform between variable names when exiting a state machine task.
   WorkflowTimerDefinition timer = 16; // Timer - a time to wait before execution for timer tasks.
   repeated Timer boundaryTimer = 17; // BoundaryTimer - a number of timed transitions between this and another state.
+  optional GatewaySpec gateway = 18; // GatewaySpec - if this element is a gateway, this contains the type specification for it.
+}
+
+enum GatewayType {
+  exclusive = 0; // Exclusive - When splitting, it routes the sequence flow to exactly one of the outgoing branches. When merging, it awaits one incoming branch to complete before triggering the outgoing flow.
+  inclusive = 1; // Inclusive - When splitting, one or more branches are activated. All active incoming branches must complete before merging.
+  parallel = 2; // Parralel - When used to split the sequence flow, all outgoing branches are activated simultaneously. When merging parallel branches it waits for all incoming branches to complete before triggering the outgoing flow.
+}
+
+enum GatewayDirection {
+  divergent = 0;
+  convergent = 1;
+}
+
+
+message GatewaySpec {
+  GatewayType type = 1;
+  GatewayDirection direction = 2;
+  string reciprocalId = 3;
+  repeated string fixedExpectations = 4;
 }
 
 // Timer specifies a timed transition to another state.
@@ -91,7 +111,6 @@ message CatchError {
 // Targets defines a set of targets for transition and as to whether only the first match should be executed.
 message Targets {
   repeated Target target = 1; // Target - the target for a state transition.
-  bool exclusive = 2; // Exclusive - specifies that only the first match should be traversed.
 }
 
 // WorkflowState describes a current executing state inside a workflow state machine.
@@ -113,6 +132,22 @@ message WorkflowState {
   string workflowName = 17; // WorkflowName - name of this workflow to avoid lookups.
   string processName = 18; // ProcessName - name of this process to avoid lookups.
   string processInstanceId = 19; // ProcessInstanceId - the unique ID for the process instance.
+  map<string,SatisfiesGateway> satisfiesGatewayExpectation = 20; // SatisfiesGatewayExpectation - a list of gateways, and pathway covered that satisfy their expectations.
+  map<string,GatewayExpectations> gatewayExpectations = 21; // GatewayExpectations - a list of dynamic gateway expectations set during traversing from a divergent gateway with a reciprocal.
+}
+
+message SatisfiesGateway {
+  repeated string instanceTracking = 1; // instanceTracking - a list of paths that satisfy the gateway.
+}
+
+message GatewayExpectations {
+  repeated string expectedPaths = 1; // ExpectedPaths - a list of paths that compose a gatew's expectaions
+}
+
+message Gateway {
+  map<string,string> metExpectations = 1; // MetExpectations - a list of expectations that were met for the gateway.
+  repeated bytes vars = 2;  // Vars - A go binary encoded map[string]interface{} of variables.
+  int64 visits = 3; // Visits - The number of visits this gateway has recieved
 }
 
 // WorkflowTimerDefinition defines a workflow timer that can be used to trigger an event.
@@ -154,6 +189,7 @@ message ProcessInstance {
   string workflowId = 5; // WorkflowId - the workflow version ID that this instance is executing.
   string workflowName = 6; // WorkflowName - name of this workflow to avoid lookups.
   string processName = 7; // ProcessName - name of this process to avoid lookups.
+  map<string,bool> gatewayComplete = 8; // GatewayComplete - completed gateway instances register
 }
 
 // MessageInstance represents a workflow message.

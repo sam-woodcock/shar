@@ -50,4 +50,6 @@ type NatsService interface {
 	GetProcessInstance(ctx context.Context, processInstanceID string) (*model.ProcessInstance, error)
 	DestroyProcessInstance(ctx context.Context, state *model.WorkflowState, pi *model.ProcessInstance, wi *model.WorkflowInstance) error
 	SatisfyProcess(ctx context.Context, workflowInstance *model.WorkflowInstance, processName string) error
+	GetGatewayInstanceID(state *model.WorkflowState) (string, string, error)
+	GetGatewayInstance(ctx context.Context, gatewayInstanceID string) (*model.Gateway, error)
 }
