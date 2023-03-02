@@ -2,6 +2,7 @@ package errors
 
 import (
 	"errors"
+	"runtime"
 )
 
 var (
@@ -33,8 +34,8 @@ var (
 	ErrInvalidState                   = errors.New("invalid cancellation state")                                                                 // ErrInvalidState - an attempt was made to p[erform an action witrh an invalid cancellation state.
 	ErrApiAuthZFail                   = errors.New("failed to authorize API call")                                                               // ErrApiAuthZFail - an attempt was made to call an API that failed an authorization check.
 	ErrApiAuthNFail                   = errors.New("failed to authenticate API call")                                                            // ErrApiAuthNFail - an attempt was made to call an API that failed an authentication check.
-	ErrLint                           = errors.New("Linter returned errors")                                                                     // ErrLint - Linter returned errors
-
+	ErrLint                           = errors.New("linter returned errors")                                                                     // ErrLint - linter returned errors.
+	ErrGatewayInstanceNotFound        = errors.New("failed to find gateway instance")                                                            // ErrGatewayInstanceNotFound - failed to find gateway instance.
 )
 
 const TraceLevel = -41   // TraceLevel specifies a custom level for trace logging.
@@ -54,4 +55,11 @@ func (e ErrWorkflowFatal) Error() string {
 func IsWorkflowFatal(err error) bool {
 	var wff *ErrWorkflowFatal
 	return errors.As(err, &wff)
+}
+
+// Fn - obtains the calling function for use in error handling.  ** CAUTION - This is inefficient, and should only be used for fatal errors and errors that are not expected to occur during normal operation **
+func Fn() string {
+	pc, _, _, _ := runtime.Caller(1)
+	fn := runtime.FuncForPC(pc).Name()
+	return fn
 }

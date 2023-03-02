@@ -35,7 +35,7 @@ type NatsService struct {
 	messageCompleteProcessor       MessageCompleteProcessorFunc
 	eventProcessor                 EventProcessorFunc
 	eventJobCompleteProcessor      CompleteJobProcessorFunc
-	traverslFunc                   TraversalFunc
+	traversalFunc                  TraversalFunc
 	launchFunc                     LaunchFunc
 	messageProcessor               MessageProcessorFunc
 	storageType                    nats.StorageType
@@ -56,6 +56,7 @@ type NatsService struct {
 	ownerName                      nats.KeyValue
 	ownerID                        nats.KeyValue
 	wfClientTask                   nats.KeyValue
+	wfGateway                      nats.KeyValue
 	conn                           common.NatsConn
 	txConn                         common.NatsConn
 	workflowStats                  *model.WorkflowStats
@@ -171,6 +172,7 @@ func NewNatsService(conn common.NatsConn, txConn common.NatsConn, storageType na
 	kvs[messages.KvClientTaskID] = &ms.wfClientTask
 	kvs[messages.KvVarState] = &ms.wfVarState
 	kvs[messages.KvProcessInstance] = &ms.wfProcessInstance
+	kvs[messages.KvGateway] = &ms.wfGateway
 	ks := make([]string, 0, len(kvs))
 	for k := range kvs {
 		ks = append(ks, k)
@@ -188,6 +190,53 @@ func NewNatsService(conn common.NatsConn, txConn common.NatsConn, storageType na
 	}
 
 	return ms, nil
+}
+
+// StartProcessing begins listening to all the message processing queues.
+func (s *NatsService) StartProcessing(ctx context.Context) error {
+
+	if err := s.processTraversals(ctx); err != nil {
+		return fmt.Errorf("failed to start traversals handler: %w", err)
+	}
+	if err := s.processJobAbort(ctx); err != nil {
+		return fmt.Errorf("failed to start job abort handler: %w", err)
+	}
+	if err := s.processGeneralAbort(ctx); err != nil {
+		return fmt.Errorf("failed to general abort handler: %w", err)
+	}
+	if err := s.processTracking(ctx); err != nil {
+		return fmt.Errorf("failed to start tracking handler: %w", err)
+	}
+	if err := s.processWorkflowEvents(ctx); err != nil {
+		return fmt.Errorf("failed to start workflow events handler: %w", err)
+	}
+	if err := s.processMessages(ctx); err != nil {
+		return fmt.Errorf("failed to start process messages handler: %w", err)
+	}
+	if err := s.listenForTimer(ctx, s.js, s.closing, 4); err != nil {
+		return fmt.Errorf("failed to start timer handler: %w", err)
+	}
+	if err := s.processCompletedJobs(ctx); err != nil {
+		return fmt.Errorf("failed to start completed jobs handler: %w", err)
+	}
+	if err := s.processActivities(ctx); err != nil {
+		return fmt.Errorf("failed to start activities handler: %w", err)
+	}
+	if err := s.processLaunch(ctx); err != nil {
+		return fmt.Errorf("failed to start launch handler: %w", err)
+	}
+	if err := s.processProcessComplete(ctx); err != nil {
+		return fmt.Errorf("failed to start process complete handler: %w", err)
+	}
+	if err := s.processGatewayActivation(ctx); err != nil {
+		return fmt.Errorf("failed to start gateway execute handler: %w", err)
+	}
+
+	if err := s.processGatewayExecute(ctx); err != nil {
+		return fmt.Errorf("failed to start gateway execute handler: %w", err)
+	}
+
+	return nil
 }
 
 // StoreWorkflow stores a workflow definition and returns a unique ID
@@ -514,6 +563,53 @@ func (s *NatsService) CreateJob(ctx context.Context, job *model.WorkflowState) (
 	return tid, nil
 }
 
+func (s *NatsService) processGatewayActivation(ctx context.Context) error {
+	err := common.Process(ctx, s.js, "gatewayActivate", s.closing, subj.NS(messages.WorkflowJobGatewayTaskActivate, "*"), "GatewayActivateConsumer", s.concurrency, func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
+		var job model.WorkflowState
+		if err := proto.Unmarshal(msg.Data, &job); err != nil {
+			return false, fmt.Errorf("failed to unmarshal completed gateway activation state: %w", err)
+		}
+		if _, _, err := s.HasValidProcess(ctx, job.ProcessInstanceId, job.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
+			log := slog.FromContext(ctx)
+			log.Log(slog.InfoLevel, "processCompletedJobs aborted due to a missing process")
+			return true, nil
+		} else if err != nil {
+			return false, err
+		}
+		gwIID, _, _ := s.GetGatewayInstanceID(&job)
+		fmt.Println("GATEWAY:", gwIID)
+		job.Id = common.TrackingID(job.Id).Push(gwIID)
+		gw := &model.Gateway{}
+		if err := common.LoadObj(ctx, s.wfGateway, gwIID, gw); errors2.Is(err, nats.ErrKeyNotFound) {
+			// create a new gateway job
+			gw = &model.Gateway{
+				MetExpectations: make(map[string]string),
+				Vars:            [][]byte{job.Vars},
+				Visits:          0,
+			}
+			fmt.Println("Launch job", job.Id)
+			if err := common.SaveObj(ctx, s.job, gwIID, &job); err != nil {
+				return false, fmt.Errorf("%s failed to save job to KV: %w", errors.Fn(), err)
+			}
+			if err := common.SaveObj(ctx, s.wfGateway, gwIID, gw); err != nil {
+				return false, fmt.Errorf("%s failed to save gateway to KV: %w", errors.Fn(), err)
+			}
+			if err := s.PublishWorkflowState(ctx, messages.WorkflowJobGatewayTaskExecute, &job); err != nil {
+				return false, fmt.Errorf("%s failed to execute gateway to KV: %w", errors.Fn(), err)
+			}
+		} else if err != nil {
+			return false, fmt.Errorf("%s could not load gateway information: %w", errors.Fn(), err)
+		} else if err := s.PublishWorkflowState(ctx, messages.WorkflowJobGatewayTaskReEnter, &job); err != nil {
+			return false, fmt.Errorf("%s failed to execute gateway to KV: %w", errors.Fn(), err)
+		}
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize gateway activation listener: %w", err)
+	}
+	return nil
+}
+
 // GetJob gets a workflow task state.
 func (s *NatsService) GetJob(ctx context.Context, trackingID string) (*model.WorkflowState, error) {
 	job := &model.WorkflowState{}
@@ -603,46 +699,6 @@ func (s *NatsService) GetProcessInstanceStatus(ctx context.Context, id string) (
 	return []*model.WorkflowState{v}, nil
 }
 
-// StartProcessing begins listening to all of the message processing queues.
-func (s *NatsService) StartProcessing(ctx context.Context) error {
-
-	if err := s.processTraversals(ctx); err != nil {
-		return fmt.Errorf("failed to start traversals handler: %w", err)
-	}
-	if err := s.processJobAbort(ctx); err != nil {
-		return fmt.Errorf("failed to start job abort handler: %w", err)
-	}
-	if err := s.processGeneralAbort(ctx); err != nil {
-		return fmt.Errorf("failed to general abort handler: %w", err)
-	}
-	if err := s.processTracking(ctx); err != nil {
-		return fmt.Errorf("failed to start tracking handler: %w", err)
-	}
-	if err := s.processWorkflowEvents(ctx); err != nil {
-		return fmt.Errorf("failed to start workflow events handler: %w", err)
-	}
-	if err := s.processMessages(ctx); err != nil {
-		return fmt.Errorf("failed to start process messages handler: %w", err)
-	}
-	if err := s.listenForTimer(ctx, s.js, s.closing, 4); err != nil {
-		return fmt.Errorf("failed to start timer handler: %w", err)
-	}
-	if err := s.processCompletedJobs(ctx); err != nil {
-		return fmt.Errorf("failed to start completed jobs handler: %w", err)
-	}
-	if err := s.processActivities(ctx); err != nil {
-		return fmt.Errorf("failed to start activities handler: %w", err)
-	}
-	if err := s.processLaunch(ctx); err != nil {
-		return fmt.Errorf("failed to start launch handler: %w", err)
-	}
-	if err := s.processProcessComplete(ctx); err != nil {
-		return fmt.Errorf("failed to start process complete handler: %w", err)
-	}
-
-	return nil
-}
-
 // SetEventProcessor sets the callback for processing workflow activities.
 func (s *NatsService) SetEventProcessor(processor EventProcessorFunc) {
 	s.eventProcessor = processor
@@ -675,7 +731,7 @@ func (s *NatsService) SetLaunchFunc(processor LaunchFunc) {
 
 // SetTraversalProvider sets the callback used to handle traversals.
 func (s *NatsService) SetTraversalProvider(provider TraversalFunc) {
-	s.traverslFunc = provider
+	s.traversalFunc = provider
 }
 
 // SetCompleteActivity sets the callback which generates complete activity events.
@@ -683,7 +739,7 @@ func (s *NatsService) SetCompleteActivity(processor CompleteActivityFunc) {
 	s.completeActivityFunc = processor
 }
 
-// SetAbort sets the funcation called when a workflow object aborts.
+// SetAbort sets the function called when a workflow object aborts.
 func (s *NatsService) SetAbort(processor AbortFunc) {
 	s.abortFunc = processor
 }
@@ -1033,6 +1089,7 @@ func (s *NatsService) processActivities(ctx context.Context) error {
 			if err := proto.Unmarshal(msg.Data, &activity); err != nil {
 				return false, fmt.Errorf("failed to unmarshal state activity complete: %w", err)
 			}
+
 			if _, _, err := s.HasValidProcess(ctx, activity.ProcessInstanceId, activity.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
 				log := slog.FromContext(ctx)
 				log.Log(slog.InfoLevel, "processActivities aborted due to a missing process")
@@ -1073,17 +1130,17 @@ func (s *NatsService) CloseUserTask(ctx context.Context, trackingID string) erro
 	}
 
 	// TODO: abstract group and user names, return all errors
-	var reterr error
+	var retErr error
 	allIDs := append(job.Owners, job.Groups...)
 	for _, i := range allIDs {
 		if err := common.UpdateObj(ctx, s.wfUserTasks, i, &model.UserTasks{}, func(msg *model.UserTasks) (*model.UserTasks, error) {
 			msg.Id = remove(msg.Id, trackingID)
 			return msg, nil
 		}); err != nil {
-			reterr = fmt.Errorf("faiiled to update user tasks object when closing user task: %w", err)
+			retErr = fmt.Errorf("faiiled to update user tasks object when closing user task: %w", err)
 		}
 	}
-	return reterr
+	return retErr
 }
 
 func (s *NatsService) openUserTask(ctx context.Context, owner string, id string) error {
@@ -1163,8 +1220,8 @@ func (s *NatsService) expectPossibleMissingKey(ctx context.Context, msg string, 
 	return fmt.Errorf("error: %w", err)
 }
 
-func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamContext, closer chan struct{}, concurrency int) error {
-	log := slog.FromContext(sctx)
+func (s *NatsService) listenForTimer(sCtx context.Context, js nats.JetStreamContext, closer chan struct{}, concurrency int) error {
+	log := slog.FromContext(sCtx)
 	subject := subj.NS("WORKFLOW.%s.Timers.>", "*")
 	durable := "workflowTimers"
 	for i := 0; i < concurrency; i++ {
@@ -1181,7 +1238,7 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 					return
 				default:
 				}
-				reqCtx, cancel := context.WithTimeout(sctx, 30*time.Second)
+				reqCtx, cancel := context.WithTimeout(sCtx, 30*time.Second)
 				msg, err := sub.Fetch(1, nats.Context(reqCtx))
 				if err != nil {
 					if errors2.Is(err, context.DeadlineExceeded) {
@@ -1229,9 +1286,9 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 					}
 					continue
 				}
-				wi, err := s.hasValidInstance(sctx, state.WorkflowInstanceId)
+				wi, err := s.hasValidInstance(sCtx, state.WorkflowInstanceId)
 				if errors2.Is(err, errors.ErrWorkflowInstanceNotFound) {
-					log := slog.FromContext(sctx)
+					log := slog.FromContext(sCtx)
 					log.Log(slog.InfoLevel, "listenForTimer aborted due to a missing instance")
 					continue
 				} else if err != nil {
@@ -1243,7 +1300,7 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 					return
 				}
 
-				ctx, log := logx.NatsMessageLoggingEntrypoint(sctx, "shar-server", msg[0].Header)
+				ctx, log := logx.NatsMessageLoggingEntrypoint(sCtx, "shar-server", msg[0].Header)
 				ctx, err = header.FromMsgHeaderToCtx(ctx, m.Header)
 				if err != nil {
 					log.Error("failed to get header values from incoming process message", &errors.ErrWorkflowFatal{Err: err})
@@ -1279,7 +1336,7 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 					}
 					els := common.ElementTable(wf)
 					parent := common.TrackingID(state.Id).Pop()
-					if err := s.traverslFunc(ctx, pi, parent, &model.Targets{Target: []*model.Target{{Id: "timer-target", Target: *state.Execute}}}, els, state.Vars); err != nil {
+					if err := s.traversalFunc(ctx, pi, parent, &model.Targets{Target: []*model.Target{{Id: "timer-target", Target: *state.Execute}}}, els, state); err != nil {
 						log.Error("failed to traverse", err)
 						continue
 					}
@@ -1303,7 +1360,7 @@ func (s *NatsService) listenForTimer(sctx context.Context, js nats.JetStreamCont
 						log.Error("a fatal error occurred processing a message: %s", err)
 						continue
 					}
-					log.Error("an error occured processing a message: %s", err)
+					log.Error("an error occurred processing a message: %s", err)
 					continue
 				}
 				if ack {
@@ -1345,6 +1402,166 @@ func (s *NatsService) GetOldState(ctx context.Context, id string) (*model.Workfl
 	return nil, fmt.Errorf("error retrieving task state: %w", err)
 }
 
+func (s *NatsService) processGatewayExecute(ctx context.Context) error {
+	if err := common.Process(ctx, s.js, "gatewayExecute", s.closing, subj.NS(messages.WorkflowJobGatewayTaskExecute, "*"), "GatewayExecuteConsumer", s.concurrency, s.gatewayExecProcessor); err != nil {
+		return fmt.Errorf("failed to start process launch processor: %w", err)
+	}
+	if err := common.Process(ctx, s.js, "gatewayReEnter", s.closing, subj.NS(messages.WorkflowJobGatewayTaskReEnter, "*"), "GatewayReEnterConsumer", s.concurrency, s.gatewayExecProcessor); err != nil {
+		return fmt.Errorf("failed to start process launch processor: %w", err)
+	}
+	return nil
+}
+
+func (s *NatsService) gatewayExecProcessor(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
+	reEnter := strings.HasSuffix(msg.Subject, "ReEnter")
+	fmt.Println(reEnter)
+	var job model.WorkflowState
+	if err := proto.Unmarshal(msg.Data, &job); err != nil {
+		return false, fmt.Errorf("failed to unmarshal during process launch: %w", err)
+	}
+	if _, _, err := s.HasValidProcess(ctx, job.ProcessInstanceId, job.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
+		log := slog.FromContext(ctx)
+		log.Log(slog.InfoLevel, "processLaunch aborted due to a missing process")
+		return true, err
+	} else if err != nil {
+		return false, err
+	}
+	// Gateway logic
+	wf, err := s.GetWorkflow(ctx, job.WorkflowId)
+	if err != nil {
+		return true, errors.ErrWorkflowFatal{Err: fmt.Errorf("process gateway execute failed: %w", err)}
+	}
+	els := make(map[string]*model.Element)
+	common.IndexProcessElements(wf.Process[job.ProcessName].Elements, els)
+	el := els[job.ElementId]
+
+	gatewayIID, route, err := s.GetGatewayInstanceID(&job)
+	if err != nil {
+		return false, fmt.Errorf("%s failed to find gateway instance ID: %w", errors.Fn(), err)
+	}
+	job.Execute = &gatewayIID
+	gw := &model.Gateway{}
+	err = common.UpdateObj(ctx, s.wfGateway, gatewayIID, gw, func(g *model.Gateway) (*model.Gateway, error) {
+		if g.MetExpectations == nil {
+			g.MetExpectations = make(map[string]string)
+		}
+		// TODO: This could be problematic in the case of an error after this line and needs splitting to ensure this value does not modified unchecked
+		g.MetExpectations[route] = ""
+		g.Vars = append(g.Vars, job.Vars)
+		g.Visits++
+		return g, nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to save gateway instance metadata: %w", err)
+	}
+
+	switch el.Gateway.Type {
+	case model.GatewayType_exclusive:
+		nv, err := s.mergeGatewayVars(ctx, gw)
+		if err != nil {
+			return false, fmt.Errorf("failed to merge gateway variables: %w", errors.ErrWorkflowFatal{Err: err})
+		}
+		job.Vars = nv
+		if err := s.completeGateway(ctx, &job); err != nil {
+			return false, err
+		}
+	case model.GatewayType_inclusive:
+		nv, err := s.mergeGatewayVars(ctx, gw)
+		if err != nil {
+			return false, fmt.Errorf("failed to merge gateway variables: %w", errors.ErrWorkflowFatal{Err: err})
+		}
+
+		if len(gw.MetExpectations) >= len(job.GatewayExpectations[gatewayIID].ExpectedPaths) {
+			job.Vars = nv
+			if err := s.completeGateway(ctx, &job); err != nil {
+				return false, err
+			}
+		} else {
+			if err := s.PublishWorkflowState(ctx, messages.WorkflowJobGatewayTaskAbort, &job); err != nil {
+				return false, err
+			}
+		}
+	case model.GatewayType_parallel:
+	}
+	return true, nil
+}
+
+// GetGatewayInstance - returns a gateway instance from the KV store.
+func (s *NatsService) GetGatewayInstance(ctx context.Context, gatewayInstanceID string) (*model.Gateway, error) {
+	gw := &model.Gateway{}
+	err := common.LoadObj(ctx, s.wfGateway, gatewayInstanceID, gw)
+	if err != nil {
+		return nil, fmt.Errorf("get gateway instance failed to get gateway instance from KV: %w", err)
+	}
+	return gw, nil
+}
+
+// GetGatewayInstanceID - returns a gateawy instance ID and a satisfying route to that gateway.
+func (s *NatsService) GetGatewayInstanceID(state *model.WorkflowState) (string, string, error) {
+	var gatewayIID string
+	var route string
+	if _, ok := state.SatisfiesGatewayExpectation[state.ElementId]; ok {
+		r := state.SatisfiesGatewayExpectation[state.ElementId].InstanceTracking[len(state.SatisfiesGatewayExpectation[state.ElementId].InstanceTracking)-1]
+		parts := strings.Split(r, ",")
+		gatewayIID = parts[0]
+		route = parts[1]
+		return gatewayIID, route, nil
+	}
+	return "", "", fmt.Errorf("failed to discover gateway instance ID: %w", errors.ErrGatewayInstanceNotFound)
+}
+
+func (s *NatsService) mergeGatewayVars(ctx context.Context, gw *model.Gateway) ([]byte, error) {
+	if len(gw.Vars) == 1 {
+		return gw.Vars[0], nil
+	}
+	base, err := vars.Decode(ctx, gw.Vars[0])
+	if err != nil {
+		return nil, fmt.Errorf("merge gateway vars failed to decode base variables: %w", err)
+	}
+	ret, err := vars.Decode(ctx, gw.Vars[0])
+	if err != nil {
+		return nil, fmt.Errorf("merge gateway vars failed to decode initial variables: %w", err)
+	}
+	for i := 1; i < len(gw.Vars); i++ {
+		v2, err := vars.Decode(ctx, gw.Vars[i])
+		if err != nil {
+			return nil, fmt.Errorf("merge gateway vars failed to decode variable set %d: %w", i, err)
+		}
+		for k, v := range v2 {
+			bv, ok := base[k]
+			if !ok || bv != v {
+				ret[k] = v
+			}
+		}
+	}
+	retb, err := vars.Encode(ctx, ret)
+	if err != nil {
+		return nil, fmt.Errorf("merge gateway vars failed to encode variable set: %w", err)
+	}
+	return retb, nil
+}
+
+// TODO: make resillient through message
+func (s *NatsService) completeGateway(ctx context.Context, job *model.WorkflowState) error {
+	// Record that we have closed this gateway.
+	if err := common.UpdateObj(ctx, s.wfProcessInstance, job.ProcessInstanceId, &model.ProcessInstance{}, func(v *model.ProcessInstance) (*model.ProcessInstance, error) {
+		if v.GatewayComplete == nil {
+			v.GatewayComplete = make(map[string]bool)
+		}
+		v.GatewayComplete[*job.Execute] = true
+		return v, nil
+	}); err != nil {
+		return fmt.Errorf("%s failed to update gateway: %w", errors.Fn(), err)
+	}
+	if err := s.PublishWorkflowState(ctx, messages.WorkflowJobGatewayTaskComplete, job); err != nil {
+		return err
+	}
+	if err := common.Delete(s.wfGateway, *job.Execute); err != nil {
+		return fmt.Errorf("complete gateway failed with: %w", err)
+	}
+	return nil
+}
+
 func (s *NatsService) processLaunch(ctx context.Context) error {
 	err := common.Process(ctx, s.js, "launch", s.closing, subj.NS(messages.WorkflowJobLaunchExecute, "*"), "LaunchConsumer", s.concurrency, func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
 		var job model.WorkflowState
@@ -1384,7 +1601,7 @@ func (s *NatsService) processJobAbort(ctx context.Context) error {
 		}
 		//TODO: Make these idempotently work given missing values
 		switch {
-		case strings.Contains(msg.Subject, ".State.Job.Abort.ServiceTask"):
+		case strings.Contains(msg.Subject, ".State.Job.Abort.ServiceTask"), strings.Contains(msg.Subject, ".State.Job.Abort.Gateway"):
 			if err := s.deleteJob(ctx, &state); err != nil {
 				return false, fmt.Errorf("failed to delete job during service task abort: %w", err)
 			}
@@ -1488,7 +1705,7 @@ func (s *NatsService) SaveState(ctx context.Context, id string, state *model.Wor
 	return nil
 }
 
-// CreateProcessInstance creates a new instance of a process and attatches it to the workflow instance.
+// CreateProcessInstance creates a new instance of a process and attaches it to the workflow instance.
 func (s *NatsService) CreateProcessInstance(ctx context.Context, workflowInstanceID string, parentProcessID string, parentElementID string, processName string) (*model.ProcessInstance, error) {
 	id := ksuid.New().String()
 	pi := &model.ProcessInstance{
@@ -1531,7 +1748,7 @@ func (s *NatsService) GetProcessInstance(ctx context.Context, processInstanceID 
 	return pi, nil
 }
 
-// DestroyProcessInstance deletes a process instance and removes the workflow instance dependant on all process instances being satisfied.
+// DestroyProcessInstance deletes a process instance and removes the workflow instance dependent on all process instances being satisfied.
 func (s *NatsService) DestroyProcessInstance(ctx context.Context, state *model.WorkflowState, pi *model.ProcessInstance, wi *model.WorkflowInstance) error {
 	wfi := &model.WorkflowInstance{}
 	err := common.UpdateObj(ctx, s.wfInstance, wi.WorkflowInstanceId, wfi, func(v *model.WorkflowInstance) (*model.WorkflowInstance, error) {
@@ -1577,7 +1794,7 @@ func (s *NatsService) populateMetadata(wf *model.Workflow) {
 	}
 }
 
-// SatisfyProcess sets a process as "satisfied" ie. it may no longer trigger.
+// SatisfyProcess sets a process as "satisfied" i.e. it may no longer trigger.
 func (s *NatsService) SatisfyProcess(ctx context.Context, workflowInstance *model.WorkflowInstance, processName string) error {
 	err := common.UpdateObj(ctx, s.wfInstance, workflowInstance.WorkflowInstanceId, workflowInstance, func(wi *model.WorkflowInstance) (*model.WorkflowInstance, error) {
 		wi.SatisfiedProcesses[processName] = true

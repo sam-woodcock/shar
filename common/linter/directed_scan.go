@@ -21,7 +21,7 @@ func startDirectedScan(process *model.Process, instruction *directedTraversalIns
 	for _, start := range starts {
 		visited[start.Id] = start
 		if err := directedColouredTraverse(start, visited, instruction, index); err != nil {
-			return fmt.Errorf("directed acyclic graph scan failed: %w", err)
+			return fmt.Errorf("directed graph scan failed: %w", err)
 		}
 	}
 	return nil

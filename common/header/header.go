@@ -18,8 +18,8 @@ const natsSharHeader = "Shar-Header"
 
 type contextKey string
 
-// HeaderContextKey is the key for SHAR header values in the context.
-var HeaderContextKey contextKey = "SHARHeader"
+// ContextKey is the key for SHAR header values in the context.
+var ContextKey contextKey = "SHARHeader"
 
 // FromCtxToMsgHeader attaches context information to a NATS message header.
 func FromCtxToMsgHeader(ctx context.Context, header *nats.Header) error {
@@ -47,7 +47,7 @@ func FromMsgHeaderToCtx(ctx context.Context, header nats.Header) (context.Contex
 // Copy copies SHAR values from one context to another.
 func Copy(source context.Context, target context.Context) context.Context {
 	ret := context.WithValue(target, logx.CorrelationContextKey, source.Value(logx.CorrelationContextKey))
-	ret = context.WithValue(ret, HeaderContextKey, source.Value(HeaderContextKey))
+	ret = context.WithValue(ret, ContextKey, source.Value(ContextKey))
 	return ret
 }
 
@@ -58,12 +58,12 @@ func fromCtx(ctx context.Context) (v Values) {
 			v = make(Values)
 		}
 	}()
-	return ctx.Value(HeaderContextKey).(Values)
+	return ctx.Value(ContextKey).(Values)
 }
 
 // toCtx creates a child context containing headers
 func toCtx(ctx context.Context, values Values) context.Context {
-	return context.WithValue(ctx, HeaderContextKey, values)
+	return context.WithValue(ctx, ContextKey, values)
 }
 
 // fromMsg extracts SHAR headers from a NATS message
@@ -100,17 +100,17 @@ func toMsg(values Values, header *nats.Header) error {
 
 // Set sets a context header value.
 func Set(ctx context.Context, key string, value string) context.Context {
-	c, ok := ctx.Value(HeaderContextKey).(Values)
+	c, ok := ctx.Value(ContextKey).(Values)
 	if !ok {
-		return context.WithValue(ctx, HeaderContextKey, Values{key: value})
+		return context.WithValue(ctx, ContextKey, Values{key: value})
 	}
 	c[key] = value
-	return context.WithValue(ctx, HeaderContextKey, c)
+	return context.WithValue(ctx, ContextKey, c)
 }
 
 // Get gets a context header value.
 func Get(ctx context.Context, key string) string {
-	vals, ok := ctx.Value(HeaderContextKey).(Values)
+	vals, ok := ctx.Value(ContextKey).(Values)
 	if !ok {
 		return ""
 	}

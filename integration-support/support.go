@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
@@ -13,6 +14,7 @@ import (
 	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/model"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
+	"gitlab.com/shar-workflow/shar/server/tools/tracer"
 	server2 "gitlab.com/shar-workflow/shar/telemetry/server"
 	zensvr "gitlab.com/shar-workflow/shar/zen-shar/server"
 	rand2 "golang.org/x/exp/rand"
@@ -35,10 +37,11 @@ type Integration struct {
 	Cooldown       time.Duration
 	WithTelemetry  server2.Exporter
 	testTelemetry  *server2.Server
-
-	NatsURL  string // NatsURL is the default testing URL for the NATS host.
-	NatsPort int    // NatsPort is the default testing port for the NATS host.
-	NatsHost string // NatsHost is the default NATS host.
+	WithTrace      bool
+	traceSub       *tracer.OpenTrace
+	NatsURL        string // NatsURL is the default testing URL for the NATS host.
+	NatsPort       int    // NatsPort is the default testing port for the NATS host.
+	NatsHost       string // NatsHost is the default NATS host.
 }
 
 // Setup - sets up the test NATS and SHAR servers.
@@ -46,13 +49,16 @@ func (s *Integration) Setup(t *testing.T, authZFn authz.APIFunc, authNFn authn.C
 	s.NatsHost = "127.0.0.1"
 	s.NatsPort = 4459 + rand2.Intn(500)
 	s.NatsURL = fmt.Sprintf("nats://%s:%v", s.NatsHost, s.NatsPort)
-	logx.SetDefault(slog.DebugLevel, false, "shar-Integration-tests")
+	logx.SetDefault(slog.DebugLevel, true, "shar-Integration-tests")
 	s.Cooldown = 4 * time.Second
 	s.Test = t
 	s.FinalVars = make(map[string]interface{})
 	ss, ns, err := zensvr.GetServers(s.NatsHost, s.NatsPort, 10, authZFn, authNFn)
 	if err != nil {
 		panic(err)
+	}
+	if s.WithTrace {
+		s.traceSub = tracer.Trace(s.NatsURL)
 	}
 	if s.WithTelemetry != nil {
 		ctx := context.Background()
@@ -72,39 +78,42 @@ func (s *Integration) Setup(t *testing.T, authZFn authz.APIFunc, authNFn authn.C
 
 // AssertCleanKV - ensures SHAR has cleans up after itself, and there are no records left in the KV.
 func (s *Integration) AssertCleanKV() {
-	cancelled := make(chan struct{})
-	errs := make(chan error)
-	go func() {
-		var err error
-		select {
-		case <-cancelled:
-			return
-		case <-time.After(s.Cooldown):
-			close(cancelled)
-			errs <- err
-			return
-		default:
-			var cont = true
-			for cont {
-				err = s.checkCleanKV()
-				if err == nil {
-					close(errs)
-					close(cancelled)
-					return
-				}
-				if errors.Is(err, errDirtyKV) {
-					time.Sleep(500 * time.Millisecond)
-					continue
-				}
-				errs <- err
-				close(cancelled)
+	ctx, cancel := context.WithCancel(context.Background())
+	errs := make(chan error, 1)
+	var err error
+	go func(ctx context.Context, cancel context.CancelFunc) {
+		for {
+			if ctx.Err() != nil {
+				cancel()
 				return
 			}
+			err = s.checkCleanKV()
+			if err == nil {
+				cancel()
+				close(errs)
+				return
+			}
+			if errors.Is(err, errDirtyKV) {
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+			errs <- err
+			cancel()
+			return
 		}
-	}()
+	}(ctx, cancel)
 
-	if err := <-errs; err != nil {
-		assert.Fail(s.Test, err.Error())
+	select {
+	case err2 := <-errs:
+		cancel()
+		assert.NoError(s.Test, err2, "KV not clean")
+		return
+	case <-time.After(s.Cooldown):
+		cancel()
+		if err != nil {
+			assert.NoErrorf(s.Test, err, "KV not clean")
+		}
+		return
 	}
 }
 
@@ -137,6 +146,28 @@ func (s *Integration) checkCleanKV() error {
 			//noop
 		default:
 			if len(keys) > 0 {
+				sc := spew.ConfigState{
+					Indent:                  "\t",
+					MaxDepth:                2,
+					DisableMethods:          true,
+					DisablePointerMethods:   true,
+					DisablePointerAddresses: true,
+					DisableCapacities:       true,
+					ContinueOnMethod:        false,
+					SortKeys:                false,
+					SpewKeys:                true,
+				}
+
+				for _, i := range keys {
+					p, err := kvs.Get(i)
+					if err == nil {
+						str := &model.WorkflowState{}
+						err := proto.Unmarshal(p.Value(), str)
+						if err == nil {
+							sc.Dump(str)
+						}
+					}
+				}
 				return fmt.Errorf("%d unexpected keys found in %s: %w", len(keys), name, errDirtyKV)
 			}
 		}
@@ -178,7 +209,9 @@ func (s *Integration) checkCleanKV() error {
 
 // Teardown - resposible for shutting down the integration test framework.
 func (s *Integration) Teardown() {
-
+	if s.WithTrace {
+		s.traceSub.Close()
+	}
 	n, err := s.GetJetstream()
 	require.NoError(s.Test, err)
 
@@ -208,6 +241,8 @@ func (s *Integration) Teardown() {
 }
 
 // GetJetstream - fetches the test framework jetstream server for making test calls.
+//
+//goland:noinspection GoUnnecessarilyExportedIdentifiers
 func (s *Integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:ireturn
 	con, err := s.GetNats()
 	if err != nil {
@@ -221,6 +256,8 @@ func (s *Integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:i
 }
 
 // GetNats - fetches the test framework NATS server for making test calls.
+//
+//goland:noinspection GoUnnecessarilyExportedIdentifiers
 func (s *Integration) GetNats() (*nats.Conn, error) {
 	con, err := nats.Connect(s.NatsURL)
 	if err != nil {

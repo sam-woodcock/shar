@@ -45,3 +45,15 @@ func TestCyclicNoEnd(t *testing.T) {
 
 	fmt.Println(wf)
 }
+
+func TestCloseWithNoOpen(t *testing.T) {
+
+	// Load BPMN workflow
+	b, err := os.ReadFile("../../testdata/bad/simple-close-with-no-opening-gateway.bpmn")
+	require.NoError(t, err)
+
+	wf, err := parser.Parse("SimpleWorkflowTest", bytes.NewBuffer(b))
+	require.ErrorIs(t, err, linter.ErrMissingOpeningGateway)
+
+	fmt.Println(wf)
+}

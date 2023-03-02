@@ -18,7 +18,8 @@ const (
 )
 
 var (
-	ErrMissingEndEvent = errors2.New("missing end event") // ErrMissingEndEvent indicates that a procewss terminates without an end event.
+	ErrMissingEndEvent       = errors2.New("missing end event")       // ErrMissingEndEvent indicates that a procewss terminates without an end event.
+	ErrMissingOpeningGateway = errors2.New("missing opening gateway") // ErrMissingOpeningGateway indicates that a gateway is being closed and no corresponding open exists.
 )
 
 // Message - a linter finding
