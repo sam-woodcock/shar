@@ -641,6 +641,7 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 
 func (c *Engine) completeActivity(ctx context.Context, state *model.WorkflowState) error {
 	// tell the world that we processed the activity
+	common.DropStateParams(state)
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowActivityComplete, state); err != nil {
 		return c.engineErr(ctx, "failed to publish workflow cancellationState", err)
 		//TODO: report this without process: apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)
@@ -964,13 +965,12 @@ func (c *Engine) activityCompleteProcessor(ctx context.Context, state *model.Wor
 		return nil
 	}
 
-	pi, err := c.ns.GetProcessInstance(ctx, state.ProcessInstanceId)
-	if errors2.Is(err, errors.ErrWorkflowInstanceNotFound) {
-		errTxt := "process instance not found, cancelling message processing"
+	pi, pierr := c.ns.GetProcessInstance(ctx, state.ProcessInstanceId)
+	if errors2.Is(pierr, errors.ErrProcessInstanceNotFound) {
+		errTxt := "process instance not found"
 		log.Warn(errTxt, slog.String(keys.ProcessInstanceID, state.WorkflowInstanceId))
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("activity complete processor failed to get workflow instance: %w", err)
+	} else if pierr != nil {
+		return fmt.Errorf("activity complete processor failed to get process instance: %w", pierr)
 	}
 
 	wf, err := c.ns.GetWorkflow(ctx, state.WorkflowId)
@@ -995,37 +995,42 @@ func (c *Engine) activityCompleteProcessor(ctx context.Context, state *model.Wor
 		}
 		el.Outbound = &model.Targets{Target: []*model.Target{{Target: target.Id}}}
 	}
-	if err = c.traverse(ctx, pi, newID, el.Outbound, els, state); errors.IsWorkflowFatal(err) {
-		log.Error("workflow fatally terminated whilst traversing", err, slog.String(keys.ProcessInstanceID, pi.ProcessInstanceId), slog.String(keys.WorkflowID, pi.WorkflowId), slog.String(keys.ElementID, state.ElementId))
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("activity complete processor failed traversal attempt: %w", err)
+	if pierr == nil {
+		if err = c.traverse(ctx, pi, newID, el.Outbound, els, state); errors.IsWorkflowFatal(err) {
+			log.Error("workflow fatally terminated whilst traversing", err, slog.String(keys.ProcessInstanceID, pi.ProcessInstanceId), slog.String(keys.WorkflowID, pi.WorkflowId), slog.String(keys.ElementID, state.ElementId))
+			return nil
+		} else if err != nil {
+			return fmt.Errorf("activity complete processor failed traversal attempt: %w", err)
+		}
 	}
 	if state.ElementType == element.EndEvent && len(state.Id) > 2 {
 		jobID := common.TrackingID(state.Id).Ancestor(2)
 		// If we are a sub workflow then complete the parent job
 		if jobID != state.WorkflowInstanceId {
-			j, err := c.ns.GetJob(ctx, jobID)
-			if errors2.Is(err, errors.ErrJobNotFound) {
-				// This job was deleted, so just exit
-				return nil
-			} else if err != nil {
-				return fmt.Errorf("activity complete processor failed to get job: %w", err)
+			j, joberr := c.ns.GetJob(ctx, jobID)
+			if errors2.Is(joberr, errors.ErrJobNotFound) {
+				log.Warn("job not found " + jobID + " : " + err.Error())
+			} else if joberr != nil {
+				return fmt.Errorf("activity complete processor failed to get job: %w", joberr)
 			}
-			j.Vars = state.Vars
-			j.Error = state.Error
-			if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowJobLaunchComplete, j); err != nil {
-				return fmt.Errorf("activity complete processor failed to publish job launch complete: %w", err)
+			if joberr == nil {
+				j.Vars = state.Vars
+				j.Error = state.Error
+				if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowJobLaunchComplete, j); err != nil {
+					return fmt.Errorf("activity complete processor failed to publish job launch complete: %w", err)
+				}
 			}
-			if err := c.ns.DeleteJob(ctx, jobID); err != nil {
-				return fmt.Errorf("activity complete processor failed to delete job: %w", err)
+			if err := c.ns.DeleteJob(ctx, jobID); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
+				return fmt.Errorf("activity complete processor failed to delete job %s: %w", jobID, err)
 			}
-			wi, err := c.ns.GetWorkflowInstance(ctx, pi.WorkflowInstanceId)
-			if err != nil {
+			wi, wierr := c.ns.GetWorkflowInstance(ctx, state.WorkflowInstanceId)
+			if wierr != nil && !errors2.Is(wierr, nats.ErrKeyNotFound) {
 				return fmt.Errorf("activity complete processor failed to get workflow instance: %w", err)
 			}
-			if err := c.ns.DestroyProcessInstance(ctx, state, pi, wi); err != nil {
-				return fmt.Errorf("activity complete processor failed to destroy workflow instance: %w", err)
+			if pierr == nil {
+				if err := c.ns.DestroyProcessInstance(ctx, state, pi, wi); err != nil && !errors2.Is(err, nats.ErrKeyNotFound) {
+					return fmt.Errorf("activity complete processor failed to destroy workflow instance: %w", err)
+				}
 			}
 		}
 	}
