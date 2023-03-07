@@ -40,7 +40,7 @@ func TestUserTasks(t *testing.T) {
 		panic(err)
 	}
 
-	d := &testUserTaskHandlerDef{finished: make(chan struct{})}
+	d := &testUserTaskHandlerDef{}
 	d.finalVars = make(model.Vars)
 	// Register a service task
 	err = cl.RegisterServiceTask(ctx, "Prepare", d.prepare)
@@ -48,8 +48,12 @@ func TestUserTasks(t *testing.T) {
 	err = cl.RegisterServiceTask(ctx, "Complete", d.complete)
 	require.NoError(t, err)
 
+	// A hook to watch for completion
+	complete := make(chan *model.WorkflowInstanceComplete, 100)
+	cl.RegisterWorkflowInstanceComplete(complete)
+
 	// Launch the workflow
-	_, _, err = cl.LaunchWorkflow(ctx, "TestUserTasks", model.Vars{"OrderId": 68})
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "TestUserTasks", model.Vars{"OrderId": 68})
 	if err != nil {
 		panic(err)
 	}
@@ -79,7 +83,7 @@ func TestUserTasks(t *testing.T) {
 		}
 	}()
 
-	<-d.finished
+	tst.AwaitWorkflowComplete(t, complete, wfiID)
 
 	et, err := cl.ListUserTaskIDs(ctx, "andrei")
 	assert.NoError(t, err)
@@ -96,7 +100,6 @@ func TestUserTasks(t *testing.T) {
 type testUserTaskHandlerDef struct {
 	finalVars model.Vars
 	lock      sync.Mutex
-	finished  chan struct{}
 }
 
 // A "Hello World" service task
@@ -117,8 +120,4 @@ func (d *testUserTaskHandlerDef) complete(_ context.Context, _ client.JobClient,
 	defer d.lock.Unlock()
 	d.finalVars = vars
 	return model.Vars{}, nil
-}
-
-func (d *testUserTaskHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
-	close(d.finished)
 }
