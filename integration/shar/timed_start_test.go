@@ -34,7 +34,7 @@ func TestTimedStart(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TimedStartTest", b)
 	require.NoError(t, err)
 
-	d := &timedStartHandlerDef{tst: tst, t: t, finished: make(chan struct{})}
+	d := &timedStartHandlerDef{tst: tst, t: t}
 
 	// Register a service task
 	err = cl.RegisterServiceTask(ctx, "SimpleProcess", d.integrationSimple)
@@ -45,7 +45,7 @@ func TestTimedStart(t *testing.T) {
 
 	// A hook to watch for completion
 	complete := make(chan *model.WorkflowInstanceComplete, 100)
-	cl.RegisterProcessComplete("", d.processEnd)
+	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Listen for service tasks
 	go func() {
@@ -68,11 +68,10 @@ func TestTimedStart(t *testing.T) {
 }
 
 type timedStartHandlerDef struct {
-	mx       sync.Mutex
-	count    int
-	tst      *support.Integration
-	t        *testing.T
-	finished chan struct{}
+	mx    sync.Mutex
+	count int
+	tst   *support.Integration
+	t     *testing.T
 }
 
 func (d *timedStartHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
@@ -83,8 +82,4 @@ func (d *timedStartHandlerDef) integrationSimple(_ context.Context, _ client.Job
 	d.tst.FinalVars = vars
 	d.count++
 	return vars, nil
-}
-
-func (d *timedStartHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
-	close(d.finished)
 }

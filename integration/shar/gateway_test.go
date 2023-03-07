@@ -70,24 +70,28 @@ func TestExclusiveRun(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "ExclusiveGatewayTest", b)
 	require.NoError(t, err)
 
-	g := &gatewayTest{finished: make(chan struct{})}
-
-	err = cl.RegisterServiceTask(ctx, "stage1", g.stage1)
+	err = cl.RegisterServiceTask(ctx, "stage1", stage1)
 	require.NoError(t, err)
-	err = cl.RegisterServiceTask(ctx, "stage2", g.stage2)
+	err = cl.RegisterServiceTask(ctx, "stage2", stage2)
 	require.NoError(t, err)
-	err = cl.RegisterServiceTask(ctx, "stage3", g.stage3)
+	err = cl.RegisterServiceTask(ctx, "stage3", stage3)
 	require.NoError(t, err)
+	complete := make(chan *model.WorkflowInstanceComplete, 100)
 
 	// Register a service task
-	err = cl.RegisterProcessComplete("ExclusiveGatewayTest", g.processEnd)
-	require.NoError(t, err)
+	cl.RegisterWorkflowInstanceComplete(complete)
+
 	// Launch the workflow
-	_, _, err = cl.LaunchWorkflow(ctx, "ExclusiveGatewayTest", model.Vars{"carried": 32768})
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "ExclusiveGatewayTest", model.Vars{"carried": 32768})
 	require.NoError(t, err)
 
 	// Listen for service tasks
-	<-g.finished
+	go func() {
+		err := cl.Listen(ctx)
+		require.NoError(t, err)
+	}()
+	fmt.Println("Awaiting ", wfiID)
+	tst.AwaitWorkflowComplete(t, complete, wfiID)
 	tst.AssertCleanKV()
 
 }
@@ -113,45 +117,42 @@ func TestInclusiveRun(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "InclusiveGatewayTest", b)
 	require.NoError(t, err)
 
-	g := &gatewayTest{finished: make(chan struct{})}
+	err = cl.RegisterServiceTask(ctx, "stage1", stage1)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "stage2", stage2)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "stage3", stage3)
+	require.NoError(t, err)
+	complete := make(chan *model.WorkflowInstanceComplete, 100)
 
-	err = cl.RegisterServiceTask(ctx, "stage1", g.stage1)
-	require.NoError(t, err)
-	err = cl.RegisterServiceTask(ctx, "stage2", g.stage2)
-	require.NoError(t, err)
-	err = cl.RegisterServiceTask(ctx, "stage3", g.stage3)
-	require.NoError(t, err)
-	err = cl.RegisterProcessComplete("InclusiveGatewayTest", g.processEnd)
-	require.NoError(t, err)
+	// Register a service task
+	cl.RegisterWorkflowInstanceComplete(complete)
+
 	// Launch the workflow
-	_, _, err = cl.LaunchWorkflow(ctx, "InclusiveGatewayTest", model.Vars{"testValue": 32768})
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "InclusiveGatewayTest", model.Vars{"testValue": 32768})
 	require.NoError(t, err)
 
 	// Listen for service tasks
-	<-g.finished
+	go func() {
+		err := cl.Listen(ctx)
+		require.NoError(t, err)
+	}()
+	tst.AwaitWorkflowComplete(t, complete, wfiID)
 	tst.AssertCleanKV()
 
 }
 
-type gatewayTest struct {
-	finished chan struct{}
-}
-
-func (g *gatewayTest) stage3(ctx context.Context, jobClient client.JobClient, vars model.Vars) (model.Vars, error) {
+func stage3(ctx context.Context, jobClient client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Stage 3")
 	return vars, nil
 }
 
-func (g *gatewayTest) stage2(ctx context.Context, jobClient client.JobClient, vars model.Vars) (model.Vars, error) {
+func stage2(ctx context.Context, jobClient client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Stage 2")
 	return model.Vars{"value2": 2}, nil
 }
 
-func (g *gatewayTest) stage1(ctx context.Context, jobClient client.JobClient, vars model.Vars) (model.Vars, error) {
+func stage1(ctx context.Context, jobClient client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Stage 1")
 	return model.Vars{"value1": 1}, nil
-}
-
-func (g *gatewayTest) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
-	close(g.finished)
 }

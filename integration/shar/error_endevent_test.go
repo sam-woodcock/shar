@@ -37,17 +37,18 @@ func TestEndEventError(t *testing.T) {
 		panic(err)
 	}
 
-	d := &testErrorEndEventHandlerDef{finished: make(chan struct{}), t: t}
+	d := &testErrorEndEventHandlerDef{}
 	// Register a service task
 	err = cl.RegisterServiceTask(ctx, "couldThrowError", d.mayFail3)
 	require.NoError(t, err)
 	err = cl.RegisterServiceTask(ctx, "fixSituation", d.fixSituation)
 	require.NoError(t, err)
+	// A hook to watch for completion
+	complete := make(chan *model.WorkflowInstanceComplete, 100)
+	cl.RegisterWorkflowInstanceComplete(complete)
 
-	err = cl.RegisterProcessComplete("Process_07lm3kx", d.processEnd)
-	require.NoError(t, err)
 	// Launch the workflow
-	_, _, err = cl.LaunchWorkflow(ctx, "TestEndEventError", model.Vars{})
+	wfiID, _, err := cl.LaunchWorkflow(ctx, "TestEndEventError", model.Vars{})
 	if err != nil {
 		panic(err)
 	}
@@ -60,14 +61,31 @@ func TestEndEventError(t *testing.T) {
 		}
 	}()
 
+	var final *model.WorkflowInstanceComplete
+
+	finish := make(chan struct{})
 	// wait for the workflow to complete
-	support.WaitForChan(t, d.finished, 20*time.Second)
+	go func() {
+		for i := range complete {
+			if i.WorkflowInstanceId == wfiID {
+				final = i
+				close(finish)
+				return
+			}
+		}
+	}()
+	select {
+	case <-finish:
+	case <-time.After(10 * time.Second):
+		require.Fail(t, "timed out")
+	}
+	assert.Equal(t, "103", final.Error.Code)
+	assert.Equal(t, "CatastrophicError", final.Error.Name)
+	assert.Equal(t, model.CancellationState_errored, final.WorkflowState)
 	tst.AssertCleanKV()
 }
 
 type testErrorEndEventHandlerDef struct {
-	finished chan struct{}
-	t        *testing.T
 }
 
 // A "Hello World" service task
@@ -82,10 +100,4 @@ func (d *testErrorEndEventHandlerDef) mayFail3(ctx context.Context, client clien
 func (d *testErrorEndEventHandlerDef) fixSituation(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("carried", vars["carried"])
 	panic("this event should not fire")
-}
-func (d *testErrorEndEventHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
-	assert.Equal(d.t, "103", wfError.Code)
-	assert.Equal(d.t, "CatastrophicError", wfError.Name)
-	assert.Equal(d.t, model.CancellationState_completed, state)
-	close(d.finished)
 }

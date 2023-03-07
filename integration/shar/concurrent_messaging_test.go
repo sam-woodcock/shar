@@ -19,12 +19,12 @@ func TestConcurrentMessaging(t *testing.T) {
 	tst := &support.Integration{
 		Cooldown: time.Second * 10,
 	}
-	//tst.WithTrace = true
+	tst.WithTrace = true
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 	tst.Cooldown = 5 * time.Second
 
-	handlers := &testConcurrentMessagingHandlerDef{finished: make(chan struct{})}
+	handlers := &testConcurrentMessagingHandlerDef{}
 	handlers.tst = tst
 	// Create a starting context
 	ctx := context.Background()
@@ -41,6 +41,8 @@ func TestConcurrentMessaging(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestConcurrentMessaging", b)
 	require.NoError(t, err)
 
+	complete := make(chan *model.WorkflowInstanceComplete, 101)
+
 	// Register a service task
 	err = cl.RegisterServiceTask(ctx, "step1", handlers.step1)
 	require.NoError(t, err)
@@ -48,8 +50,8 @@ func TestConcurrentMessaging(t *testing.T) {
 	require.NoError(t, err)
 	err = cl.RegisterMessageSender(ctx, "TestConcurrentMessaging", "continueMessage", handlers.sendMessage)
 	require.NoError(t, err)
-	err = cl.RegisterProcessComplete("Process_0hgpt6k", handlers.processEnd)
-	require.NoError(t, err)
+	cl.RegisterWorkflowInstanceComplete(complete)
+
 	// Listen for service tasks
 	go func() {
 		err := cl.Listen(ctx)
@@ -71,7 +73,12 @@ func TestConcurrentMessaging(t *testing.T) {
 		}()
 	}
 	for inst := 0; inst < n; inst++ {
-		support.WaitForChan(t, handlers.finished, 20*time.Second)
+		select {
+		case c := <-complete:
+			fmt.Println(c.WorkflowInstanceId)
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "timed out")
+		}
 	}
 	assert.Equal(t, handlers.received, n)
 	fmt.Println("Stopwatch:", -time.Until(tm))
@@ -82,7 +89,6 @@ type testConcurrentMessagingHandlerDef struct {
 	mx       sync.Mutex
 	tst      *support.Integration
 	received int
-	finished chan struct{}
 }
 
 func (x *testConcurrentMessagingHandlerDef) step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
@@ -103,9 +109,4 @@ func (x *testConcurrentMessagingHandlerDef) sendMessage(ctx context.Context, cmd
 		return fmt.Errorf("failed to send continue message: %w", err)
 	}
 	return nil
-}
-
-func (x *testConcurrentMessagingHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
-	x.finished <- struct{}{}
-	fmt.Println("finished")
 }

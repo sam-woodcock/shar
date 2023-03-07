@@ -133,15 +133,6 @@ func init() {
 			MaxAckPending:   65535,
 			MaxRequestBatch: 1,
 		},
-		{
-			Durable:         "ProcessEndConsumer",
-			Description:     "Processing queue for process end",
-			AckPolicy:       nats.AckExplicitPolicy,
-			AckWait:         30 * time.Second,
-			FilterSubject:   subj.NS(messages.WorkflowProcessTerminated, "*"),
-			MaxAckPending:   65535,
-			MaxRequestBatch: 1,
-		},
 	}
 	ConsumerDurableNames = make(map[string]struct{}, len(consumerConfig))
 	for _, v := range consumerConfig {
@@ -162,14 +153,14 @@ func EnsureWorkflowStream(js nats.JetStreamContext, storageType nats.StorageType
 		return fmt.Errorf("failed to ensure workflow stream: %w", err)
 	}
 	for _, ccfg := range consumerConfig {
-		if err := EnsureConsumer(js, "WORKFLOW", ccfg); err != nil {
+		if err := ensureConsumer(js, "WORKFLOW", ccfg); err != nil {
 			return fmt.Errorf("failed to ensure consumer during ensure workflow stream: %w", err)
 		}
 	}
 	return nil
 }
 
-func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
+func ensureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
 	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); errors.Is(err, nats.ErrConsumerNotFound) {
 		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
 			return fmt.Errorf("cannot ensure consumer '%s' with subject '%s' : %w", consumerConfig.Name, consumerConfig.FilterSubject, err)

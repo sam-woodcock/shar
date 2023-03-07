@@ -31,11 +31,12 @@ func TestCLI(t *testing.T) {
 	err := cl.Dial(tst.NatsURL)
 	require.NoError(t, err)
 
-	d := &testLaunchWorkflow{t: t, allowContinue: make(chan interface{}), finished: make(chan struct{})}
+	complete := make(chan *model.WorkflowInstanceComplete, 100)
+
+	d := &testLaunchWorkflo{t: t, allowContinue: make(chan interface{})}
 
 	// Register a service task
-	err = cl.RegisterProcessComplete("SimpleProcess", d.processEnd)
-	require.NoError(t, err)
+	cl.RegisterWorkflowInstanceComplete(complete)
 	err = cl.RegisterServiceTask(ctx, "SimpleProcess", d.integrationSimple)
 	require.NoError(t, err)
 
@@ -101,7 +102,12 @@ func TestCLI(t *testing.T) {
 	// Allow workflow to continue
 	close(d.allowContinue)
 
-	support.WaitForChan(t, d.finished, 20*time.Second)
+	select {
+	case c := <-complete:
+		fmt.Println("completed " + c.WorkflowInstanceId)
+	case <-time.After(20 * time.Second):
+		require.Fail(t, "Timed out")
+	}
 	tst.AssertCleanKV()
 }
 
@@ -115,19 +121,14 @@ func sharExecf[T any](t *testing.T, ret *T, command string, args ...any) {
 	require.NoError(t, err)
 }
 
-type testLaunchWorkflow struct {
+type testLaunchWorkflo struct {
 	t             *testing.T
 	allowContinue chan interface{}
-	finished      chan struct{}
 }
 
-func (d *testLaunchWorkflow) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (d *testLaunchWorkflo) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	<-d.allowContinue
 	assert.Equal(d.t, 32768, vars["carried"].(int))
 	vars["Success"] = true
 	return vars, nil
-}
-
-func (d *testLaunchWorkflow) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
-	close(d.finished)
 }
