@@ -15,6 +15,7 @@ import (
 	"gitlab.com/shar-workflow/shar/common/element"
 	"gitlab.com/shar-workflow/shar/common/header"
 	"gitlab.com/shar-workflow/shar/common/logx"
+	"gitlab.com/shar-workflow/shar/common/setup"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	"gitlab.com/shar-workflow/shar/model"
@@ -79,26 +80,30 @@ func (c *messageClient) Log(ctx context.Context, severity messages.WorkflowLogLe
 // ServiceFn provides the signature for service task functions.
 type ServiceFn func(ctx context.Context, client JobClient, vars model.Vars) (model.Vars, error)
 
+// ProcessTerminateFn provides the signature for process terminate functions.
+type ProcessTerminateFn func(ctx context.Context, vars model.Vars, wfError *model.Error, endState model.CancellationState)
+
 // SenderFn provides the signature for functions that can act as Workflow Message senders.
 type SenderFn func(ctx context.Context, client MessageClient, vars model.Vars) error
 
 // Client implements a SHAR client capable of listening for service task activations, listening for Workflow Messages, and interating with the API
 type Client struct {
-	js             nats.JetStreamContext
-	SvcTasks       map[string]ServiceFn
-	con            *nats.Conn
-	complete       chan *model.WorkflowInstanceComplete
-	MsgSender      map[string]SenderFn
-	storageType    nats.StorageType
-	ns             string
-	listenTasks    map[string]struct{}
-	msgListenTasks map[string]struct{}
-	txJS           nats.JetStreamContext
-	txCon          *nats.Conn
-	wfInstance     nats.KeyValue
-	wf             nats.KeyValue
-	job            nats.KeyValue
-	concurrency    int
+	js               nats.JetStreamContext
+	SvcTasks         map[string]ServiceFn
+	con              *nats.Conn
+	complete         chan *model.WorkflowInstanceComplete
+	MsgSender        map[string]SenderFn
+	storageType      nats.StorageType
+	ns               string
+	listenTasks      map[string]struct{}
+	msgListenTasks   map[string]struct{}
+	proCompleteTasks map[string]ProcessTerminateFn
+	txJS             nats.JetStreamContext
+	txCon            *nats.Conn
+	wfInstance       nats.KeyValue
+	wf               nats.KeyValue
+	job              nats.KeyValue
+	concurrency      int
 }
 
 // Option represents a configuration changer for the client.
@@ -109,13 +114,14 @@ type Option interface {
 // New creates a new SHAR client instance
 func New(option ...Option) *Client {
 	client := &Client{
-		storageType:    nats.FileStorage,
-		SvcTasks:       make(map[string]ServiceFn),
-		MsgSender:      make(map[string]SenderFn),
-		listenTasks:    make(map[string]struct{}),
-		msgListenTasks: make(map[string]struct{}),
-		ns:             "default",
-		concurrency:    10,
+		storageType:      nats.FileStorage,
+		SvcTasks:         make(map[string]ServiceFn),
+		MsgSender:        make(map[string]SenderFn),
+		listenTasks:      make(map[string]struct{}),
+		msgListenTasks:   make(map[string]struct{}),
+		proCompleteTasks: make(map[string]ProcessTerminateFn),
+		ns:               "default",
+		concurrency:      10,
 	}
 	for _, i := range option {
 		i.configure(client)
@@ -155,6 +161,20 @@ func (c *Client) Dial(natsURL string, opts ...nats.Option) error {
 	if c.job, err = js.KeyValue("WORKFLOW_JOB"); err != nil {
 		return fmt.Errorf("failed to connect to workflow job kv: %w", err)
 	}
+
+	cdef := &nats.ConsumerConfig{
+		Durable:         "ProcessTerminateConsumer_" + c.ns,
+		Description:     "Processing queue for process end",
+		AckPolicy:       nats.AckExplicitPolicy,
+		AckWait:         30 * time.Second,
+		FilterSubject:   subj.NS(messages.WorkflowProcessTerminated, c.ns),
+		MaxAckPending:   65535,
+		MaxRequestBatch: 1,
+	}
+	if err := setup.EnsureConsumer(js, "WORKFLOW", cdef); err != nil {
+		return fmt.Errorf("setting up end event queue")
+	}
+
 	return nil
 }
 
@@ -191,7 +211,7 @@ func (c *Client) Listen(ctx context.Context) error {
 	if err := c.listen(ctx); err != nil {
 		return c.clientErr(ctx, err)
 	}
-	if err := c.listenWorkflowComplete(ctx); err != nil {
+	if err := c.listenProcessTerminate(ctx); err != nil {
 		return c.clientErr(ctx, err)
 	}
 	return nil
@@ -332,26 +352,25 @@ func (c *Client) listen(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) listenWorkflowComplete(ctx context.Context) error {
-	log := slog.FromContext(ctx)
-	_, err := c.con.Subscribe(subj.NS(messages.WorkflowInstanceTerminated, c.ns), func(msg *nats.Msg) {
+func (c *Client) listenProcessTerminate(ctx context.Context) error {
+	closer := make(chan struct{})
+	err := common.Process(ctx, c.js, "ProcessTerminateConsumer_"+c.ns, closer, subj.NS(messages.WorkflowProcessTerminated, c.ns), "ProcessTerminateConsumer_"+c.ns, 4, func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
 		st := &model.WorkflowState{}
 		if err := proto.Unmarshal(msg.Data, st); err != nil {
 			log.Error("proto unmarshal error", err)
-			return
+			return true, err
 		}
-
-		if c.complete != nil {
-			c.complete <- &model.WorkflowInstanceComplete{
-				WorkflowInstanceId: st.WorkflowInstanceId,
-				WorkflowId:         st.WorkflowId,
-				WorkflowState:      st.State,
-				Error:              st.Error,
-			}
+		v, err := vars.Decode(ctx, st.Vars)
+		if err != nil {
+			return true, err
 		}
+		if fn, ok := c.proCompleteTasks[st.ProcessName]; ok {
+			fn(ctx, v, st.Error, st.State)
+		}
+		return true, nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed to subscribe to workflow termination: %w", err)
+		return fmt.Errorf("listen workflow complete process: %w", err)
 	}
 	return nil
 }
@@ -608,9 +627,9 @@ func (c *Client) clientErr(_ context.Context, err error) error {
 	return fmt.Errorf("client error: %w", err)
 }
 
-// RegisterWorkflowInstanceComplete registers a function to run when workflow instances complete.
-func (c *Client) RegisterWorkflowInstanceComplete(fn chan *model.WorkflowInstanceComplete) {
-	c.complete = fn
+func (c *Client) RegisterProcessComplete(processName string, fn ProcessTerminateFn) error {
+	c.proCompleteTasks[processName] = fn
+	return nil
 }
 
 // GetServerInstanceStats is an unsupported function to obtain server metrics

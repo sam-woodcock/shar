@@ -10,10 +10,12 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestUnhandledError(t *testing.T) {
 	tst := &support.Integration{}
+	tst.WithTrace = true
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
@@ -38,7 +40,7 @@ func TestUnhandledError(t *testing.T) {
 		panic(err)
 	}
 
-	d := &testErrorUnhandledHandlerDef{}
+	d := &testErrorUnhandledHandlerDef{finished: make(chan struct{})}
 
 	// Register a service task
 	err = cl.RegisterServiceTask(ctx, "couldThrowError", d.mayFail)
@@ -46,11 +48,10 @@ func TestUnhandledError(t *testing.T) {
 	err = cl.RegisterServiceTask(ctx, "fixSituation", d.fixSituation)
 	require.NoError(t, err)
 	// A hook to watch for completion
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-	cl.RegisterWorkflowInstanceComplete(complete)
+	cl.RegisterProcessComplete("Process_07lm3kx", d.processEnd)
 
 	// Launch the workflow
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "TestUnhandledError", model.Vars{})
+	_, _, err = cl.LaunchWorkflow(ctx, "TestUnhandledError", model.Vars{})
 	if err != nil {
 		panic(err)
 	}
@@ -64,11 +65,12 @@ func TestUnhandledError(t *testing.T) {
 	}()
 
 	// wait for the workflow to complete
-	tst.AwaitWorkflowComplete(t, complete, wfiID)
+	support.WaitForChan(t, d.finished, 20*time.Second)
 	tst.AssertCleanKV()
 }
 
 type testErrorUnhandledHandlerDef struct {
+	finished chan struct{}
 }
 
 // A "Hello World" service task
@@ -82,4 +84,8 @@ func (d *testErrorUnhandledHandlerDef) fixSituation(_ context.Context, _ client.
 	fmt.Println("Fixing")
 	fmt.Println("carried", vars["carried"])
 	return model.Vars{}, nil
+}
+
+func (d *testErrorUnhandledHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	close(d.finished)
 }

@@ -19,6 +19,8 @@ import (
 	"time"
 )
 
+const EphemeralConsumer = "EPHEMERAL_CONSUMER_CONFIG"
+
 // NatsConn is the trimmad down NATS Connection interface that only emcompasses the methods used by SHAR
 type NatsConn interface {
 	JetStream(opts ...nats.JSOpt) (nats.JetStreamContext, error)
@@ -199,6 +201,9 @@ func Process(ctx context.Context, js nats.JetStreamContext, traceName string, cl
 		conInfo, err := js.ConsumerInfo("WORKFLOW", durable)
 		if conInfo.Config.Durable == "" || err != nil {
 			return fmt.Errorf("durable consumer '%s' is not explicity configured", durable)
+		}
+		if conInfo.Config.Durable == EphemeralConsumer {
+			conInfo.Config.Durable = ""
 		}
 	}
 	sub, err := js.PullSubscribe(subject, durable)
