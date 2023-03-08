@@ -168,7 +168,13 @@ func (s *SharServer) cancelWorkflowInstance(ctx context.Context, req *model.Canc
 	if err2 != nil {
 		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
-	err := s.engine.CancelWorkflowInstance(ctx, instance.WorkflowInstanceId, req.State, req.Error)
+	// TODO: get working state here
+	state := &model.WorkflowState{
+		WorkflowInstanceId: instance.WorkflowInstanceId,
+		State:              req.State,
+		Error:              req.Error,
+	}
+	err := s.engine.CancelWorkflowInstance(ctx, state)
 	if err != nil {
 		return nil, fmt.Errorf("failed to cancel workflow instance kv: %w", err)
 	}
@@ -235,7 +241,15 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		if err := s.ns.PublishWorkflowState(ctx, subj.NS(messages.WorkflowJobServiceTaskAbort, "default"), job); err != nil {
 			return nil, fmt.Errorf("failed to cencel job: %w", werr)
 		}
-		if _, err := s.cancelWorkflowInstance(ctx, &model.CancelWorkflowInstanceRequest{Id: job.WorkflowInstanceId, State: model.CancellationState_errored}); err != nil {
+
+		cancelState := common.CopyWorkflowState(job)
+		cancelState.State = model.CancellationState_errored
+		cancelState.Error = &model.Error{
+			Id:   "UNKNOWN",
+			Name: "UNKNOWN",
+			Code: req.ErrorCode,
+		}
+		if err := s.engine.CancelWorkflowInstance(ctx, cancelState); err != nil {
 			return nil, fmt.Errorf("failed to cancel workflow instance: %w", werr)
 		}
 		return nil, fmt.Errorf("workflow halted: %w", werr)

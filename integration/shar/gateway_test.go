@@ -13,6 +13,7 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestExclusiveParse(t *testing.T) {
@@ -35,7 +36,6 @@ func TestExclusiveParse(t *testing.T) {
 }
 
 func TestNestedExclusiveParse(t *testing.T) {
-
 	// Load BPMN workflow
 	b, err := os.ReadFile("../../testdata/gateway-multi-exclusive-out-and-in-test.bpmn")
 	require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestNestedExclusiveParse(t *testing.T) {
 
 func TestExclusiveRun(t *testing.T) {
 	tst := &support.Integration{}
-	//	tst.WithTrace = true
+	tst.WithTrace = true
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
@@ -70,19 +70,19 @@ func TestExclusiveRun(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "ExclusiveGatewayTest", b)
 	require.NoError(t, err)
 
-	err = cl.RegisterServiceTask(ctx, "stage1", stage1)
-	require.NoError(t, err)
-	err = cl.RegisterServiceTask(ctx, "stage2", stage2)
-	require.NoError(t, err)
-	err = cl.RegisterServiceTask(ctx, "stage3", stage3)
-	require.NoError(t, err)
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
+	g := &gatewayTest{finished: make(chan struct{})}
 
-	// Register a service task
-	cl.RegisterWorkflowInstanceComplete(complete)
+	err = cl.RegisterServiceTask(ctx, "stage1", g.stage1)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "stage2", g.stage2)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "stage3", g.stage3)
+	require.NoError(t, err)
 
+	err = cl.RegisterProcessComplete("Process_0ljss15", g.processEnd)
+	require.NoError(t, err)
 	// Launch the workflow
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "ExclusiveGatewayTest", model.Vars{"carried": 32768})
+	_, _, err = cl.LaunchWorkflow(ctx, "ExclusiveGatewayTest", model.Vars{"carried": 32768})
 	require.NoError(t, err)
 
 	// Listen for service tasks
@@ -90,8 +90,8 @@ func TestExclusiveRun(t *testing.T) {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
-	fmt.Println("Awaiting ", wfiID)
-	tst.AwaitWorkflowComplete(t, complete, wfiID)
+
+	support.WaitForChan(t, g.finished, time.Second*20)
 	tst.AssertCleanKV()
 
 }
@@ -117,19 +117,18 @@ func TestInclusiveRun(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "InclusiveGatewayTest", b)
 	require.NoError(t, err)
 
-	err = cl.RegisterServiceTask(ctx, "stage1", stage1)
-	require.NoError(t, err)
-	err = cl.RegisterServiceTask(ctx, "stage2", stage2)
-	require.NoError(t, err)
-	err = cl.RegisterServiceTask(ctx, "stage3", stage3)
-	require.NoError(t, err)
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
+	g := &gatewayTest{finished: make(chan struct{})}
 
-	// Register a service task
-	cl.RegisterWorkflowInstanceComplete(complete)
-
+	err = cl.RegisterServiceTask(ctx, "stage1", g.stage1)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "stage2", g.stage2)
+	require.NoError(t, err)
+	err = cl.RegisterServiceTask(ctx, "stage3", g.stage3)
+	require.NoError(t, err)
+	err = cl.RegisterProcessComplete("Process_0ljss15", g.processEnd)
+	require.NoError(t, err)
 	// Launch the workflow
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "InclusiveGatewayTest", model.Vars{"testValue": 32768})
+	_, _, err = cl.LaunchWorkflow(ctx, "InclusiveGatewayTest", model.Vars{"testValue": 32768})
 	require.NoError(t, err)
 
 	// Listen for service tasks
@@ -137,22 +136,31 @@ func TestInclusiveRun(t *testing.T) {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
-	tst.AwaitWorkflowComplete(t, complete, wfiID)
+
+	support.WaitForChan(t, g.finished, 20*time.Second)
 	tst.AssertCleanKV()
 
 }
 
-func stage3(ctx context.Context, jobClient client.JobClient, vars model.Vars) (model.Vars, error) {
+type gatewayTest struct {
+	finished chan struct{}
+}
+
+func (g *gatewayTest) stage3(ctx context.Context, jobClient client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Stage 3")
 	return vars, nil
 }
 
-func stage2(ctx context.Context, jobClient client.JobClient, vars model.Vars) (model.Vars, error) {
+func (g *gatewayTest) stage2(ctx context.Context, jobClient client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Stage 2")
 	return model.Vars{"value2": 2}, nil
 }
 
-func stage1(ctx context.Context, jobClient client.JobClient, vars model.Vars) (model.Vars, error) {
+func (g *gatewayTest) stage1(ctx context.Context, jobClient client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Stage 1")
 	return model.Vars{"value1": 1}, nil
+}
+
+func (g *gatewayTest) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	close(g.finished)
 }

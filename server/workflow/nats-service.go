@@ -19,7 +19,7 @@ type NatsService interface {
 	GetWorkflowVersions(ctx context.Context, workflowName string) (*model.WorkflowVersions, error)
 	CreateWorkflowInstance(ctx context.Context, wfInstance *model.WorkflowInstance) (*model.WorkflowInstance, error)
 	GetWorkflowInstance(ctx context.Context, workflowInstanceID string) (*model.WorkflowInstance, error)
-	XDestroyWorkflowInstance(ctx context.Context, state *model.WorkflowState, cancellationState model.CancellationState, wfError *model.Error) error
+	XDestroyWorkflowInstance(ctx context.Context, state *model.WorkflowState) error
 	GetServiceTaskRoutingKey(ctx context.Context, taskName string) (string, error)
 	GetMessageSenderRoutingKey(ctx context.Context, workflowName string, messageName string) (string, error)
 	GetLatestVersion(ctx context.Context, workflowName string) (string, error)

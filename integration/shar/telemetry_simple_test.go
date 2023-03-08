@@ -13,6 +13,7 @@ import (
 	"golang.org/x/exp/slog"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestSimpleTelemetry(t *testing.T) {
@@ -43,17 +44,15 @@ func TestSimpleTelemetry(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "SimpleWorkflowTest", b)
 	require.NoError(t, err)
 
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-
-	d := &testTelSimpleHandlerDef{t: t}
+	d := &testTelSimpleHandlerDef{t: t, finished: make(chan struct{})}
 
 	// Register a service task
-	cl.RegisterWorkflowInstanceComplete(complete)
 	err = cl.RegisterServiceTask(ctx, "SimpleProcess", d.integrationSimple)
 	require.NoError(t, err)
-
+	err = cl.RegisterProcessComplete("SimpleProcess", d.processEnd)
+	require.NoError(t, err)
 	// Launch the workflow
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{})
+	_, _, err = cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{})
 	require.NoError(t, err)
 
 	// Listen for service tasks
@@ -61,13 +60,14 @@ func TestSimpleTelemetry(t *testing.T) {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
-	tst.AwaitWorkflowComplete(t, complete, wfiID)
+	support.WaitForChan(t, d.finished, 20*time.Second)
 	tel.AssertExpectations(t)
 	tst.AssertCleanKV()
 }
 
 type testTelSimpleHandlerDef struct {
-	t *testing.T
+	t        *testing.T
+	finished chan struct{}
 }
 
 func (d *testTelSimpleHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
@@ -75,4 +75,8 @@ func (d *testTelSimpleHandlerDef) integrationSimple(_ context.Context, _ client.
 	assert.Equal(d.t, 32768, vars["carried"].(int))
 	vars["Success"] = true
 	return vars, nil
+}
+
+func (d *testTelSimpleHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	close(d.finished)
 }

@@ -9,6 +9,8 @@ import (
 	"os"
 )
 
+var finished = make(chan struct{})
+
 func main() {
 	// Create a starting context
 	ctx := context.Background()
@@ -42,11 +44,13 @@ func main() {
 		panic(err)
 	}
 	// A hook to watch for completion
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-	cl.RegisterWorkflowInstanceComplete(complete)
+	err = cl.RegisterProcessComplete("Process_03llwnm", processEnd)
+	if err != nil {
+		panic(err)
+	}
 
 	// Launch the workflow
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "MessageDemo", model.Vars{"orderId": 57})
+	_, _, err = cl.LaunchWorkflow(ctx, "MessageDemo", model.Vars{"orderId": 57})
 	if err != nil {
 		panic(err)
 	}
@@ -60,11 +64,7 @@ func main() {
 	}()
 
 	// wait for the workflow to complete
-	for i := range complete {
-		if i.WorkflowInstanceId == wfiID {
-			break
-		}
-	}
+	<-finished
 }
 
 func step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
@@ -80,4 +80,8 @@ func step2(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, err
 func sendMessage(ctx context.Context, cmd client.MessageClient, _ model.Vars) error {
 	fmt.Println("Sending Message...")
 	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{})
+}
+
+func processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	finished <- struct{}{}
 }

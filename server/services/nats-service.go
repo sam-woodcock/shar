@@ -446,7 +446,7 @@ func (s *NatsService) GetMessageSenderRoutingKey(ctx context.Context, workflowNa
 }
 
 // XDestroyWorkflowInstance terminates a running workflow instance with a cancellation reason and error
-func (s *NatsService) XDestroyWorkflowInstance(ctx context.Context, state *model.WorkflowState, cancellationState model.CancellationState, wfError *model.Error) error {
+func (s *NatsService) XDestroyWorkflowInstance(ctx context.Context, state *model.WorkflowState) error {
 	log := slog.FromContext(ctx)
 	log.Info("destroying workflow instance", slog.String(keys.WorkflowInstanceID, state.WorkflowInstanceId))
 	// Get the workflow instance
@@ -504,14 +504,7 @@ func (s *NatsService) XDestroyWorkflowInstance(ctx context.Context, state *model
 		return s.expectPossibleMissingKey(ctx, "could not update message subscriptions", err)
 	}
 
-	tState := &model.WorkflowState{
-		WorkflowId:         wf.Name,
-		WorkflowInstanceId: wfi.WorkflowInstanceId,
-		State:              cancellationState,
-		Error:              wfError,
-		UnixTimeNano:       time.Now().UnixNano(),
-		WorkflowName:       wf.Name,
-	}
+	tState := common.CopyWorkflowState(state)
 
 	if tState.Error != nil {
 		tState.State = model.CancellationState_errored
@@ -1067,7 +1060,7 @@ func (s *NatsService) processWorkflowEvents(ctx context.Context) error {
 			} else if err != nil {
 				return false, err
 			}
-			if err := s.XDestroyWorkflowInstance(ctx, &job, job.State, job.Error); err != nil {
+			if err := s.XDestroyWorkflowInstance(ctx, &job); err != nil {
 				return false, fmt.Errorf("failed to destroy workflow instance whilst processing workflow events: %w", err)
 			}
 		}
@@ -1656,7 +1649,9 @@ func (s *NatsService) processGeneralAbort(ctx context.Context) error {
 				return false, fmt.Errorf("failed to delete activity during general abort processor: %w", err)
 			}
 		case strings.HasSuffix(msg.Subject, ".State.Workflow.Abort"):
-			if err := s.XDestroyWorkflowInstance(ctx, &state, model.CancellationState_terminated, state.Error); err != nil {
+			abortState := common.CopyWorkflowState(&state)
+			abortState.State = model.CancellationState_terminated
+			if err := s.XDestroyWorkflowInstance(ctx, &state); err != nil {
 				return false, fmt.Errorf("failed to delete workflow during general abort processor: %w", err)
 			}
 		default:

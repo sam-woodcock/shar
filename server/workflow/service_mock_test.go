@@ -745,13 +745,13 @@ func (_m *MockNatsService) StoreWorkflow(ctx context.Context, wf *model.Workflow
 	return r0, r1
 }
 
-// XDestroyWorkflowInstance provides a mock function with given fields: ctx, state, cancellationState, wfError
-func (_m *MockNatsService) XDestroyWorkflowInstance(ctx context.Context, state *model.WorkflowState, cancellationState model.CancellationState, wfError *model.Error) error {
-	ret := _m.Called(ctx, state, cancellationState, wfError)
+// XDestroyWorkflowInstance provides a mock function with given fields: ctx, state
+func (_m *MockNatsService) XDestroyWorkflowInstance(ctx context.Context, state *model.WorkflowState) error {
+	ret := _m.Called(ctx, state)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState, model.CancellationState, *model.Error) error); ok {
-		r0 = rf(ctx, state, cancellationState, wfError)
+	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState) error); ok {
+		r0 = rf(ctx, state)
 	} else {
 		r0 = ret.Error(0)
 	}

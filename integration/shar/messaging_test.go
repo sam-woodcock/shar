@@ -12,6 +12,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 )
 
 //goland:noinspection GoNilness
@@ -25,7 +26,7 @@ func TestMessaging(t *testing.T) {
 	// Create a starting context
 	ctx := context.Background()
 
-	handlers := &testMessagingHandlerDef{wg: sync.WaitGroup{}, tst: tst}
+	handlers := &testMessagingHandlerDef{wg: sync.WaitGroup{}, tst: tst, finished: make(chan struct{})}
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
@@ -39,8 +40,6 @@ func TestMessaging(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestMessaging", b)
 	require.NoError(t, err)
 
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-
 	// Register a service task
 	err = cl.RegisterServiceTask(ctx, "step1", handlers.step1)
 	require.NoError(t, err)
@@ -48,10 +47,11 @@ func TestMessaging(t *testing.T) {
 	require.NoError(t, err)
 	err = cl.RegisterMessageSender(ctx, "TestMessaging", "continueMessage", handlers.sendMessage)
 	require.NoError(t, err)
-	cl.RegisterWorkflowInstanceComplete(complete)
+	err = cl.RegisterProcessComplete("Process_03llwnm", handlers.processEnd)
+	require.NoError(t, err)
 
 	// Launch the workflow
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "TestMessaging", model.Vars{"orderId": 57})
+	_, _, err = cl.LaunchWorkflow(ctx, "TestMessaging", model.Vars{"orderId": 57})
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -61,7 +61,7 @@ func TestMessaging(t *testing.T) {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
-	tst.AwaitWorkflowComplete(t, complete, wfiID)
+	support.WaitForChan(t, handlers.finished, 20*time.Second)
 	tst.Mx.Lock()
 	assert.Equal(t, "carried1value", tst.FinalVars["carried"])
 	assert.Equal(t, "carried2value", tst.FinalVars["carried2"])
@@ -70,8 +70,9 @@ func TestMessaging(t *testing.T) {
 }
 
 type testMessagingHandlerDef struct {
-	wg  sync.WaitGroup
-	tst *support.Integration
+	wg       sync.WaitGroup
+	tst      *support.Integration
+	finished chan struct{}
 }
 
 func (x *testMessagingHandlerDef) step1(ctx context.Context, client client.JobClient, _ model.Vars) (model.Vars, error) {
@@ -99,4 +100,8 @@ func (x *testMessagingHandlerDef) sendMessage(ctx context.Context, client client
 		return fmt.Errorf("failed to send continue message: %w", err)
 	}
 	return nil
+}
+
+func (x *testMessagingHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	close(x.finished)
 }

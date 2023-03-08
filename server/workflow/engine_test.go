@@ -19,7 +19,7 @@ func TestLaunchWorkflow(t *testing.T) {
 
 	eng, svc, wf := setupTestWorkflow(t, "simple-workflow.bpmn")
 
-	process := wf.Process["WorkflowDemo"]
+	process := wf.Process["SimpleProcess"]
 	els := make(map[string]*model.Element)
 	common.IndexProcessElements(process.Elements, els)
 
@@ -40,7 +40,7 @@ func TestLaunchWorkflow(t *testing.T) {
 			WorkflowName:       "TestWorkflow",
 		}, nil)
 
-	svc.On("CreateProcessInstance", mock.AnythingOfType("*context.valueCtx"), "test-workflow-instance-id", "", "", "WorkflowDemo").
+	svc.On("CreateProcessInstance", mock.AnythingOfType("*context.valueCtx"), "test-workflow-instance-id", "", "", "SimpleProcess").
 		Once().
 		Return(&model.ProcessInstance{
 			ProcessInstanceId:  "test-process-instance-id",
@@ -90,7 +90,7 @@ func TestTraversal(t *testing.T) {
 
 	eng, svc, wf := setupTestWorkflow(t, "simple-workflow.bpmn")
 
-	process := wf.Process["WorkflowDemo"]
+	process := wf.Process["SimpleProcess"]
 	els := make(map[string]*model.Element)
 	common.IndexProcessElements(process.Elements, els)
 
@@ -144,7 +144,7 @@ func TestActivityProcessorServiceTask(t *testing.T) {
 
 	eng, svc, wf := setupTestWorkflow(t, "simple-workflow.bpmn")
 
-	process := wf.Process["WorkflowDemo"]
+	process := wf.Process["SimpleProcess"]
 	els := make(map[string]*model.Element)
 	common.IndexProcessElements(process.Elements, els)
 	id := "ljksdadlksajkldkjsakl"

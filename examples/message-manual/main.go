@@ -11,6 +11,8 @@ import (
 
 var cl *client.Client
 
+var finished = make(chan struct{})
+
 func main() {
 	// Create a starting context
 	ctx := context.Background()
@@ -39,12 +41,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	// A hook to watch for completion
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-	cl.RegisterWorkflowInstanceComplete(complete)
+	err = cl.RegisterProcessComplete("Process_03llwnm", processEnd)
+	if err != nil {
+		panic(err)
+	}
 
 	// Launch the workflow
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "MessageManualDemo", model.Vars{"orderId": 57})
+	_, _, err = cl.LaunchWorkflow(ctx, "MessageManualDemo", model.Vars{"orderId": 57})
 	if err != nil {
 		panic(err)
 	}
@@ -58,11 +61,7 @@ func main() {
 	}()
 
 	// wait for the workflow to complete
-	for i := range complete {
-		if i.WorkflowInstanceId == wfiID {
-			break
-		}
-	}
+	<-finished
 }
 
 func step1(ctx context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
@@ -78,4 +77,8 @@ func step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, 
 	fmt.Println("Step 2")
 	fmt.Println(vars["success"])
 	return model.Vars{}, nil
+}
+
+func processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	finished <- struct{}{}
 }

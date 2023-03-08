@@ -10,6 +10,8 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 )
 
+var finished = make(chan struct{})
+
 func main() {
 	// Create a starting context
 	ctx := context.Background()
@@ -42,10 +44,12 @@ func main() {
 	}
 
 	// A hook to watch for completion
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-	cl.RegisterWorkflowInstanceComplete(complete)
+	err = cl.RegisterProcessComplete("Process_03llwnm", processEnd)
+	if err != nil {
+		panic(err)
+	}
 
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "MasterWorkflowDemo", model.Vars{})
+	_, _, err = cl.LaunchWorkflow(ctx, "MasterWorkflowDemo", model.Vars{})
 	if err != nil {
 		panic(err)
 	}
@@ -57,11 +61,7 @@ func main() {
 	}()
 
 	// wait for the workflow to complete
-	for i := range complete {
-		if i.WorkflowInstanceId == wfiID {
-			break
-		}
-	}
+	<-finished
 }
 
 func afterCallingSubProcess(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
@@ -76,4 +76,8 @@ func duringSubProcess(_ context.Context, _ client.JobClient, vars model.Vars) (m
 
 func beforeCallingSubProcess(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	return model.Vars{"x": 1}, nil
+}
+
+func processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	finished <- struct{}{}
 }

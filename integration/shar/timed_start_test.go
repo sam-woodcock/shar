@@ -16,6 +16,7 @@ import (
 
 func TestTimedStart(t *testing.T) {
 	tst := &support.Integration{}
+	tst.WithTrace = true
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
@@ -34,7 +35,7 @@ func TestTimedStart(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TimedStartTest", b)
 	require.NoError(t, err)
 
-	d := &timedStartHandlerDef{tst: tst, t: t}
+	d := &timedStartHandlerDef{tst: tst, t: t, finished: make(chan struct{})}
 
 	// Register a service task
 	err = cl.RegisterServiceTask(ctx, "SimpleProcess", d.integrationSimple)
@@ -44,8 +45,7 @@ func TestTimedStart(t *testing.T) {
 	require.NoError(t, err)
 
 	// A hook to watch for completion
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-	cl.RegisterWorkflowInstanceComplete(complete)
+	cl.RegisterProcessComplete("Process_1hikszy", d.processEnd)
 
 	// Listen for service tasks
 	go func() {
@@ -53,12 +53,9 @@ func TestTimedStart(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	select {
-	case <-time.After(30 * time.Second):
-		assert.Fail(t, "timed out")
-	case <-complete:
+	for i := 1; i <= 3; i++ {
+		support.WaitForChan(t, d.finished, 20*time.Second)
 	}
-
 	d.mx.Lock()
 	defer d.mx.Unlock()
 	assert.Equal(t, 32768, d.tst.FinalVars["carried"])
@@ -68,10 +65,11 @@ func TestTimedStart(t *testing.T) {
 }
 
 type timedStartHandlerDef struct {
-	mx    sync.Mutex
-	count int
-	tst   *support.Integration
-	t     *testing.T
+	mx       sync.Mutex
+	count    int
+	tst      *support.Integration
+	t        *testing.T
+	finished chan struct{}
 }
 
 func (d *timedStartHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
@@ -82,4 +80,8 @@ func (d *timedStartHandlerDef) integrationSimple(_ context.Context, _ client.Job
 	d.tst.FinalVars = vars
 	d.count++
 	return vars, nil
+}
+
+func (d *timedStartHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	d.finished <- struct{}{}
 }
