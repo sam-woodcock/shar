@@ -1770,6 +1770,9 @@ func (s *NatsService) DestroyProcessInstance(ctx context.Context, state *model.W
 			break
 		}
 	}
+	if err := s.PublishWorkflowState(ctx, messages.WorkflowProcessTerminated, state); err != nil {
+		return fmt.Errorf("destroy process instance failed initiaite completing workflow instance: %w", err)
+	}
 	if len(wfi.ProcessInstanceId) == 0 && !lock {
 		if err := s.PublishWorkflowState(ctx, messages.WorkflowInstanceComplete, state); err != nil {
 			return fmt.Errorf("destroy process instance failed initiaite completing workflow instance: %w", err)

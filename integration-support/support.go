@@ -266,22 +266,13 @@ func (s *Integration) GetNats() (*nats.Conn, error) {
 	return con, nil
 }
 
-// AwaitWorkflowComplete - waits for a workflow instance to be completed.
-func (s *Integration) AwaitWorkflowComplete(t *testing.T, complete chan *model.WorkflowInstanceComplete, wfiID string) *model.WorkflowInstanceComplete {
-	finish := make(chan *model.WorkflowInstanceComplete)
-	go func() {
-		// wait for the workflow to complete
-		for i := range complete {
-			if i.WorkflowInstanceId == wfiID {
-				finish <- i
-			}
-		}
-	}()
+// WaitForChan waits for a chan struct{} with a duration timeout.
+func WaitForChan(t *testing.T, c chan struct{}, d time.Duration) {
 	select {
-	case c := <-finish:
-		return c
-	case <-time.After(20 * time.Second):
-		require.Fail(t, "timed out")
-		return nil
+	case <-c:
+		return
+	case <-time.After(d):
+		assert.Fail(t, "timed out waiting for completion")
+		return
 	}
 }

@@ -3,9 +3,12 @@ package setup
 import (
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-version"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common/subj"
+	sharVersion "gitlab.com/shar-workflow/shar/common/version"
 	"gitlab.com/shar-workflow/shar/server/messages"
+	"regexp"
 	"time"
 )
 
@@ -27,7 +30,7 @@ func init() {
 		},
 		{
 			Durable:         "GeneralAbortConsumer",
-			Description:     "Abort workflo instance and activity message queue",
+			Description:     "Abort workflow instance and activity message queue",
 			AckPolicy:       nats.AckExplicitPolicy,
 			AckWait:         30 * time.Second,
 			MaxAckPending:   65535,
@@ -149,35 +152,74 @@ func EnsureWorkflowStream(js nats.JetStreamContext, storageType nats.StorageType
 		Retention: nats.InterestPolicy,
 	}
 
-	if err := ensureStream(js, scfg); err != nil {
+	if err := EnsureStream(js, *scfg); err != nil {
 		return fmt.Errorf("failed to ensure workflow stream: %w", err)
 	}
 	for _, ccfg := range consumerConfig {
-		if err := ensureConsumer(js, "WORKFLOW", ccfg); err != nil {
+		if err := EnsureConsumer(js, "WORKFLOW", *ccfg); err != nil {
 			return fmt.Errorf("failed to ensure consumer during ensure workflow stream: %w", err)
 		}
 	}
 	return nil
 }
 
-func ensureConsumer(js nats.JetStreamContext, streamName string, consumerConfig *nats.ConsumerConfig) error {
-	if _, err := js.ConsumerInfo(streamName, consumerConfig.Durable); errors.Is(err, nats.ErrConsumerNotFound) {
-		if _, err := js.AddConsumer(streamName, consumerConfig); err != nil {
+// EnsureConsumer creates a new consumer appending the current semantic version number to the description.  If the consumer exists and has a previous version, it upgrades it.
+func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig nats.ConsumerConfig) error {
+	if ci, err := js.ConsumerInfo(streamName, consumerConfig.Durable); errors.Is(err, nats.ErrConsumerNotFound) {
+		consumerConfig.Description += " " + sharVersion.Version
+		if _, err := js.AddConsumer(streamName, &consumerConfig); err != nil {
 			return fmt.Errorf("cannot ensure consumer '%s' with subject '%s' : %w", consumerConfig.Name, consumerConfig.FilterSubject, err)
 		}
 	} else if err != nil {
 		return fmt.Errorf("could not ensure consumer: %w", err)
+	} else {
+		if ok := RequiresUpgrade(ci.Config.Description, sharVersion.Version); ok {
+			consumerConfig.Description += " " + sharVersion.Version
+			_, err := js.UpdateConsumer(streamName, &consumerConfig)
+			if err != nil {
+				return fmt.Errorf("ensure stream couldn't update the consumer configuration for %s: %w", consumerConfig.Name, err)
+			}
+		}
 	}
 	return nil
 }
 
-func ensureStream(js nats.JetStreamContext, streamConfig *nats.StreamConfig) error {
-	if _, err := js.StreamInfo(streamConfig.Name); errors.Is(err, nats.ErrStreamNotFound) {
-		if _, err := js.AddStream(streamConfig); err != nil {
+// EnsureStream creates a new stream appending the current semantic version number to the description.  If the stream exists and has a previous version, it upgrades it.
+func EnsureStream(js nats.JetStreamContext, streamConfig nats.StreamConfig) error {
+	if si, err := js.StreamInfo(streamConfig.Name); errors.Is(err, nats.ErrStreamNotFound) {
+		streamConfig.Description += " " + sharVersion.Version
+		if _, err := js.AddStream(&streamConfig); err != nil {
 			return fmt.Errorf("could not add stream: %w", err)
 		}
 	} else if err != nil {
 		return fmt.Errorf("could not ensure stream: %w", err)
+	} else {
+		if ok := RequiresUpgrade(si.Config.Description, sharVersion.Version); ok {
+			streamConfig.Description += " " + sharVersion.Version
+			_, err := js.UpdateStream(&streamConfig)
+			if err != nil {
+				return fmt.Errorf("ensure stream couldn't update the stream configuration: %w", err)
+			}
+		}
 	}
 	return nil
+}
+
+// RequiresUpgrade reads the description on an existing SHAR JetStream object.  It compares this with the running version and returs true if an upgrade is needed.
+func RequiresUpgrade(description string, newVersion string) bool {
+	expr := regexp.MustCompilePOSIX(`([0-9])*\.([0-9])*\.([0-9])*$`)
+
+	if v := expr.FindString(description); len(v) == 0 {
+		return true
+	} else {
+		v1, err := version.NewVersion(v)
+		if err != nil {
+			return true
+		}
+		v2, err := version.NewVersion(newVersion)
+		if err != nil {
+			return true
+		}
+		return v2.GreaterThanOrEqual(v1)
+	}
 }

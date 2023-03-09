@@ -19,7 +19,6 @@ func TestBoundaryTimer(t *testing.T) {
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	d := &testBoundaryTimerDef{
 		tst:      tst,
 		finished: make(chan struct{}),
@@ -94,7 +93,7 @@ func executeBoundaryTimerTest(t *testing.T, d *testBoundaryTimerDef) string {
 	require.NoError(t, err)
 
 	// Register a service task
-	cl.RegisterProcessComplete("PossibleTimeout", d.processEnd)
+
 	err = cl.RegisterServiceTask(ctx, "CanTimeout", d.canTimeout)
 	require.NoError(t, err)
 	err = cl.RegisterServiceTask(ctx, "TimedOut", d.timedOut)
@@ -103,7 +102,8 @@ func executeBoundaryTimerTest(t *testing.T, d *testBoundaryTimerDef) string {
 	require.NoError(t, err)
 	err = cl.RegisterServiceTask(ctx, "NoTimeout", d.noTimeout)
 	require.NoError(t, err)
-
+	err = cl.RegisterProcessComplete("Process_16piog5", d.processEnd)
+	require.NoError(t, err)
 	// Launch the workflow
 	wfiID, _, err := cl.LaunchWorkflow(ctx, "PossibleTimeout", model.Vars{})
 	require.NoError(t, err)

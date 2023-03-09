@@ -45,7 +45,8 @@ func TestTimedStart(t *testing.T) {
 	require.NoError(t, err)
 
 	// A hook to watch for completion
-	cl.RegisterProcessComplete("Process_1hikszy", d.processEnd)
+	err = cl.RegisterProcessComplete("Process_1hikszy", d.processEnd)
+	require.NoError(t, err)
 
 	// Listen for service tasks
 	go func() {

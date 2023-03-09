@@ -55,8 +55,8 @@ func TestMultiWorkflow(t *testing.T) {
 	err = cl.RegisterMessageSender(ctx, "TestMultiWorkflow1", "continueMessage", handlers.sendMessage)
 	require.NoError(t, err)
 
-	cl.RegisterProcessComplete("Process_03llwnm", handlers.processEnd)
-
+	err = cl.RegisterProcessComplete("Process_03llwnm", handlers.processEnd)
+	require.NoError(t, err)
 	// Listen for service tasks
 	go func() {
 		err := cl.Listen(ctx)

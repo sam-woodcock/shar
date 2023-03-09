@@ -46,6 +46,7 @@ func TestLink(t *testing.T) {
 	err = cl.RegisterServiceTask(ctx, "wipeItUp", d.wipeItUp)
 	require.NoError(t, err)
 	err = cl.RegisterProcessComplete("Process_0e9etnb", d.processEnd)
+	require.NoError(t, err)
 
 	// Launch the workflow
 	_, _, err = cl.LaunchWorkflow(ctx, "LinkTest", model.Vars{})

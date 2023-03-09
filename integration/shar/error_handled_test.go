@@ -11,15 +11,13 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestHandledError(t *testing.T) {
 	tst := &support.Integration{}
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
-
-	//sub := tracer.Trace("nats://127.0.0.1:4459")
-	//defer sub.Drain()
 
 	// Create a starting context
 	ctx := context.Background()
@@ -39,7 +37,7 @@ func TestHandledError(t *testing.T) {
 		panic(err)
 	}
 
-	d := errorHandledHandlerDef{tst: tst}
+	d := errorHandledHandlerDef{tst: tst, finished: make(chan struct{})}
 
 	// Register a service task
 	err = cl.RegisterServiceTask(ctx, "couldThrowError", d.mayFail)
@@ -48,11 +46,10 @@ func TestHandledError(t *testing.T) {
 	require.NoError(t, err)
 
 	// A hook to watch for completion
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-	cl.RegisterWorkflowInstanceComplete(complete)
-
+	err = cl.RegisterProcessComplete("Process_07lm3kx", d.processEnd)
+	require.NoError(t, err)
 	// Launch the workflow
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "TestHandleError", model.Vars{})
+	_, _, err = cl.LaunchWorkflow(ctx, "TestHandleError", model.Vars{})
 	if err != nil {
 		panic(err)
 	}
@@ -66,13 +63,14 @@ func TestHandledError(t *testing.T) {
 	}()
 
 	// wait for the workflow to complete
-	tst.AwaitWorkflowComplete(t, complete, wfiID)
+	support.WaitForChan(t, d.finished, 20*time.Second)
 	tst.AssertCleanKV()
 }
 
 type errorHandledHandlerDef struct {
-	fixed bool
-	tst   *support.Integration
+	fixed    bool
+	tst      *support.Integration
+	finished chan struct{}
 }
 
 // A "Hello World" service task
@@ -87,4 +85,8 @@ func (d *errorHandledHandlerDef) fixSituation(_ context.Context, _ client.JobCli
 	assert.Equal(d.tst.Test, 32768, vars["carried"])
 	d.fixed = true
 	return model.Vars{}, nil
+}
+
+func (d *errorHandledHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	close(d.finished)
 }

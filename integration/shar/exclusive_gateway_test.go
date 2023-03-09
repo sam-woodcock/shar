@@ -43,6 +43,7 @@ func TestExclusiveGatewayDecision(t *testing.T) {
 	err = cl.RegisterServiceTask(ctx, "ReceiveCommiserations", d.lose)
 	require.NoError(t, err)
 	err = cl.RegisterProcessComplete("Process_1k2x28n", d.processEnd)
+	require.NoError(t, err)
 
 	// Launch the workflow
 	_, _, err = cl.LaunchWorkflow(ctx, "ExclusiveGatewayTest", model.Vars{"carried": 32768})

@@ -37,7 +37,8 @@ func TestStartingVariable(t *testing.T) {
 	// Register a service task
 	err = cl.RegisterServiceTask(ctx, "DummyTask", d.integrationSimple)
 	require.NoError(t, err)
-
+	err = cl.RegisterProcessComplete("", d.processEnd)
+	require.NoError(t, err)
 	// Launch the workflow
 	_, _, err = cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{})
 

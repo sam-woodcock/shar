@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/nats-io/nats.go"
 	"github.com/segmentio/ksuid"
 	"gitlab.com/shar-workflow/shar/client/parser"
@@ -91,7 +90,6 @@ type Client struct {
 	js               nats.JetStreamContext
 	SvcTasks         map[string]ServiceFn
 	con              *nats.Conn
-	complete         chan *model.WorkflowInstanceComplete
 	MsgSender        map[string]SenderFn
 	storageType      nats.StorageType
 	ns               string
@@ -171,7 +169,7 @@ func (c *Client) Dial(natsURL string, opts ...nats.Option) error {
 		MaxAckPending:   65535,
 		MaxRequestBatch: 1,
 	}
-	if err := setup.EnsureConsumer(js, "WORKFLOW", cdef); err != nil {
+	if err := setup.EnsureConsumer(js, "WORKFLOW", *cdef); err != nil {
 		return fmt.Errorf("setting up end event queue")
 	}
 
@@ -353,16 +351,16 @@ func (c *Client) listen(ctx context.Context) error {
 }
 
 func (c *Client) listenProcessTerminate(ctx context.Context) error {
-	closer := make(chan struct{})
+	closer := make(chan struct{}, 1)
 	err := common.Process(ctx, c.js, "ProcessTerminateConsumer_"+c.ns, closer, subj.NS(messages.WorkflowProcessTerminated, c.ns), "ProcessTerminateConsumer_"+c.ns, 4, func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
 		st := &model.WorkflowState{}
 		if err := proto.Unmarshal(msg.Data, st); err != nil {
 			log.Error("proto unmarshal error", err)
-			return true, err
+			return true, fmt.Errorf("listenProcessTerminate unmarshalling proto: %w", err)
 		}
 		v, err := vars.Decode(ctx, st.Vars)
 		if err != nil {
-			return true, err
+			return true, fmt.Errorf("listenProcessTerminate decoding vars: %w", err)
 		}
 		if fn, ok := c.proCompleteTasks[st.ProcessName]; ok {
 			fn(ctx, v, st.Error, st.State)
@@ -568,8 +566,8 @@ func (c *Client) GetProcessInstanceStatus(ctx context.Context, id string) (*mode
 }
 
 func (c *Client) getServiceTaskRoutingID(ctx context.Context, id string) (string, error) {
-	req := &wrappers.StringValue{Value: id}
-	res := &wrappers.StringValue{}
+	req := &wrapperspb.StringValue{Value: id}
+	res := &wrapperspb.StringValue{}
 	if err := callAPI(ctx, c.txCon, messages.APIGetServiceTaskRoutingID, req, res); err != nil {
 		return "", c.clientErr(ctx, err)
 	}
@@ -578,7 +576,7 @@ func (c *Client) getServiceTaskRoutingID(ctx context.Context, id string) (string
 
 func (c *Client) getMessageSenderRoutingID(ctx context.Context, workflowName string, messageName string) (string, error) {
 	req := &model.GetMessageSenderRoutingIdRequest{WorkflowName: workflowName, MessageName: messageName}
-	res := &wrappers.StringValue{}
+	res := &wrapperspb.StringValue{}
 	if err := callAPI(ctx, c.txCon, messages.APIGetMessageSenderRoutingID, req, res); err != nil {
 		return "", c.clientErr(ctx, err)
 	}
@@ -627,6 +625,7 @@ func (c *Client) clientErr(_ context.Context, err error) error {
 	return fmt.Errorf("client error: %w", err)
 }
 
+// RegisterProcessComplete registers a function to be executed when a shar workflow process terminates.
 func (c *Client) RegisterProcessComplete(processId string, fn ProcessTerminateFn) error {
 	c.proCompleteTasks[processId] = fn
 	return nil

@@ -2,6 +2,8 @@ module gitlab.com/shar-workflow/shar
 
 go 1.20
 
+replace github.com/golang/protobuf v1.5.2 => google.golang.org/protobuf v1.28.1
+
 require (
 	github.com/antchfx/xmlquery v1.3.15
 	github.com/antonmedv/expr v1.12.1
@@ -9,7 +11,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/go-logr/logr v1.2.3
 	github.com/golang-jwt/jwt v3.2.2+incompatible
-	github.com/golang/protobuf v1.5.2
 	github.com/nats-io/nats-server/v2 v2.9.14
 	github.com/nats-io/nats.go v1.23.0
 	github.com/pterm/pterm v0.12.54
@@ -79,6 +80,7 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
+	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golangci/check v0.0.0-20180506172741-cfe4005ccda2 // indirect
 	github.com/golangci/dupl v0.0.0-20180902072040-3e9179ac440a // indirect
 	github.com/golangci/go-misc v0.0.0-20220329215616-d24fe342adfe // indirect
