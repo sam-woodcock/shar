@@ -53,7 +53,7 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&flag.Value.Server, flag.Server, flag.ServerShort, nats.DefaultURL, "sets the address of a NATS server")
 	rootCmd.PersistentFlags().StringVarP(&flag.Value.LogLevel, flag.LogLevel, flag.LogLevelShort, "error", "sets the logging level")
-	rootCmd.PersistentFlags().IntVarP(&flag.Value.Concurrency, flag.Server, flag.ServerShort, 10, "sets the address of a NATS server")
+	rootCmd.PersistentFlags().IntVarP(&flag.Value.Concurrency, flag.Concurrency, flag.ConcurrencyShort, 10, "sets the address of a NATS server")
 
 	var lev slog.Level
 	var addSource bool

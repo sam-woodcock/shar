@@ -6,12 +6,19 @@ import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/tools/tracer"
+	zensvr "gitlab.com/shar-workflow/shar/zen-shar/server"
 	"os"
 )
 
 var finished = make(chan struct{})
 
 func main() {
+	ss, ns, err := zensvr.GetServers("127.0.0.1", 4222, 8, nil, nil)
+	defer ss.Shutdown()
+	defer ns.Shutdown()
+	sub := tracer.Trace("127.0.0.1:4222")
+	defer sub.Close()
 	// Create a starting context
 	ctx := context.Background()
 
@@ -50,7 +57,7 @@ func main() {
 	}
 
 	// Launch the workflow
-	_, _, err = cl.LaunchWorkflow(ctx, "MessageDemo", model.Vars{"orderId": 57})
+	_, _, err = cl.LaunchWorkflow(ctx, "MessageDemo", model.Vars{"orderId": 57, "carried": "payload"})
 	if err != nil {
 		panic(err)
 	}
@@ -77,11 +84,12 @@ func step2(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, err
 	return model.Vars{}, nil
 }
 
-func sendMessage(ctx context.Context, cmd client.MessageClient, _ model.Vars) error {
+func sendMessage(ctx context.Context, cmd client.MessageClient, vars model.Vars) error {
 	fmt.Println("Sending Message...")
-	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{})
+	return cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]})
 }
 
 func processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	fmt.Println(vars)
 	finished <- struct{}{}
 }

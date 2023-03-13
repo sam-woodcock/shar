@@ -6,7 +6,10 @@ import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/tools/tracer"
+	zensvr "gitlab.com/shar-workflow/shar/zen-shar/server"
 	"os"
+	"time"
 )
 
 var cl *client.Client
@@ -14,9 +17,13 @@ var cl *client.Client
 var finished = make(chan struct{})
 
 func main() {
+	ss, ns, err := zensvr.GetServers("127.0.0.1", 4222, 8, nil, nil)
+	defer ss.Shutdown()
+	defer ns.Shutdown()
 	// Create a starting context
 	ctx := context.Background()
-
+	sub := tracer.Trace("127.0.0.1:4222")
+	defer sub.Close()
 	// Dial shar
 	cl = client.New()
 	if err := cl.Dial(nats.DefaultURL); err != nil {
@@ -47,7 +54,7 @@ func main() {
 	}
 
 	// Launch the workflow
-	_, _, err = cl.LaunchWorkflow(ctx, "MessageManualDemo", model.Vars{"orderId": 57})
+	_, _, err = cl.LaunchWorkflow(ctx, "MessageManualDemo", model.Vars{"orderId": 57, "carried": 128})
 	if err != nil {
 		panic(err)
 	}
@@ -61,7 +68,12 @@ func main() {
 	}()
 
 	// wait for the workflow to complete
-	<-finished
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		panic("nope")
+
+	}
 }
 
 func step1(ctx context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
