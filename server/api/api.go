@@ -260,6 +260,18 @@ func (s *SharServer) authFromInstanceID(ctx context.Context, instanceID string) 
 	return ctx, wi, nil
 }
 
+func (s *SharServer) authFromProcessInstanceID(ctx context.Context, instanceID string) (context.Context, *model.ProcessInstance, error) {
+	pi, err := s.ns.GetProcessInstance(ctx, instanceID)
+	if err != nil {
+		return ctx, nil, fmt.Errorf("failed to get workflow instance for authorization: %w", err)
+	}
+	ctx, auth := s.authorize(ctx, pi.WorkflowName)
+	if auth != nil {
+		return ctx, nil, fmt.Errorf("failed to authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
+	}
+	return ctx, pi, nil
+}
+
 func (s *SharServer) authForNonWorkflow(ctx context.Context) (context.Context, error) {
 	ctx, auth := s.authorize(ctx, "")
 	if auth != nil {

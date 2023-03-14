@@ -383,11 +383,23 @@ func (s *SharServer) getWorkflowVersions(ctx context.Context, req *model.GetWork
 func (s *SharServer) getWorkflow(ctx context.Context, req *model.GetWorkflowRequest) (*model.GetWorkflowResponse, error) {
 	ctx, err2 := s.authForNonWorkflow(ctx)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
 	ret, err := s.ns.GetWorkflow(ctx, req.Id)
 	if err != nil {
-		return nil, fmt.Errorf("failed get workflow: %w", err)
+		return nil, fmt.Errorf("get workflow: %w", err)
 	}
 	return &model.GetWorkflowResponse{Definition: ret}, nil
+}
+
+func (s *SharServer) getProcessHistory(ctx context.Context, req *model.GetProcessHistoryRequest) (*model.GetProcessHistoryResponse, error) {
+	ctx, _, err := s.authFromProcessInstanceID(ctx, req.Id)
+	if err != nil {
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err)
+	}
+	ret, err := s.ns.GetProcessHistory(ctx, req.Id)
+	if err != nil {
+		return nil, fmt.Errorf("get process history: %w", err)
+	}
+	return &model.GetProcessHistoryResponse{Entry: ret}, nil
 }

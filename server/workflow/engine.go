@@ -240,8 +240,12 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 				if err := c.ns.PublishWorkflowState(ctx, subj.NS(messages.WorkflowProcessExecute, "default"), exec); err != nil {
 					return fmt.Errorf("failed to publish workflow timed process execute: %w", err)
 				}
+				if err := c.ns.RecordHistoryProcessStart(ctx, exec); err != nil {
+					log.Error("start events record process start", err)
+					return fmt.Errorf("failed to publish initial traversal: %w", err)
+				}
 				if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowTraversalExecute, exec); err != nil {
-					log.Error("failed to publish initial traversal", err)
+					log.Error("publish initial traversal", err)
 					return fmt.Errorf("failed to publish initial traversal: %w", err)
 				}
 				return nil
@@ -455,11 +459,16 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 	newState.Id = activityID
 	// tell the world we are going to execute an activity
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowActivityExecute, newState); err != nil {
-		return c.engineErr(ctx, "failed to publish workflow status", err, apErrFields(pi.WorkflowInstanceId, pi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
+		return c.engineErr(ctx, "publish workflow status", err, apErrFields(pi.WorkflowInstanceId, pi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 	}
+	// log this with history
+	if err := c.ns.RecordHistoryActivityExecute(ctx, newState); err != nil {
+		return c.engineErr(ctx, "publish process history", err, apErrFields(pi.WorkflowInstanceId, pi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
+	}
+
 	// tell the world we have safely completed the traversal
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowTraversalComplete, traversal); err != nil {
-		return c.engineErr(ctx, "failed to publish workflow status", err, apErrFields(pi.WorkflowInstanceId, pi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
+		return c.engineErr(ctx, "publish traversal status", err, apErrFields(pi.WorkflowInstanceId, pi.WorkflowId, el.Id, el.Name, el.Type, process.Name)...)
 	}
 
 	//Start any timers
@@ -643,8 +652,11 @@ func (c *Engine) completeActivity(ctx context.Context, state *model.WorkflowStat
 	// tell the world that we processed the activity
 	common.DropStateParams(state)
 	if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowActivityComplete, state); err != nil {
-		return c.engineErr(ctx, "failed to publish workflow cancellationState", err)
+		return c.engineErr(ctx, "publish workflow cancellationState", err)
 		//TODO: report this without process: apErrFields(wfi.WorkflowInstanceId, wfi.WorkflowId, el.Id, el.Name, el.Type, process.Name)
+	}
+	if err := c.ns.RecordHistoryActivityComplete(ctx, state); err != nil {
+		return c.engineErr(ctx, "record history activity complete", &errors.ErrWorkflowFatal{Err: err})
 	}
 	return nil
 }
@@ -1036,7 +1048,7 @@ func (c *Engine) activityCompleteProcessor(ctx context.Context, state *model.Wor
 func (c *Engine) launchProcessor(ctx context.Context, state *model.WorkflowState) error {
 	wf, err := c.ns.GetWorkflow(ctx, state.WorkflowId)
 	if err != nil {
-		return errors.ErrWorkflowFatal{Err: errors.ErrWorkflowNotFound}
+		return &errors.ErrWorkflowFatal{Err: errors.ErrWorkflowNotFound}
 	}
 	els := common.ElementTable(wf)
 	if _, _, err := c.launch(ctx, els[state.ElementId].Execute, state.Id, state.Vars, state.WorkflowInstanceId, state.ElementId); err != nil {
@@ -1103,6 +1115,10 @@ func (c *Engine) timedExecuteProcessor(ctx context.Context, state *model.Workflo
 			if err := c.ns.PublishWorkflowState(ctx, messages.WorkflowProcessExecute, state); err != nil {
 				log.Error("error spawning process", err)
 				return false, 0, nil
+			}
+			if err := c.ns.RecordHistoryProcessStart(ctx, state); err != nil {
+				log.Error("start events record process start", err)
+				return false, 0, fmt.Errorf("failed to publish initial traversal: %w", err)
 			}
 			if err := vars.OutputVars(ctx, newTimer.Vars, &newTimer.Vars, el.OutputTransform); err != nil {
 				log.Error("error merging variables", err)

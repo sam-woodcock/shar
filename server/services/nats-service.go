@@ -62,6 +62,7 @@ type NatsService struct {
 	workflowStats                  *model.WorkflowStats
 	statsMx                        sync.Mutex
 	wfName                         nats.KeyValue
+	wfHistory                      nats.KeyValue
 	publishTimeout                 time.Duration
 	eventActivityCompleteProcessor CompleteActivityProcessorFunc
 	allowOrphanServiceTasks        bool
@@ -173,6 +174,7 @@ func NewNatsService(conn common.NatsConn, txConn common.NatsConn, storageType na
 	kvs[messages.KvVarState] = &ms.wfVarState
 	kvs[messages.KvProcessInstance] = &ms.wfProcessInstance
 	kvs[messages.KvGateway] = &ms.wfGateway
+	kvs[messages.KvHistory] = &ms.wfHistory
 	ks := make([]string, 0, len(kvs))
 	for k := range kvs {
 		ks = append(ks, k)
@@ -1422,7 +1424,7 @@ func (s *NatsService) gatewayExecProcessor(ctx context.Context, log *slog.Logger
 	// Gateway logic
 	wf, err := s.GetWorkflow(ctx, job.WorkflowId)
 	if err != nil {
-		return true, errors.ErrWorkflowFatal{Err: fmt.Errorf("process gateway execute failed: %w", err)}
+		return true, &errors.ErrWorkflowFatal{Err: fmt.Errorf("process gateway execute failed: %w", err)}
 	}
 	els := make(map[string]*model.Element)
 	common.IndexProcessElements(wf.Process[job.ProcessName].Elements, els)
@@ -1452,7 +1454,7 @@ func (s *NatsService) gatewayExecProcessor(ctx context.Context, log *slog.Logger
 	case model.GatewayType_exclusive:
 		nv, err := s.mergeGatewayVars(ctx, gw)
 		if err != nil {
-			return false, fmt.Errorf("failed to merge gateway variables: %w", errors.ErrWorkflowFatal{Err: err})
+			return false, fmt.Errorf("failed to merge gateway variables: %w", &errors.ErrWorkflowFatal{Err: err})
 		}
 		job.Vars = nv
 		if err := s.completeGateway(ctx, &job); err != nil {
@@ -1461,7 +1463,7 @@ func (s *NatsService) gatewayExecProcessor(ctx context.Context, log *slog.Logger
 	case model.GatewayType_inclusive:
 		nv, err := s.mergeGatewayVars(ctx, gw)
 		if err != nil {
-			return false, fmt.Errorf("failed to merge gateway variables: %w", errors.ErrWorkflowFatal{Err: err})
+			return false, fmt.Errorf("failed to merge gateway variables: %w", &errors.ErrWorkflowFatal{Err: err})
 		}
 
 		if len(gw.MetExpectations) >= len(job.GatewayExpectations[gatewayIID].ExpectedPaths) {
@@ -1802,4 +1804,125 @@ func (s *NatsService) SatisfyProcess(ctx context.Context, workflowInstance *mode
 		return fmt.Errorf("failed to satify process: %w", err)
 	}
 	return nil
+}
+
+func (s *NatsService) RecordHistoryProcessStart(ctx context.Context, state *model.WorkflowState) error {
+	e := &model.ProcessHistoryEntry{
+		ItemType:           model.ProcessHistoryType_processExecute,
+		WorkflowId:         &state.WorkflowId,
+		WorkflowInstanceId: &state.WorkflowInstanceId,
+		CancellationState:  &state.State,
+		Vars:               state.Vars,
+		Timer:              state.Timer,
+		Error:              state.Error,
+		UnixTimeNano:       state.UnixTimeNano,
+		Execute:            state.Execute,
+	}
+	ph := &model.ProcessHistory{Item: []*model.ProcessHistoryEntry{e}}
+	if err := common.SaveObj(ctx, s.wfHistory, state.ProcessInstanceId, ph); err != nil {
+		return &errors.ErrWorkflowFatal{Err: fmt.Errorf("recording history for process start: %w", err)}
+	}
+	return nil
+}
+func (s *NatsService) RecordHistoryActivityExecute(ctx context.Context, state *model.WorkflowState) error {
+	e := &model.ProcessHistoryEntry{
+		ItemType:          model.ProcessHistoryType_activityExecute,
+		ElementId:         &state.ElementId,
+		CancellationState: &state.State,
+		Vars:              state.Vars,
+		Timer:             state.Timer,
+		Error:             state.Error,
+		UnixTimeNano:      state.UnixTimeNano,
+		Execute:           state.Execute,
+	}
+	ph := &model.ProcessHistory{}
+	if err := common.UpdateObj(ctx, s.wfHistory, state.ProcessInstanceId, ph, func(v *model.ProcessHistory) (*model.ProcessHistory, error) {
+		v.Item = append(v.Item, e)
+		return v, nil
+	}); err != nil {
+		return &errors.ErrWorkflowFatal{Err: fmt.Errorf("recording history for activity execute: %w", err)}
+	}
+	return nil
+}
+func (s *NatsService) RecordHistoryActivityComplete(ctx context.Context, state *model.WorkflowState) error {
+	e := &model.ProcessHistoryEntry{
+		ItemType:          model.ProcessHistoryType_activityComplete,
+		ElementId:         &state.ElementId,
+		CancellationState: &state.State,
+		Vars:              state.Vars,
+		Timer:             state.Timer,
+		Error:             state.Error,
+		UnixTimeNano:      state.UnixTimeNano,
+	}
+	ph := &model.ProcessHistory{}
+	if err := common.UpdateObj(ctx, s.wfHistory, state.ProcessInstanceId, ph, func(v *model.ProcessHistory) (*model.ProcessHistory, error) {
+		v.Item = append(v.Item, e)
+		return v, nil
+	}); err != nil {
+		return &errors.ErrWorkflowFatal{Err: fmt.Errorf("recording history for ectivity complete: %w", err)}
+	}
+	return nil
+}
+func (s *NatsService) RecordHistoryProcessComplete(ctx context.Context, state *model.WorkflowState) error {
+	e := &model.ProcessHistoryEntry{
+		ItemType:          model.ProcessHistoryType_processComplete,
+		CancellationState: &state.State,
+		Vars:              state.Vars,
+		Timer:             state.Timer,
+		Error:             state.Error,
+		UnixTimeNano:      state.UnixTimeNano,
+	}
+	ph := &model.ProcessHistory{}
+	if err := common.UpdateObj(ctx, s.wfHistory, state.ProcessInstanceId, ph, func(v *model.ProcessHistory) (*model.ProcessHistory, error) {
+		v.Item = append(v.Item, e)
+		return v, nil
+	}); err != nil {
+		return &errors.ErrWorkflowFatal{Err: fmt.Errorf("recording history for process complete: %w", err)}
+	}
+	return nil
+}
+func (s *NatsService) RecordHistoryProcessSpawn(ctx context.Context, state *model.WorkflowState, newProcessInstanceID string) error {
+	e := &model.ProcessHistoryEntry{
+		ItemType:          model.ProcessHistoryType_processSpawnSync,
+		CancellationState: &state.State,
+		Vars:              state.Vars,
+		Timer:             state.Timer,
+		Error:             state.Error,
+		UnixTimeNano:      state.UnixTimeNano,
+	}
+	ph := &model.ProcessHistory{}
+	if err := common.UpdateObj(ctx, s.wfHistory, state.ProcessInstanceId, ph, func(v *model.ProcessHistory) (*model.ProcessHistory, error) {
+		v.Item = append(v.Item, e)
+		return v, nil
+	}); err != nil {
+		return &errors.ErrWorkflowFatal{Err: fmt.Errorf("recording history for process start: %w", err)}
+	}
+	return nil
+}
+
+func (s *NatsService) RecordHistoryProcessAbort(ctx context.Context, state *model.WorkflowState) error {
+	e := &model.ProcessHistoryEntry{
+		ItemType:          model.ProcessHistoryType_processAbort,
+		CancellationState: &state.State,
+		Vars:              state.Vars,
+		Timer:             state.Timer,
+		Error:             state.Error,
+		UnixTimeNano:      state.UnixTimeNano,
+	}
+	ph := &model.ProcessHistory{}
+	if err := common.UpdateObj(ctx, s.wfHistory, state.ProcessInstanceId, ph, func(v *model.ProcessHistory) (*model.ProcessHistory, error) {
+		v.Item = append(v.Item, e)
+		return v, nil
+	}); err != nil {
+		return &errors.ErrWorkflowFatal{Err: fmt.Errorf("recording history for process complete: %w", err)}
+	}
+	return nil
+}
+
+func (s *NatsService) GetProcessHistory(ctx context.Context, processInstanceId string) ([]*model.ProcessHistoryEntry, error) {
+	ph := &model.ProcessHistory{}
+	if err := common.LoadObj(ctx, s.wfHistory, processInstanceId, ph); err != nil {
+		return nil, fmt.Errorf("fetching history for process: %w", err)
+	}
+	return ph.Item, nil
 }

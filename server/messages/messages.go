@@ -126,6 +126,7 @@ const (
 	APIGetProcessInstanceStatus      = "WORKFLOW.Api.GetProcessInstanceStatus"      // APIGetProcessInstanceStatus is the get process instance status API subject.
 	APIGetWorkflowVersions           = "WORKFLOW.Api.GetWorkflowVersions"           // APIGetWorkflowVersions is the get workflow versions API message subject.
 	APIGetWorkflow                   = "WORKFLOW.Api.GetWorkflow"                   // APIGetWorkflow is the get workflow API message subject.
+	APIGetProcessHistory             = "WORKFLOW.Api.GetProcessHistory"             // APIGetProcessHistory is the get process history API message subject.
 )
 
 var (
@@ -146,4 +147,5 @@ var (
 	KvVarState        = "WORKFLOW_VARSTATE"   // KvVarState is the name of the key value store that holds the state of variables upon entering a task.
 	KvProcessInstance = "WORKFLOW_PROCESS"    // KvProcessInstance is the name of the key value store holding process instances.
 	KvGateway         = "WORKFLOW_GATEWAY"    // KvGateway is the name of the key value store holding gateway instances.
+	KvHistory         = "WORKFLOW_HISTORY"    // KvHistory is the name of the key value store holding process histories.
 )

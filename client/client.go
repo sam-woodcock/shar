@@ -641,6 +641,15 @@ func (c *Client) GetServerInstanceStats(ctx context.Context) (*model.WorkflowSta
 	return res, nil
 }
 
+func (c *Client) GetProcessHistory(ctx context.Context, processInstanceId string) (*model.GetProcessHistoryResponse, error) {
+	req := &model.GetProcessHistoryRequest{Id: processInstanceId}
+	res := &model.GetProcessHistoryResponse{}
+	if err := callAPI(ctx, c.txCon, messages.APIGetProcessHistory, req, res); err != nil {
+		return nil, c.clientErr(ctx, err)
+	}
+	return res, nil
+}
+
 func (c *Client) clientLog(ctx context.Context, trackingID string, severity messages.WorkflowLogLevel, code int32, message string, attrs map[string]string) error {
 	if err := common.Log(ctx, c.txJS, trackingID, model.LogSource_logSourceJob, severity, code, message, attrs); err != nil {
 		return fmt.Errorf("failed to client log: %w", err)

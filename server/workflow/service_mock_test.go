@@ -350,6 +350,32 @@ func (_m *MockNatsService) GetOldState(ctx context.Context, id string) (*model.W
 	return r0, r1
 }
 
+// GetProcessHistory provides a mock function with given fields: ctx, processInstanceId
+func (_m *MockNatsService) GetProcessHistory(ctx context.Context, processInstanceId string) ([]*model.ProcessHistoryEntry, error) {
+	ret := _m.Called(ctx, processInstanceId)
+
+	var r0 []*model.ProcessHistoryEntry
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*model.ProcessHistoryEntry, error)); ok {
+		return rf(ctx, processInstanceId)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []*model.ProcessHistoryEntry); ok {
+		r0 = rf(ctx, processInstanceId)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*model.ProcessHistoryEntry)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, processInstanceId)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetProcessInstance provides a mock function with given fields: ctx, processInstanceID
 func (_m *MockNatsService) GetProcessInstance(ctx context.Context, processInstanceID string) (*model.ProcessInstance, error) {
 	ret := _m.Called(ctx, processInstanceID)
@@ -636,6 +662,90 @@ func (_m *MockNatsService) PublishWorkflowState(ctx context.Context, stateName s
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, *model.WorkflowState, ...services.PublishOpt) error); ok {
 		r0 = rf(ctx, stateName, state, ops...)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// RecordHistoryActivityComplete provides a mock function with given fields: ctx, state
+func (_m *MockNatsService) RecordHistoryActivityComplete(ctx context.Context, state *model.WorkflowState) error {
+	ret := _m.Called(ctx, state)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState) error); ok {
+		r0 = rf(ctx, state)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// RecordHistoryActivityExecute provides a mock function with given fields: ctx, state
+func (_m *MockNatsService) RecordHistoryActivityExecute(ctx context.Context, state *model.WorkflowState) error {
+	ret := _m.Called(ctx, state)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState) error); ok {
+		r0 = rf(ctx, state)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// RecordHistoryProcessAbort provides a mock function with given fields: ctx, state
+func (_m *MockNatsService) RecordHistoryProcessAbort(ctx context.Context, state *model.WorkflowState) error {
+	ret := _m.Called(ctx, state)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState) error); ok {
+		r0 = rf(ctx, state)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// RecordHistoryProcessComplete provides a mock function with given fields: ctx, state
+func (_m *MockNatsService) RecordHistoryProcessComplete(ctx context.Context, state *model.WorkflowState) error {
+	ret := _m.Called(ctx, state)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState) error); ok {
+		r0 = rf(ctx, state)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// RecordHistoryProcessSpawn provides a mock function with given fields: ctx, state, newProcessInstanceID
+func (_m *MockNatsService) RecordHistoryProcessSpawn(ctx context.Context, state *model.WorkflowState, newProcessInstanceID string) error {
+	ret := _m.Called(ctx, state, newProcessInstanceID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState, string) error); ok {
+		r0 = rf(ctx, state, newProcessInstanceID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// RecordHistoryProcessStart provides a mock function with given fields: ctx, state
+func (_m *MockNatsService) RecordHistoryProcessStart(ctx context.Context, state *model.WorkflowState) error {
+	ret := _m.Called(ctx, state)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState) error); ok {
+		r0 = rf(ctx, state)
 	} else {
 		r0 = ret.Error(0)
 	}

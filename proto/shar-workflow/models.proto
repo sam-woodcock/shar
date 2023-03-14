@@ -136,6 +136,34 @@ message WorkflowState {
   map<string,GatewayExpectations> gatewayExpectations = 21; // GatewayExpectations - a list of dynamic gateway expectations set during traversing from a divergent gateway with a reciprocal.
 }
 
+enum ProcessHistoryType {
+  processExecute = 0;
+  activityExecute = 1;
+  activityComplete =2;
+  processSpawnSync = 3;
+  processComplete = 4;
+  processAbort = 5;
+  activityAbort = 6;
+}
+
+message ProcessHistoryEntry {
+  ProcessHistoryType itemType = 1;
+  optional string workflowId = 2;
+  optional string workflowInstanceId = 3;
+  optional string elementId = 4;
+  optional string processInstanceId = 5;
+  optional CancellationState cancellationState = 6;
+  bytes vars = 7;
+  optional WorkflowTimer timer = 8;
+  optional Error error = 9;
+  int64 unixTimeNano = 10;
+  optional string execute = 11;
+}
+
+message ProcessHistory {
+  repeated ProcessHistoryEntry item = 1;
+}
+
 message SatisfiesGateway {
   repeated string instanceTracking = 1; // instanceTracking - a list of paths that satisfy the gateway.
 }
@@ -384,6 +412,14 @@ message GetWorkflowRequest {
 
 message GetWorkflowResponse {
   Workflow definition = 1;
+}
+
+message GetProcessHistoryRequest {
+  string Id = 1;
+}
+
+message GetProcessHistoryResponse {
+  repeated ProcessHistoryEntry entry = 1;
 }
 
 message WorkflowStats {

@@ -182,7 +182,10 @@ func Delete(kv nats.KeyValue, key string) error {
 func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names []string) error {
 	for _, i := range names {
 		if _, err := js.KeyValue(i); errors.Is(err, nats.ErrBucketNotFound) {
-			if _, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: i, Storage: storageType}); err != nil {
+			if _, err := js.CreateKeyValue(&nats.KeyValueConfig{
+				Bucket:  i,
+				Storage: storageType,
+			}); err != nil {
 				return fmt.Errorf("failed to ensure buckets: %w", err)
 			}
 		} else if err != nil {

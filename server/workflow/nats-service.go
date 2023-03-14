@@ -52,4 +52,11 @@ type NatsService interface {
 	SatisfyProcess(ctx context.Context, workflowInstance *model.WorkflowInstance, processName string) error
 	GetGatewayInstanceID(state *model.WorkflowState) (string, string, error)
 	GetGatewayInstance(ctx context.Context, gatewayInstanceID string) (*model.Gateway, error)
+	RecordHistoryProcessStart(ctx context.Context, state *model.WorkflowState) error
+	RecordHistoryActivityExecute(ctx context.Context, state *model.WorkflowState) error
+	RecordHistoryProcessAbort(ctx context.Context, state *model.WorkflowState) error
+	RecordHistoryActivityComplete(ctx context.Context, state *model.WorkflowState) error
+	RecordHistoryProcessComplete(ctx context.Context, state *model.WorkflowState) error
+	RecordHistoryProcessSpawn(ctx context.Context, state *model.WorkflowState, newProcessInstanceID string) error
+	GetProcessHistory(ctx context.Context, processInstanceId string) ([]*model.ProcessHistoryEntry, error)
 }
