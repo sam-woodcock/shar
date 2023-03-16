@@ -8,6 +8,7 @@ import (
 	"gitlab.com/shar-workflow/shar/common/ctxkey"
 	"gitlab.com/shar-workflow/shar/common/header"
 	"gitlab.com/shar-workflow/shar/common/logx"
+	"gitlab.com/shar-workflow/shar/server/services/storage"
 	"golang.org/x/exp/slog"
 	"sync"
 
@@ -16,7 +17,6 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/messages"
-	"gitlab.com/shar-workflow/shar/server/services"
 	"gitlab.com/shar-workflow/shar/server/workflow"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
@@ -26,7 +26,7 @@ import (
 
 // SharServer provides API endpoints for SHAR
 type SharServer struct {
-	ns            *services.NatsService
+	ns            *storage.Nats
 	engine        *workflow.Engine
 	subs          *sync.Map
 	panicRecovery bool
@@ -35,13 +35,13 @@ type SharServer struct {
 }
 
 // New creates a new instance of the SHAR API server
-func New(ns *services.NatsService, panicRecovery bool, apiAuthZFn authz.APIFunc, apiAuthNFn authn.Check) (*SharServer, error) {
-	engine, err := workflow.NewEngine(ns)
+func New(ns *storage.Nats, panicRecovery bool, apiAuthZFn authz.APIFunc, apiAuthNFn authn.Check) (*SharServer, error) {
+	engine, err := workflow.New(ns)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create SHAR engine instance: %w", err)
+		return nil, fmt.Errorf("create SHAR engine instance: %w", err)
 	}
 	if err := engine.Start(context.Background()); err != nil {
-		return nil, fmt.Errorf("failed to start SHAR engine: %w", err)
+		return nil, fmt.Errorf("start SHAR engine: %w", err)
 	}
 	return &SharServer{
 		apiAuthZFn:    apiAuthZFn,
@@ -62,7 +62,7 @@ func (s *SharServer) Shutdown() {
 		s.subs.Range(func(key, _ any) bool {
 			sub := key.(*nats.Subscription)
 			if err := sub.Drain(); err != nil {
-				slog.Error("Could not drain subscription for "+sub.Subject, err)
+				slog.Error("drain subscription for "+sub.Subject, err)
 				return false
 			}
 			return true
@@ -122,10 +122,6 @@ func (s *SharServer) Listen() error {
 		return fmt.Errorf("APIGetServiceTaskRoutingID failed: %w", err)
 	}
 
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetMessageSenderRoutingID, &model.GetMessageSenderRoutingIdRequest{}, s.getMessageSenderRoutingID); err != nil {
-		return fmt.Errorf("APIGetMessageSenderRoutingID failed: %w", err)
-	}
-
 	if _, err := listen(con, s.panicRecovery, s.subs, messages.APICompleteSendMessageTask, &model.CompleteSendMessageRequest{}, s.completeSendMessageTask); err != nil {
 		return fmt.Errorf("APICompleteSendMessageTask failed: %w", err)
 	}
@@ -154,7 +150,7 @@ func listen[T proto.Message, U proto.Message](con common.NatsConn, panicRecovery
 		}
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to %s: %w", subject, err)
+		return nil, fmt.Errorf("subscribe to %s: %w", subject, err)
 	}
 	subList.Store(sub, struct{}{})
 	return sub, nil
@@ -166,11 +162,11 @@ func callAPI[T proto.Message, U proto.Message](ctx context.Context, panicRecover
 	}
 	if err := proto.Unmarshal(msg.Data, container); err != nil {
 		errorResponse(msg, codes.InvalidArgument, err.Error())
-		return fmt.Errorf("failed to unmarshal message data during callAPI: %w", err)
+		return fmt.Errorf("unmarshal message data during callAPI: %w", err)
 	}
 	ctx, err := header.FromMsgHeaderToCtx(ctx, msg.Header)
 	if err != nil {
-		return errors2.ErrWorkflowFatal{Err: fmt.Errorf("failed to decode context value from NATS message for API call: %w", err)}
+		return errors2.ErrWorkflowFatal{Err: fmt.Errorf("decode context value from NATS message for API call: %w", err)}
 	}
 	ctx = context.WithValue(ctx, ctxkey.APIFunc, msg.Subject)
 	resMsg, err := fn(ctx, container)
@@ -180,16 +176,16 @@ func callAPI[T proto.Message, U proto.Message](ctx context.Context, panicRecover
 			c = codes.Internal
 		}
 		errorResponse(msg, c, err.Error())
-		return fmt.Errorf("failed during API call: %w", err)
+		return fmt.Errorf("API call: %w", err)
 	}
 	res, err := proto.Marshal(resMsg)
 	if err != nil {
 		errorResponse(msg, codes.InvalidArgument, err.Error())
-		return fmt.Errorf("failed to unmarshal API response: %w", err)
+		return fmt.Errorf("unmarshal API response: %w", err)
 	}
 	if err := msg.Respond(res); err != nil {
 		errorResponse(msg, codes.FailedPrecondition, err.Error())
-		return fmt.Errorf("failed during API response: %w", err)
+		return fmt.Errorf("API response: %w", err)
 	}
 	return nil
 }
@@ -203,7 +199,7 @@ func recoverAPIpanic(msg *nats.Msg) {
 
 func errorResponse(m *nats.Msg, code codes.Code, msg any) {
 	if err := m.Respond(apiError(code, msg)); err != nil {
-		slog.Error("failed to send error response: "+string(apiError(codes.Internal, msg)), err)
+		slog.Error("send error response: "+string(apiError(codes.Internal, msg)), err)
 	}
 }
 
@@ -215,7 +211,7 @@ func (s *SharServer) authorize(ctx context.Context, workflowName string) (contex
 	vals := ctx.Value(header.ContextKey).(header.Values)
 	res, authErr := s.apiAuthNFn(ctx, &model.ApiAuthenticationRequest{Headers: vals})
 	if authErr != nil || !res.Authenticated {
-		return ctx, fmt.Errorf("failed to authenticate: %w", errors2.ErrApiAuthNFail)
+		return ctx, fmt.Errorf("authenticate: %w", errors2.ErrApiAuthNFail)
 	}
 	ctx = context.WithValue(ctx, ctxkey.SharUser, res.User)
 	if s.apiAuthZFn == nil {
@@ -227,7 +223,7 @@ func (s *SharServer) authorize(ctx context.Context, workflowName string) (contex
 		WorkflowName: workflowName,
 		User:         res.User,
 	}); err != nil || !authRes.Authorized {
-		return ctx, fmt.Errorf("failed to authorize: %w", errors2.ErrApiAuthZFail)
+		return ctx, fmt.Errorf("authorize: %w", errors2.ErrApiAuthZFail)
 	}
 	return ctx, nil
 }
@@ -235,15 +231,15 @@ func (s *SharServer) authorize(ctx context.Context, workflowName string) (contex
 func (s *SharServer) authFromJobID(ctx context.Context, trackingID string) (context.Context, *model.WorkflowState, error) {
 	job, err := s.ns.GetJob(ctx, trackingID)
 	if err != nil {
-		return ctx, nil, fmt.Errorf("failed to get job for authorization: %w", err)
+		return ctx, nil, fmt.Errorf("get job for authorization: %w", err)
 	}
 	wi, err := s.ns.GetWorkflowInstance(ctx, job.WorkflowInstanceId)
 	if err != nil {
-		return ctx, nil, fmt.Errorf("failed to get workflow instance for authorization: %w", err)
+		return ctx, nil, fmt.Errorf("get workflow instance for authorization: %w", err)
 	}
 	ctx, auth := s.authorize(ctx, wi.WorkflowName)
 	if auth != nil {
-		return ctx, nil, fmt.Errorf("failed to authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
+		return ctx, nil, fmt.Errorf("authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
 	}
 	return ctx, job, nil
 }
@@ -251,11 +247,11 @@ func (s *SharServer) authFromJobID(ctx context.Context, trackingID string) (cont
 func (s *SharServer) authFromInstanceID(ctx context.Context, instanceID string) (context.Context, *model.WorkflowInstance, error) {
 	wi, err := s.ns.GetWorkflowInstance(ctx, instanceID)
 	if err != nil {
-		return ctx, nil, fmt.Errorf("failed to get workflow instance for authorization: %w", err)
+		return ctx, nil, fmt.Errorf("get workflow instance for authorization: %w", err)
 	}
 	ctx, auth := s.authorize(ctx, wi.WorkflowName)
 	if auth != nil {
-		return ctx, nil, fmt.Errorf("failed to authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
+		return ctx, nil, fmt.Errorf("authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
 	}
 	return ctx, wi, nil
 }
@@ -263,11 +259,11 @@ func (s *SharServer) authFromInstanceID(ctx context.Context, instanceID string) 
 func (s *SharServer) authFromProcessInstanceID(ctx context.Context, instanceID string) (context.Context, *model.ProcessInstance, error) {
 	pi, err := s.ns.GetProcessInstance(ctx, instanceID)
 	if err != nil {
-		return ctx, nil, fmt.Errorf("failed to get workflow instance for authorization: %w", err)
+		return ctx, nil, fmt.Errorf("get workflow instance for authorization: %w", err)
 	}
 	ctx, auth := s.authorize(ctx, pi.WorkflowName)
 	if auth != nil {
-		return ctx, nil, fmt.Errorf("failed to authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
+		return ctx, nil, fmt.Errorf("authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
 	}
 	return ctx, pi, nil
 }
@@ -275,7 +271,7 @@ func (s *SharServer) authFromProcessInstanceID(ctx context.Context, instanceID s
 func (s *SharServer) authForNonWorkflow(ctx context.Context) (context.Context, error) {
 	ctx, auth := s.authorize(ctx, "")
 	if auth != nil {
-		return ctx, fmt.Errorf("failed to authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
+		return ctx, fmt.Errorf("authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
 	}
 	return ctx, nil
 }
@@ -283,7 +279,7 @@ func (s *SharServer) authForNonWorkflow(ctx context.Context) (context.Context, e
 func (s *SharServer) authForNamedWorkflow(ctx context.Context, name string) (context.Context, error) {
 	ctx, auth := s.authorize(ctx, name)
 	if auth != nil {
-		return ctx, fmt.Errorf("failed to authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
+		return ctx, fmt.Errorf("authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
 	}
 	return ctx, nil
 }

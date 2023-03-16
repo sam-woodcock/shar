@@ -1,4 +1,4 @@
-package services
+package storage
 
 type publishOptions struct {
 	Embargo int

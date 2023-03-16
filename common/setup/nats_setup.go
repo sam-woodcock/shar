@@ -52,7 +52,7 @@ func init() {
 			AckPolicy:       nats.AckExplicitPolicy,
 			AckWait:         30 * time.Second,
 			MaxAckPending:   65535,
-			FilterSubject:   subj.NS(messages.WorkflowMessages, "*"),
+			FilterSubject:   subj.NS(messages.WorkflowMessage, "*"),
 			MaxRequestBatch: 1,
 		},
 		{
@@ -136,6 +136,15 @@ func init() {
 			MaxAckPending:   65535,
 			MaxRequestBatch: 1,
 		},
+		{
+			Durable:         "AwaitMessageConsumer",
+			Description:     "Tracking queue for gateway activation",
+			AckPolicy:       nats.AckExplicitPolicy,
+			AckWait:         30 * time.Second,
+			FilterSubject:   subj.NS(messages.WorkflowJobAwaitMessageExecute, "*"),
+			MaxAckPending:   65535,
+			MaxRequestBatch: 1,
+		},
 	}
 	ConsumerDurableNames = make(map[string]struct{}, len(consumerConfig))
 	for _, v := range consumerConfig {
@@ -153,11 +162,11 @@ func EnsureWorkflowStream(js nats.JetStreamContext, storageType nats.StorageType
 	}
 
 	if err := EnsureStream(js, *scfg); err != nil {
-		return fmt.Errorf("failed to ensure workflow stream: %w", err)
+		return fmt.Errorf("ensure workflow stream: %w", err)
 	}
 	for _, ccfg := range consumerConfig {
 		if err := EnsureConsumer(js, "WORKFLOW", *ccfg); err != nil {
-			return fmt.Errorf("failed to ensure consumer during ensure workflow stream: %w", err)
+			return fmt.Errorf("ensure consumer during ensure workflow stream: %w", err)
 		}
 	}
 	return nil
@@ -171,7 +180,7 @@ func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig 
 			return fmt.Errorf("cannot ensure consumer '%s' with subject '%s' : %w", consumerConfig.Name, consumerConfig.FilterSubject, err)
 		}
 	} else if err != nil {
-		return fmt.Errorf("could not ensure consumer: %w", err)
+		return fmt.Errorf("ensure consumer: %w", err)
 	} else {
 		if ok := RequiresUpgrade(ci.Config.Description, sharVersion.Version); ok {
 			consumerConfig.Description += " " + sharVersion.Version
@@ -189,10 +198,10 @@ func EnsureStream(js nats.JetStreamContext, streamConfig nats.StreamConfig) erro
 	if si, err := js.StreamInfo(streamConfig.Name); errors.Is(err, nats.ErrStreamNotFound) {
 		streamConfig.Description += " " + sharVersion.Version
 		if _, err := js.AddStream(&streamConfig); err != nil {
-			return fmt.Errorf("could not add stream: %w", err)
+			return fmt.Errorf("add stream: %w", err)
 		}
 	} else if err != nil {
-		return fmt.Errorf("could not ensure stream: %w", err)
+		return fmt.Errorf("ensure stream: %w", err)
 	} else {
 		if ok := RequiresUpgrade(si.Config.Description, sharVersion.Version); ok {
 			streamConfig.Description += " " + sharVersion.Version

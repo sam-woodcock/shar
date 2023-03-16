@@ -7,11 +7,11 @@ import (
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/services"
+	"gitlab.com/shar-workflow/shar/server/services/storage"
 )
 
 // NatsService is the shar type responsible for interacting with NATS.
 type NatsService interface {
-	AwaitMsg(ctx context.Context, state *model.WorkflowState) error
 	SetTraversalProvider(provider services.TraversalFunc)
 	ListWorkflows(ctx context.Context) (chan *model.ListWorkflowResult, chan error)
 	StoreWorkflow(ctx context.Context, wf *model.Workflow) (string, error)
@@ -21,7 +21,6 @@ type NatsService interface {
 	GetWorkflowInstance(ctx context.Context, workflowInstanceID string) (*model.WorkflowInstance, error)
 	XDestroyWorkflowInstance(ctx context.Context, state *model.WorkflowState) error
 	GetServiceTaskRoutingKey(ctx context.Context, taskName string) (string, error)
-	GetMessageSenderRoutingKey(ctx context.Context, workflowName string, messageName string) (string, error)
 	GetLatestVersion(ctx context.Context, workflowName string) (string, error)
 	CreateJob(ctx context.Context, job *model.WorkflowState) (string, error)
 	GetJob(ctx context.Context, id string) (*model.WorkflowState, error)
@@ -38,8 +37,8 @@ type NatsService interface {
 	DeleteJob(ctx context.Context, trackingID string) error
 	SetCompleteActivityProcessor(processor services.CompleteActivityProcessorFunc)
 	SetLaunchFunc(processor services.LaunchFunc)
-	PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState, ops ...services.PublishOpt) error
-	PublishMessage(ctx context.Context, workflowInstanceID string, name string, key string, vars []byte) error
+	PublishWorkflowState(ctx context.Context, stateName string, state *model.WorkflowState, ops ...storage.PublishOpt) error
+	PublishMessage(ctx context.Context, name string, key string, vars []byte) error
 	Conn() common.NatsConn
 	Shutdown()
 	CloseUserTask(ctx context.Context, trackingID string) error

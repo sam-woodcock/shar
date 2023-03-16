@@ -37,14 +37,14 @@ func run(cmd *cobra.Command, args []string) error {
 	if len(flag.Value.Vars) > 0 {
 		vars, err = valueparsing.Parse(flag.Value.Vars)
 		if err != nil {
-			return fmt.Errorf("failed to parse flags: %w", err)
+			return fmt.Errorf("parse flags: %w", err)
 		}
 	}
 
 	ctx := context.Background()
 	shar := client.New()
 	if err := shar.Dial(flag.Value.Server); err != nil {
-		return fmt.Errorf("error dialling server: %w", err)
+		return fmt.Errorf("dialling server: %w", err)
 	}
 	wfiID, wfID, err := shar.LaunchWorkflow(ctx, args[0], *vars)
 	if err != nil {
@@ -84,7 +84,7 @@ func run(cmd *cobra.Command, args []string) error {
 			return true, nil
 		})
 		if err != nil {
-			return fmt.Errorf("error starting debug trace processing: %w", err)
+			return fmt.Errorf("starting debug trace processing: %w", err)
 		}
 
 		for msg := range workflowMessages {
@@ -92,8 +92,8 @@ func run(cmd *cobra.Command, args []string) error {
 			err := proto.Unmarshal(msg.Data, &state)
 			if err != nil {
 				log := slog.FromContext(ctx)
-				log.Error("unable to unmarshal message", err)
-				return fmt.Errorf("failed to unmarshal status trace message: %w", err)
+				log.Error("unmarshal message", err)
+				return fmt.Errorf("unmarshal status trace message: %w", err)
 			}
 			//if state.WorkflowInstanceId == wfiID {
 			//TODO: Re- implement
@@ -122,7 +122,7 @@ func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig 
 			panic(err)
 		}
 	} else if err != nil {
-		return fmt.Errorf("error ensuring consumer: %w", err)
+		return fmt.Errorf("ensuring consumer: %w", err)
 	}
 	return nil
 }

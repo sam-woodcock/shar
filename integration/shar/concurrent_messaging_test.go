@@ -100,7 +100,7 @@ func (x *testConcurrentMessagingHandlerDef) step2(_ context.Context, _ client.Jo
 
 func (x *testConcurrentMessagingHandlerDef) sendMessage(ctx context.Context, cmd client.MessageClient, vars model.Vars) error {
 	if err := cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]}); err != nil {
-		return fmt.Errorf("failed to send continue message: %w", err)
+		return fmt.Errorf("send continue message: %w", err)
 	}
 	return nil
 }

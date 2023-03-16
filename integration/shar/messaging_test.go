@@ -77,14 +77,14 @@ type testMessagingHandlerDef struct {
 
 func (x *testMessagingHandlerDef) step1(ctx context.Context, client client.JobClient, _ model.Vars) (model.Vars, error) {
 	if err := client.Log(ctx, messages.LogInfo, -1, "Step 1", nil); err != nil {
-		return nil, fmt.Errorf("failed to log: %w", err)
+		return nil, fmt.Errorf("log: %w", err)
 	}
 	return model.Vars{}, nil
 }
 
 func (x *testMessagingHandlerDef) step2(ctx context.Context, client client.JobClient, vars model.Vars) (model.Vars, error) {
 	if err := client.Log(ctx, messages.LogInfo, -1, "Step 2", nil); err != nil {
-		return nil, fmt.Errorf("failed to log: %w", err)
+		return nil, fmt.Errorf("log: %w", err)
 	}
 	x.tst.Mx.Lock()
 	x.tst.FinalVars = vars
@@ -94,10 +94,10 @@ func (x *testMessagingHandlerDef) step2(ctx context.Context, client client.JobCl
 
 func (x *testMessagingHandlerDef) sendMessage(ctx context.Context, client client.MessageClient, vars model.Vars) error {
 	if err := client.Log(ctx, messages.LogDebug, -1, "Sending Message...", nil); err != nil {
-		return fmt.Errorf("failed to log: %w", err)
+		return fmt.Errorf("log: %w", err)
 	}
 	if err := client.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]}); err != nil {
-		return fmt.Errorf("failed to send continue message: %w", err)
+		return fmt.Errorf("send continue message: %w", err)
 	}
 	return nil
 }

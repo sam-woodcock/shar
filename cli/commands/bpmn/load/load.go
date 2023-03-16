@@ -27,12 +27,12 @@ func run(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	b, err := os.ReadFile(args[1])
 	if err != nil {
-		return fmt.Errorf("error reading file: %w", err)
+		return fmt.Errorf("reading file: %w", err)
 	}
 
 	shar := client.New()
 	if err := shar.Dial(flag.Value.Server); err != nil {
-		return fmt.Errorf("error dialling server: %w", err)
+		return fmt.Errorf("dialling server: %w", err)
 	}
 	wn, err := shar.LoadBPMNWorkflowFromBytes(ctx, args[0], b)
 	if err != nil {

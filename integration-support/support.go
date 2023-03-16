@@ -247,11 +247,11 @@ func (s *Integration) Teardown() {
 func (s *Integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:ireturn
 	con, err := s.GetNats()
 	if err != nil {
-		return nil, fmt.Errorf("could not get NATS: %w", err)
+		return nil, fmt.Errorf("get NATS: %w", err)
 	}
 	js, err := con.JetStream()
 	if err != nil {
-		return nil, fmt.Errorf("could not obtain JetStream connection: %w", err)
+		return nil, fmt.Errorf("obtain JetStream connection: %w", err)
 	}
 	return js, nil
 }
@@ -262,7 +262,7 @@ func (s *Integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:i
 func (s *Integration) GetNats() (*nats.Conn, error) {
 	con, err := nats.Connect(s.NatsURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
+		return nil, fmt.Errorf("connect to NATS: %w", err)
 	}
 	return con, nil
 }

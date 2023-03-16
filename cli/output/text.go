@@ -66,7 +66,7 @@ func (c *Text) OutputWorkflowInstanceStatus(workflowInstanceID string, states ma
 	root := putils.TreeFromLeveledList(ll)
 	op, err := pterm.DefaultTree.WithRoot(root).Srender()
 	if err != nil {
-		panic(fmt.Errorf("error during render: %w", err))
+		panic(fmt.Errorf("render: %w", err))
 	}
 	if _, err := Stream.Write([]byte(op)); err != nil {
 		panic(err)

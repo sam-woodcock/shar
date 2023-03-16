@@ -42,7 +42,7 @@ func ParseISO8601(from string) (Duration, error) {
 
 		val, err := strconv.Atoi(part)
 		if err != nil {
-			return d, fmt.Errorf("could not parse '%s' to integer: %w", part, err)
+			return d, fmt.Errorf("parse '%s' to integer: %w", part, err)
 		}
 		switch name {
 		case "year":

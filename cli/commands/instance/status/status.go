@@ -29,11 +29,11 @@ func run(cmd *cobra.Command, args []string) error {
 	instanceID := args[0]
 	shar := client.New()
 	if err := shar.Dial(flag.Value.Server); err != nil {
-		return fmt.Errorf("error dialling server: %w", err)
+		return fmt.Errorf("dialling server: %w", err)
 	}
 	status, err := shar.ListWorkflowInstanceProcesses(ctx, instanceID)
 	if err != nil {
-		return fmt.Errorf("error getting workflow instance status: %w", err)
+		return fmt.Errorf("getting workflow instance status: %w", err)
 	}
 	states := make(map[string][]*model.WorkflowState)
 	for _, i := range status.ProcessInstanceId {

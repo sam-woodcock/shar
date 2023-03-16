@@ -22,20 +22,20 @@ var (
 	ErrBadlyQuotedIdentifier          = errors.New("identifier not correctly quoted")                                                            // ErrBadlyQuotedIdentifier - an identifier was not correctgly formatted.
 	ErrMessageSenderAlreadyRegistered = errors.New("message sender already registered")                                                          // ErrMessageSenderAlreadyRegistered - a message sender with this signature was already registered.
 	ErrServiceTaskAlreadyRegistered   = errors.New("service task already registered")                                                            // ErrServiceTaskAlreadyRegistered - a service task with this signature was already registered.
-	ErrFailedToParseISO8601           = errors.New("could not parse Duration string")                                                            // ErrFailedToParseISO8601 - string cound not be parsed into an ISO 8601 duration.
+	ErrFailedToParseISO8601           = errors.New("parse Duration string")                                                                      // ErrFailedToParseISO8601 - string cound not be parsed into an ISO 8601 duration.
 	ErrBadTimerEventDefinition        = errors.New("found timerEventDefinition, but it had no time or Duration specified")                       // ErrBadTimerEventDefinition - no timer defined of a timer event.
 	ErrBadTimeCycle                   = errors.New("time cycle was not in the correct format")                                                   // ErrBadTimeCycle - time cycle was not specified correctly.
-	ErrCorrelationFail                = errors.New("could not find correlation message")                                                         // ErrCorrelationFail - could not correlate the workflow message.
+	ErrCorrelationFail                = errors.New("find correlation message")                                                                   // ErrCorrelationFail - could not correlate the workflow message.
 	ErrMissingID                      = errors.New("missing id")                                                                                 // ErrMissingID - could not validate the id in the model
 	ErrMissingServiceTaskDefinition   = errors.New("missing service task definition")                                                            // ErrMissingServiceTaskDefinition - could not find the definition for the service task.
-	ErrExtractingVar                  = errors.New("could not extract var")                                                                      // ErrExtractingVar - failod to extract client variable.
+	ErrExtractingVar                  = errors.New("extract var")                                                                                // ErrExtractingVar - failod to extract client variable.
 	ErrExpectedVar                    = errors.New("workflow expects variable")                                                                  // ErrExpectedVar - a variable was expected by workflow that was not provided.
-	ErrCancelFailed                   = errors.New("failed to cancel workflow instance")                                                         // ErrCancelFailed - an attempt to cancel a workflow instance failed.
+	ErrCancelFailed                   = errors.New("cancel workflow instance")                                                                   // ErrCancelFailed - an attempt to cancel a workflow instance failed.
 	ErrInvalidState                   = errors.New("invalid cancellation state")                                                                 // ErrInvalidState - an attempt was made to p[erform an action witrh an invalid cancellation state.
-	ErrApiAuthZFail                   = errors.New("failed to authorize API call")                                                               // ErrApiAuthZFail - an attempt was made to call an API that failed an authorization check.
-	ErrApiAuthNFail                   = errors.New("failed to authenticate API call")                                                            // ErrApiAuthNFail - an attempt was made to call an API that failed an authentication check.
+	ErrApiAuthZFail                   = errors.New("authorize API call")                                                                         // ErrApiAuthZFail - an attempt was made to call an API that failed an authorization check.
+	ErrApiAuthNFail                   = errors.New("authenticate API call")                                                                      // ErrApiAuthNFail - an attempt was made to call an API that failed an authentication check.
 	ErrLint                           = errors.New("linter returned errors")                                                                     // ErrLint - linter returned errors.
-	ErrGatewayInstanceNotFound        = errors.New("failed to find gateway instance")                                                            // ErrGatewayInstanceNotFound - failed to find gateway instance.
+	ErrGatewayInstanceNotFound        = errors.New("find gateway instance")                                                                      // ErrGatewayInstanceNotFound - failed to find gateway instance.
 )
 
 const TraceLevel = -41   // TraceLevel specifies a custom level for trace logging.

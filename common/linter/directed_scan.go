@@ -49,7 +49,7 @@ func directedColouredTraverse(el *model.Element, visited map[string]*model.Eleme
 			}
 		}
 		if target == nil {
-			return fmt.Errorf("failed to find element referred to in %s %s(%s): %w", el.Type, el.Name, el.Id, errors2.New("link references non-existent target"))
+			return fmt.Errorf("find element referred to in %s %s(%s): %w", el.Type, el.Name, el.Id, errors2.New("link references non-existent target"))
 		}
 		targets = append(targets, target.Id)
 	} else if el.Outbound != nil {

@@ -27,13 +27,13 @@ func Eval[T any](ctx context.Context, exp string, vars map[string]interface{}) (
 
 	res, err := expr.Run(ex, vars)
 	if err != nil {
-		return *new(T), fmt.Errorf("failed to evaluate expression: %w", err)
+		return *new(T), fmt.Errorf("evaluate expression: %w", err)
 	}
 
 	defer func() {
 		if err := recover(); err != nil {
 			retval = *new(T)
-			reterr = logx.Err(ctx, "error evaluating expression", &errors2.ErrWorkflowFatal{Err: err.(error)}, "expression", exp)
+			reterr = logx.Err(ctx, "evaluating expression", &errors2.ErrWorkflowFatal{Err: err.(error)}, "expression", exp)
 		}
 	}()
 
@@ -53,18 +53,18 @@ func EvalAny(ctx context.Context, exp string, vars map[string]interface{}) (retv
 	}
 	ex, err := expr.Compile(exp)
 	if err != nil {
-		return nil, logx.Err(ctx, "error compiling expression", &errors2.ErrWorkflowFatal{Err: err}, "expression", exp)
+		return nil, logx.Err(ctx, "compiling expression", &errors2.ErrWorkflowFatal{Err: err}, "expression", exp)
 	}
 
 	res, err := expr.Run(ex, vars)
 	if err != nil {
-		return nil, fmt.Errorf("failed during expression execution: %w", err)
+		return nil, fmt.Errorf("expression execution: %w", err)
 	}
 
 	defer func() {
 		if err := recover(); err != nil {
 			retval = nil
-			reterr = logx.Err(ctx, "error evaluating expression", &errors2.ErrWorkflowFatal{Err: err.(error)}, "expression", exp)
+			reterr = logx.Err(ctx, "evaluating expression", &errors2.ErrWorkflowFatal{Err: err.(error)}, "expression", exp)
 		}
 	}()
 

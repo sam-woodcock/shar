@@ -23,7 +23,7 @@ func Log(ctx context.Context, js nats.JetStream, trackingID string, source model
 	}
 	b, err := proto.Marshal(tl)
 	if err != nil {
-		return fmt.Errorf("could not marshal for shar logging: %w", err)
+		return fmt.Errorf("marshal for shar logging: %w", err)
 	}
 	sub := subj.NS(messages.WorkflowLog, "default") + string(severity)
 	if _, err := js.Publish(sub, b, nats.MsgId(ksuid.New().String()), nats.Context(ctx)); err != nil {

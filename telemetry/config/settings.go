@@ -16,7 +16,7 @@ type Settings struct {
 func GetEnvironment() (*Settings, error) {
 	cfg := &Settings{}
 	if err := env.Parse(cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse environment settings: %w", err)
+		return nil, fmt.Errorf("parse environment settings: %w", err)
 	}
 	return cfg, nil
 }

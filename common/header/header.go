@@ -25,7 +25,7 @@ var ContextKey contextKey = "SHARHeader"
 func FromCtxToMsgHeader(ctx context.Context, header *nats.Header) error {
 	vals := fromCtx(ctx)
 	if err := toMsg(vals, header); err != nil {
-		return fmt.Errorf("failed to set message header: %w", err)
+		return fmt.Errorf("set message header: %w", err)
 	}
 	if cid := ctx.Value(logx.CorrelationContextKey); cid == nil {
 		return errors.ErrMissingCorrelation
@@ -38,7 +38,7 @@ func FromCtxToMsgHeader(ctx context.Context, header *nats.Header) error {
 func FromMsgHeaderToCtx(ctx context.Context, header nats.Header) (context.Context, error) {
 	vals, err := fromMsg(ctx, header)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve message header values: %w", err)
+		return nil, fmt.Errorf("retrieve message header values: %w", err)
 	}
 	ctx = context.WithValue(ctx, logx.CorrelationContextKey, header.Get(logx.CorrelationHeader))
 	return toCtx(ctx, vals), nil
@@ -71,7 +71,7 @@ func fromMsg(ctx context.Context, header nats.Header) (Values, error) {
 	hdr := header.Get(natsSharHeader)
 	bin, err := base64.StdEncoding.DecodeString(hdr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode base 64 header: %w", err)
+		return nil, fmt.Errorf("decode base 64 header: %w", err)
 	}
 	if len(bin) == 0 {
 		return make(Values), nil
@@ -80,7 +80,7 @@ func fromMsg(ctx context.Context, header nats.Header) (Values, error) {
 	m := make(Values)
 	err = dec.Decode(&m)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode gob header: %w", err)
+		return nil, fmt.Errorf("decode gob header: %w", err)
 	}
 	return m, nil
 }
@@ -91,7 +91,7 @@ func toMsg(values Values, header *nats.Header) error {
 	enc := gob.NewEncoder(&buf)
 	err := enc.Encode(values)
 	if err != nil {
-		return fmt.Errorf("failed to encode gob header: %w", err)
+		return fmt.Errorf("encode gob header: %w", err)
 	}
 	b64 := base64.StdEncoding.EncodeToString(buf.Bytes())
 	header.Set(natsSharHeader, b64)

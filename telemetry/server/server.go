@@ -167,7 +167,7 @@ func (s *Server) decodeState(ctx context.Context, msg *nats.Msg) (*model.Workflo
 	state := &model.WorkflowState{}
 	err := proto.Unmarshal(msg.Data, state)
 	if err != nil {
-		log.Error("unable to unmarshal span", err)
+		log.Error("unmarshal span", err)
 		return &model.WorkflowState{}, true, abandon(err)
 	}
 
@@ -191,7 +191,7 @@ func (s *Server) spanEnd(ctx context.Context, name string, state *model.Workflow
 	log := slog.FromContext(ctx)
 	oldState := model.WorkflowState{}
 	if err := common.LoadObj(ctx, s.spanKV, common.TrackingID(state.Id).ID(), &oldState); err != nil {
-		log.Error("Failed to load span state:", err, slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
+		log.Error("load span state:", err, slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
 		return abandon(err)
 	}
 	state.WorkflowInstanceId = oldState.WorkflowInstanceId
@@ -203,7 +203,7 @@ func (s *Server) spanEnd(ctx context.Context, name string, state *model.Workflow
 	state.ElementType = oldState.ElementType
 	state.State = oldState.State
 	if err := s.saveSpan(ctx, name, &oldState, state); err != nil {
-		log.Error("Failed to record span:", err, slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
+		log.Error("record span:", err, slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
 		return fmt.Errorf("save span failed: %w", err)
 	}
 	return nil
@@ -285,7 +285,7 @@ func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.Work
 	err = s.spanKV.Delete(common.TrackingID(oldState.Id).ID())
 	if err != nil {
 		id := common.TrackingID(oldState.Id).ID()
-		log.Warn("Could not delete the cached span", err, slog.String(keys.TrackingID, id))
+		log.Warn("delete the cached span", err, slog.String(keys.TrackingID, id))
 	}
 	return nil
 }
