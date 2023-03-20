@@ -19,7 +19,7 @@ import (
 )
 
 func (s *Nats) listenForTimer(sCtx context.Context, js nats.JetStreamContext, closer chan struct{}, concurrency int) error {
-	log := slog.FromContext(sCtx)
+	log := logx.FromContext(sCtx)
 	subject := subj.NS("WORKFLOW.%s.Timers.>", "*")
 	durable := "workflowTimers"
 	for i := 0; i < concurrency; i++ {
@@ -86,8 +86,8 @@ func (s *Nats) listenForTimer(sCtx context.Context, js nats.JetStreamContext, cl
 				}
 				wi, err := s.hasValidInstance(sCtx, state.WorkflowInstanceId)
 				if errors2.Is(err, errors.ErrWorkflowInstanceNotFound) {
-					log := slog.FromContext(sCtx)
-					log.Log(slog.InfoLevel, "listenForTimer aborted due to a missing instance")
+					log := logx.FromContext(sCtx)
+					log.Log(reqCtx, slog.LevelInfo, "listenForTimer aborted due to a missing instance")
 					continue
 				} else if err != nil {
 					continue

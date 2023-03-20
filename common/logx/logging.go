@@ -50,15 +50,35 @@ func NatsMessageLoggingEntrypoint(ctx context.Context, subsystem string, hdr nat
 	return loggingEntrypoint(ctx, subsystem, cid)
 }
 
+type contextLoggerKey string
+
+var ctxLogKey contextLoggerKey = "__log"
+
 // ContextWith obtains a new logger with an area parameter.  Typically it should be used when obtaining a logger within a programmatic boundary.
 func ContextWith(ctx context.Context, area string) (context.Context, *slog.Logger) {
-	logger := slog.FromContext(ctx).With(AreaLoggingKey, area)
-	return slog.NewContext(ctx, logger), logger
+	logger := FromContext(ctx).With(AreaLoggingKey, area)
+	return NewContext(ctx, logger), logger
+}
+
+func NewContext(ctx context.Context, logger *slog.Logger) context.Context {
+	return context.WithValue(ctx, ctxLogKey, logger)
+}
+
+// ContextWith obtains a new logger with an area parameter.  Typically it should be used when obtaining a logger within a programmatic boundary.
+func FromContext(ctx context.Context) *slog.Logger {
+	var cl *slog.Logger
+	l := ctx.Value(ctxLogKey)
+	if l == nil {
+		cl = slog.Default()
+	} else {
+		cl = l.(*slog.Logger)
+	}
+	return cl
 }
 
 func loggingEntrypoint(ctx context.Context, subsystem string, correlationId string) (context.Context, *slog.Logger) {
-	logger := slog.Default().With(slog.String(SubsystemLoggingKey, subsystem), slog.String(CorrelationLoggingKey, correlationId))
-	ctx = slog.NewContext(ctx, logger)
+	logger := FromContext(ctx).With(slog.String(SubsystemLoggingKey, subsystem), slog.String(CorrelationLoggingKey, correlationId))
+	ctx = NewContext(ctx, logger)
 	ctx = context.WithValue(ctx, CorrelationContextKey, correlationId)
 	return ctx, logger
 }

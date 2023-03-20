@@ -10,6 +10,7 @@ import (
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/element"
 	"gitlab.com/shar-workflow/shar/common/header"
+	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/setup"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/common/workflow"
@@ -365,7 +366,7 @@ func (s *Nats) GetWorkflowVersions(ctx context.Context, workflowName string) (*m
 // CreateWorkflowInstance given a workflow, starts a new workflow instance and returns its ID
 func (s *Nats) CreateWorkflowInstance(ctx context.Context, wfInstance *model.WorkflowInstance) (*model.WorkflowInstance, error) {
 	wfiID := ksuid.New().String()
-	log := slog.FromContext(ctx)
+	log := logx.FromContext(ctx)
 	log.Info("creating workflow instance", slog.String(keys.WorkflowInstanceID, wfiID))
 	wfInstance.WorkflowInstanceId = wfiID
 	wfInstance.ProcessInstanceId = []string{}
@@ -430,7 +431,7 @@ func (s *Nats) GetMessageSenderRoutingKey(ctx context.Context, workflowName stri
 
 // XDestroyWorkflowInstance terminates a running workflow instance with a cancellation reason and error
 func (s *Nats) XDestroyWorkflowInstance(ctx context.Context, state *model.WorkflowState) error {
-	log := slog.FromContext(ctx)
+	log := logx.FromContext(ctx)
 	log.Info("destroying workflow instance", slog.String(keys.WorkflowInstanceID, state.WorkflowInstanceId))
 	// Get the workflow instance
 	wfi := &model.WorkflowInstance{}
@@ -555,7 +556,7 @@ func (s *Nats) DeleteJob(_ context.Context, trackingID string) error {
 
 // ListWorkflowInstance returns a list of running workflows and versions given a workflow ID
 func (s *Nats) ListWorkflowInstance(ctx context.Context, workflowName string) (chan *model.ListWorkflowInstanceResult, chan error) {
-	log := slog.FromContext(ctx)
+	log := logx.FromContext(ctx)
 	errs := make(chan error, 1)
 	wch := make(chan *model.ListWorkflowInstanceResult, 100)
 
@@ -574,7 +575,7 @@ func (s *Nats) ListWorkflowInstance(ctx context.Context, workflowName string) (c
 	if errors2.Is(err, nats.ErrNoKeysFound) {
 		ks = []string{}
 	} else if err != nil {
-		log := slog.FromContext(ctx)
+		log := logx.FromContext(ctx)
 		log.Error("obtaining keys", err)
 		return nil, errs
 	}
@@ -684,7 +685,7 @@ func (s *Nats) PublishWorkflowState(ctx context.Context, stateName string, state
 	}
 
 	if _, err := s.txJS.PublishMsg(msg, nats.Context(pubCtx), nats.MsgId(c.ID)); err != nil {
-		log := slog.FromContext(ctx)
+		log := logx.FromContext(ctx)
 		log.Error("publish message", err, slog.String("nats.msg.id", c.ID), slog.Any("state", state), slog.String("subject", msg.Subject))
 		return fmt.Errorf("publish workflow state message: %w", err)
 	}
@@ -719,8 +720,8 @@ func (s *Nats) processTraversals(ctx context.Context) error {
 		}
 
 		if _, _, err := s.HasValidProcess(ctx, traversal.ProcessInstanceId, traversal.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
-			log := slog.FromContext(ctx)
-			log.Log(slog.InfoLevel, "processTraversals aborted due to a missing process")
+			log := logx.FromContext(ctx)
+			log.Log(ctx, slog.LevelInfo, "processTraversals aborted due to a missing process")
 			return true, nil
 		} else if err != nil {
 			return false, err
@@ -732,7 +733,7 @@ func (s *Nats) processTraversals(ctx context.Context) error {
 				return false, err
 			}
 			if err := s.eventProcessor(ctx, activityID, &traversal, false); errors.IsWorkflowFatal(err) {
-				slog.FromContext(ctx).Error("workflow fatally terminated whilst processing activity", err, slog.String(keys.WorkflowInstanceID, traversal.WorkflowInstanceId), slog.String(keys.WorkflowID, traversal.WorkflowId), err, slog.String(keys.ElementID, traversal.ElementId))
+				logx.FromContext(ctx).Error("workflow fatally terminated whilst processing activity", err, slog.String(keys.WorkflowInstanceID, traversal.WorkflowInstanceId), slog.String(keys.WorkflowID, traversal.WorkflowId), err, slog.String(keys.ElementID, traversal.ElementId))
 				return true, nil
 			} else if err != nil {
 				return false, fmt.Errorf("process event: %w", err)
@@ -788,8 +789,8 @@ func (s *Nats) processCompletedJobs(ctx context.Context) error {
 			return false, fmt.Errorf("unmarshal completed job state: %w", err)
 		}
 		if _, _, err := s.HasValidProcess(ctx, job.ProcessInstanceId, job.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
-			log := slog.FromContext(ctx)
-			log.Log(slog.InfoLevel, "processCompletedJobs aborted due to a missing process")
+			log := logx.FromContext(ctx)
+			log.Log(ctx, slog.LevelInfo, "processCompletedJobs aborted due to a missing process")
 			return true, nil
 		} else if err != nil {
 			return false, err
@@ -878,8 +879,8 @@ func (s *Nats) processWorkflowEvents(ctx context.Context) error {
 		}
 		if strings.HasSuffix(msg.Subject, ".State.Workflow.Complete") {
 			if _, err := s.hasValidInstance(ctx, job.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
-				log := slog.FromContext(ctx)
-				log.Log(slog.InfoLevel, "processWorkflowEvents aborted due to a missing process")
+				log := logx.FromContext(ctx)
+				log.Log(ctx, slog.LevelInfo, "processWorkflowEvents aborted due to a missing process")
 				return true, nil
 			} else if err != nil {
 				return false, err
@@ -908,8 +909,8 @@ func (s *Nats) processActivities(ctx context.Context) error {
 			}
 
 			if _, _, err := s.HasValidProcess(ctx, activity.ProcessInstanceId, activity.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
-				log := slog.FromContext(ctx)
-				log.Log(slog.InfoLevel, "processActivities aborted due to a missing process")
+				log := logx.FromContext(ctx)
+				log.Log(ctx, slog.LevelInfo, "processActivities aborted due to a missing process")
 				return true, nil
 			} else if err != nil {
 				return false, err
@@ -1030,7 +1031,7 @@ func (s *Nats) incrementWorkflowStarted() {
 
 func (s *Nats) expectPossibleMissingKey(ctx context.Context, msg string, err error) error {
 	if errors2.Is(err, nats.ErrKeyNotFound) {
-		log := slog.FromContext(ctx)
+		log := logx.FromContext(ctx)
 		log.Debug(msg, err)
 		return nil
 	}
@@ -1056,8 +1057,8 @@ func (s *Nats) processLaunch(ctx context.Context) error {
 			return false, fmt.Errorf("unmarshal during process launch: %w", err)
 		}
 		if _, _, err := s.HasValidProcess(ctx, job.ProcessInstanceId, job.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
-			log := slog.FromContext(ctx)
-			log.Log(slog.InfoLevel, "processLaunch aborted due to a missing process")
+			log := logx.FromContext(ctx)
+			log.Log(ctx, slog.LevelInfo, "processLaunch aborted due to a missing process")
 			return true, err
 		} else if err != nil {
 			return false, err
@@ -1080,8 +1081,8 @@ func (s *Nats) processJobAbort(ctx context.Context) error {
 			return false, fmt.Errorf("job abort consumer failed to unmarshal state: %w", err)
 		}
 		if _, _, err := s.HasValidProcess(ctx, state.ProcessInstanceId, state.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
-			log := slog.FromContext(ctx)
-			log.Log(slog.InfoLevel, "processJobAbort aborted due to a missing process")
+			log := logx.FromContext(ctx)
+			log.Log(ctx, slog.LevelInfo, "processJobAbort aborted due to a missing process")
 			return true, err
 		} else if err != nil {
 			return false, err
@@ -1111,8 +1112,8 @@ func (s *Nats) processProcessComplete(ctx context.Context) error {
 		}
 		pi, wi, err := s.HasValidProcess(ctx, state.ProcessInstanceId, state.WorkflowInstanceId)
 		if errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
-			log := slog.FromContext(ctx)
-			log.Log(slog.InfoLevel, "processProcessComplete aborted due to a missing process")
+			log := logx.FromContext(ctx)
+			log.Log(ctx, slog.LevelInfo, "processProcessComplete aborted due to a missing process")
 			return true, err
 		} else if err != nil {
 			return false, err

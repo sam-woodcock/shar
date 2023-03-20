@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"golang.org/x/exp/slog"
 
@@ -91,7 +92,7 @@ func run(cmd *cobra.Command, args []string) error {
 			var state = model.WorkflowState{}
 			err := proto.Unmarshal(msg.Data, &state)
 			if err != nil {
-				log := slog.FromContext(ctx)
+				log := logx.FromContext(ctx)
 				log.Error("unmarshal message", err)
 				return fmt.Errorf("unmarshal status trace message: %w", err)
 			}

@@ -9,6 +9,7 @@ import (
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/expression"
 	"gitlab.com/shar-workflow/shar/common/header"
+	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors"
@@ -68,7 +69,7 @@ func (s *Nats) PublishMessage(ctx context.Context, name string, key string, vars
 	defer cancel()
 	id := ksuid.New().String()
 	if _, err := s.txJS.PublishMsg(msg, nats.Context(pubCtx), nats.MsgId(id)); err != nil {
-		log := slog.FromContext(ctx)
+		log := logx.FromContext(ctx)
 		log.Error("publish message", err, slog.String("nats.msg.id", id), slog.Any("msg", sharMsg), slog.String("subject", msg.Subject))
 		return fmt.Errorf("publish message: %w", err)
 	}
@@ -186,8 +187,8 @@ func (s *Nats) awaitMessageProcessor(ctx context.Context, log *slog.Logger, msg 
 		return false, fmt.Errorf("unmarshal during process launch: %w", err)
 	}
 	if _, _, err := s.HasValidProcess(ctx, job.ProcessInstanceId, job.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
-		log := slog.FromContext(ctx)
-		log.Log(slog.InfoLevel, "processLaunch aborted due to a missing process")
+		log := logx.FromContext(ctx)
+		log.Log(ctx, slog.LevelInfo, "processLaunch aborted due to a missing process")
 		return true, err
 	} else if err != nil {
 		return false, err

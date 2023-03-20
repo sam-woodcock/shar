@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors"
@@ -23,8 +24,8 @@ func (s *Nats) processGatewayActivation(ctx context.Context) error {
 			return false, fmt.Errorf("unmarshal completed gateway activation state: %w", err)
 		}
 		if _, _, err := s.HasValidProcess(ctx, job.ProcessInstanceId, job.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
-			log := slog.FromContext(ctx)
-			log.Log(slog.InfoLevel, "processCompletedJobs aborted due to a missing process")
+			log := logx.FromContext(ctx)
+			log.Log(ctx, slog.LevelInfo, "processCompletedJobs aborted due to a missing process")
 			return true, nil
 		} else if err != nil {
 			return false, err
@@ -79,8 +80,8 @@ func (s *Nats) gatewayExecProcessor(ctx context.Context, log *slog.Logger, msg *
 		return false, fmt.Errorf("unmarshal during process launch: %w", err)
 	}
 	if _, _, err := s.HasValidProcess(ctx, job.ProcessInstanceId, job.WorkflowInstanceId); errors2.Is(err, errors.ErrWorkflowInstanceNotFound) || errors2.Is(err, errors.ErrProcessInstanceNotFound) {
-		log := slog.FromContext(ctx)
-		log.Log(slog.InfoLevel, "processLaunch aborted due to a missing process")
+		log := logx.FromContext(ctx)
+		log.Log(ctx, slog.LevelInfo, "processLaunch aborted due to a missing process")
 		return true, err
 	} else if err != nil {
 		return false, err

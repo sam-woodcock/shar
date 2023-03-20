@@ -64,9 +64,9 @@ func updateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []b
 
 // Save saves a value to a key value store
 func Save(ctx context.Context, wf nats.KeyValue, k string, v []byte) error {
-	log := slog.FromContext(ctx)
-	if log.Enabled(errors2.VerboseLevel) {
-		log.Log(errors2.VerboseLevel, "Set KV", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.String("val", string(v)))
+	log := logx.FromContext(ctx)
+	if log.Enabled(ctx, errors2.VerboseLevel) {
+		log.Log(ctx, errors2.VerboseLevel, "Set KV", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.String("val", string(v)))
 	}
 	if _, err := wf.Put(k, v); err != nil {
 		return fmt.Errorf("save kv: %w", err)
@@ -76,9 +76,9 @@ func Save(ctx context.Context, wf nats.KeyValue, k string, v []byte) error {
 
 // Load loads a value from a key value store
 func Load(ctx context.Context, wf nats.KeyValue, k string) ([]byte, error) {
-	log := slog.FromContext(ctx)
-	if log.Enabled(errors2.VerboseLevel) {
-		log.Log(errors2.VerboseLevel, "Get KV", slog.Any("bucket", wf.Bucket()), slog.String("key", k))
+	log := logx.FromContext(ctx)
+	if log.Enabled(ctx, errors2.VerboseLevel) {
+		log.Log(ctx, errors2.VerboseLevel, "Get KV", slog.Any("bucket", wf.Bucket()), slog.String("key", k))
 	}
 	b, err := wf.Get(k)
 	if err == nil {
@@ -89,9 +89,9 @@ func Load(ctx context.Context, wf nats.KeyValue, k string) ([]byte, error) {
 
 // SaveObj save an protobuf message to a key value store
 func SaveObj(ctx context.Context, wf nats.KeyValue, k string, v proto.Message) error {
-	log := slog.FromContext(ctx)
-	if log.Enabled(errors2.TraceLevel) {
-		log.Log(errors2.TraceLevel, "save KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("val", v))
+	log := logx.FromContext(ctx)
+	if log.Enabled(ctx, errors2.TraceLevel) {
+		log.Log(ctx, errors2.TraceLevel, "save KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("val", v))
 	}
 	b, err := proto.Marshal(v)
 	if err == nil {
@@ -102,9 +102,9 @@ func SaveObj(ctx context.Context, wf nats.KeyValue, k string, v proto.Message) e
 
 // LoadObj loads a protobuf message from a key value store
 func LoadObj(ctx context.Context, wf nats.KeyValue, k string, v proto.Message) error {
-	log := slog.FromContext(ctx)
-	if log.Enabled(errors2.TraceLevel) {
-		log.Log(errors2.TraceLevel, "load KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("val", v))
+	log := logx.FromContext(ctx)
+	if log.Enabled(ctx, errors2.TraceLevel) {
+		log.Log(ctx, errors2.TraceLevel, "load KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("val", v))
 	}
 	kv, err := Load(ctx, wf, k)
 	if err != nil {
@@ -118,9 +118,9 @@ func LoadObj(ctx context.Context, wf nats.KeyValue, k string, v proto.Message) e
 
 // UpdateObj saves an protobuf message to a key value store after using updateFN to update the message.
 func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) error {
-	log := slog.FromContext(ctx)
-	if log.Enabled(errors2.TraceLevel) {
-		log.Log(errors2.TraceLevel, "update KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("fn", reflect.TypeOf(updateFn)))
+	log := logx.FromContext(ctx)
+	if log.Enabled(ctx, errors2.TraceLevel) {
+		log.Log(ctx, errors2.TraceLevel, "update KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("fn", reflect.TypeOf(updateFn)))
 	}
 	if oldk, err := wf.Get(k); errors.Is(err, nats.ErrKeyNotFound) || (err == nil && oldk.Value() == nil) {
 		if err := SaveObj(ctx, wf, k, msg); err != nil {
@@ -145,9 +145,9 @@ func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string,
 
 // UpdateObjIsNew saves an protobuf message to a key value store after using updateFN to update the message, and returns true if this is a new value.
 func UpdateObjIsNew[T proto.Message](ctx context.Context, wf nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) (bool, error) {
-	log := slog.FromContext(ctx)
-	if log.Enabled(errors2.TraceLevel) {
-		log.Log(errors2.TraceLevel, "update KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("fn", reflect.TypeOf(updateFn)))
+	log := logx.FromContext(ctx)
+	if log.Enabled(ctx, errors2.TraceLevel) {
+		log.Log(ctx, errors2.TraceLevel, "update KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("fn", reflect.TypeOf(updateFn)))
 	}
 	isNew := false
 	if oldk, err := wf.Get(k); errors.Is(err, nats.ErrKeyNotFound) || (err == nil && oldk.Value() == nil) {
@@ -215,7 +215,7 @@ func EnsureBucket(js nats.JetStreamContext, storageType nats.StorageType, name s
 
 // Process processes messages from a nats consumer and executes a function against each one.
 func Process(ctx context.Context, js nats.JetStreamContext, traceName string, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error)) error {
-	log := slog.FromContext(ctx)
+	log := logx.FromContext(ctx)
 	if !strings.HasPrefix(durable, "ServiceTask_") {
 		conInfo, err := js.ConsumerInfo("WORKFLOW", durable)
 		if conInfo.Config.Durable == "" || err != nil {
@@ -312,27 +312,11 @@ const JSErrCodeStreamWrongLastSequence = 10071
 var lockVal = make([]byte, 0)
 
 func Lock(kv nats.KeyValue, lockID string) (bool, error) {
-	_, err := kv.Get(lockID)
-	var rev uint64
-	if errors.Is(err, nats.ErrKeyNotFound) {
-		var err error
-		rev, err = kv.Put(lockID, lockVal)
-		if err != nil {
-			return false, fmt.Errorf("setting new lock: %w", err)
-		}
+	_, err := kv.Create(lockID, lockVal)
+	if errors.Is(err, nats.ErrKeyExists) {
+		return false, nil
 	} else if err != nil {
 		return false, fmt.Errorf("querying lock: %w", err)
-	} else {
-		return false, nil
-	}
-	_, err = kv.Update(lockID, lockVal, rev)
-	testErr := &nats.APIError{}
-	if errors.As(err, &testErr) {
-		if testErr.ErrorCode == JSErrCodeStreamWrongLastSequence {
-			return false, nil
-		}
-	} else if err != nil {
-		return false, fmt.Errorf("checking lock: %w", err)
 	}
 	return true, nil
 }

@@ -51,14 +51,14 @@ func init() {
 	var addSource bool
 	switch flag.Value.LogLevel {
 	case "debug":
-		lev = slog.DebugLevel
+		lev = slog.LevelDebug
 		addSource = true
 	case "info":
-		lev = slog.InfoLevel
+		lev = slog.LevelInfo
 	case "warn":
-		lev = slog.WarnLevel
+		lev = slog.LevelWarn
 	default:
-		lev = slog.ErrorLevel
+		lev = slog.LevelError
 	}
 	if flag.Value.Json {
 		output.Current = &output.Text{}

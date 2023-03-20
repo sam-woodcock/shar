@@ -62,7 +62,7 @@ func init() {
 		lev = slog.DebugLevel
 		addSource = true
 	case "info":
-		lev = slog.InfoLevel
+		lev = slog.LevelInfo
 	case "warn":
 		lev = slog.WarnLevel
 	default:

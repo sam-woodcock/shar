@@ -19,6 +19,7 @@ import (
 	"gitlab.com/shar-workflow/shar/common/workflow"
 	"gitlab.com/shar-workflow/shar/model"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
+	"gitlab.com/shar-workflow/shar/server/errors/keys"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/vars"
 	"golang.org/x/exp/slog"
@@ -354,12 +355,13 @@ func (c *Client) listenProcessTerminate(ctx context.Context) error {
 			log.Error("proto unmarshal error", err)
 			return true, fmt.Errorf("listenProcessTerminate unmarshalling proto: %w", err)
 		}
-		v, err := vars.Decode(ctx, st.Vars)
+		callCtx := context.WithValue(ctx, keys.ProcessInstanceID, st.ProcessInstanceId)
+		v, err := vars.Decode(callCtx, st.Vars)
 		if err != nil {
 			return true, fmt.Errorf("listenProcessTerminate decoding vars: %w", err)
 		}
 		if fn, ok := c.proCompleteTasks[st.ProcessName]; ok {
-			fn(ctx, v, st.Error, st.State)
+			fn(callCtx, v, st.Error, st.State)
 		}
 		return true, nil
 	})
