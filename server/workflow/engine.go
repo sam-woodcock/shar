@@ -48,9 +48,6 @@ func (c *Engine) Start(ctx context.Context) error {
 	// Start the competed job processor.  This processes any tasks completed by the client.
 	c.ns.SetCompleteJobProcessor(c.completeJobProcessor)
 
-	// Start the message processor.  This processes received intra workflow messages.
-	c.ns.SetMessageCompleteProcessor(c.messageCompleteProcessor)
-
 	// Set traversal function
 	c.ns.SetTraversalProvider(c.traverse)
 
@@ -842,25 +839,6 @@ func (c *Engine) CancelWorkflowInstance(ctx context.Context, state *model.Workfl
 	}
 	if err := c.ns.XDestroyWorkflowInstance(ctx, state); err != nil {
 		return fmt.Errorf("cancel workflow instance failed: %w", errors.ErrCancelFailed)
-	}
-	return nil
-}
-
-func (c *Engine) messageCompleteProcessor(ctx context.Context, state *model.WorkflowState) error {
-	ctx, log := logx.ContextWith(ctx, "engine.messageCompleteProcessor")
-	_, err := c.ns.GetProcessInstance(ctx, state.ProcessInstanceId)
-	if errors2.Is(err, nats.ErrKeyNotFound) {
-		log.Warn("workflow instance not found, cancelling message processing", err, slog.String(keys.WorkflowInstanceID, state.WorkflowInstanceId))
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("message complete processor failed to get the workflow instance: %w", err)
-	}
-
-	completeActivityState := common.CopyWorkflowState(state)
-	completeActivityState.Id = common.TrackingID(state.Id).Pop()
-	log.Info("MessageComplete " + completeActivityState.ElementId)
-	if err := c.completeActivity(ctx, completeActivityState); err != nil {
-		return fmt.Errorf("message complete processor failed to complete the activity: %w", err)
 	}
 	return nil
 }

@@ -29,7 +29,6 @@ type NatsService interface {
 	ListWorkflowInstanceProcesses(ctx context.Context, id string) ([]string, error)
 	StartProcessing(ctx context.Context) error
 	SetEventProcessor(processor services.EventProcessorFunc)
-	SetMessageCompleteProcessor(processor services.MessageCompleteProcessorFunc)
 	SetMessageProcessor(processor services.MessageProcessorFunc)
 	SetCompleteJobProcessor(processor services.CompleteJobProcessorFunc)
 	SetCompleteActivity(processor services.CompleteActivityFunc)

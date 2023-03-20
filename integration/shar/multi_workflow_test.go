@@ -16,10 +16,9 @@ import (
 
 //goland:noinspection GoNilness
 func TestMultiWorkflow(t *testing.T) {
-	tst := &support.Integration{}
+	tst := &support.Integration{Cooldown: 5 * time.Second}
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
-	tst.Cooldown = 5 * time.Second
 	handlers := &testMultiworkflowMessagingHandlerDef{t: t, finished: make(chan struct{})}
 
 	// Create a starting context
@@ -62,7 +61,7 @@ func TestMultiWorkflow(t *testing.T) {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
-	n := 25
+	n := 100
 	mx := sync.Mutex{}
 	instances := make(map[string]struct{})
 	wg := sync.WaitGroup{}

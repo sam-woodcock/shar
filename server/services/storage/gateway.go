@@ -30,7 +30,6 @@ func (s *Nats) processGatewayActivation(ctx context.Context) error {
 			return false, err
 		}
 		gwIID, _, _ := s.GetGatewayInstanceID(&job)
-		fmt.Println("GATEWAY:", gwIID)
 		job.Id = common.TrackingID(job.Id).Push(gwIID)
 		gw := &model.Gateway{}
 		if err := common.LoadObj(ctx, s.wfGateway, gwIID, gw); errors2.Is(err, nats.ErrKeyNotFound) {
@@ -40,7 +39,6 @@ func (s *Nats) processGatewayActivation(ctx context.Context) error {
 				Vars:            [][]byte{job.Vars},
 				Visits:          0,
 			}
-			fmt.Println("Launch job", job.Id)
 			if err := common.SaveObj(ctx, s.job, gwIID, &job); err != nil {
 				return false, fmt.Errorf("%s failed to save job to KV: %w", errors.Fn(), err)
 			}

@@ -26,7 +26,7 @@ func TestMessaging(t *testing.T) {
 	// Create a starting context
 	ctx := context.Background()
 
-	handlers := &testMessagingHandlerDef{wg: sync.WaitGroup{}, tst: tst, finished: make(chan struct{})}
+	handlers := &testMessagingHandlerDef{t: t, wg: sync.WaitGroup{}, tst: tst, finished: make(chan struct{})}
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
@@ -62,10 +62,7 @@ func TestMessaging(t *testing.T) {
 		require.NoError(t, err)
 	}()
 	support.WaitForChan(t, handlers.finished, 20*time.Second)
-	tst.Mx.Lock()
-	assert.Equal(t, "carried1value", tst.FinalVars["carried"])
-	assert.Equal(t, "carried2value", tst.FinalVars["carried2"])
-	tst.Mx.Unlock()
+
 	tst.AssertCleanKV()
 }
 
@@ -73,6 +70,7 @@ type testMessagingHandlerDef struct {
 	wg       sync.WaitGroup
 	tst      *support.Integration
 	finished chan struct{}
+	t        *testing.T
 }
 
 func (x *testMessagingHandlerDef) step1(ctx context.Context, client client.JobClient, _ model.Vars) (model.Vars, error) {
@@ -103,5 +101,8 @@ func (x *testMessagingHandlerDef) sendMessage(ctx context.Context, client client
 }
 
 func (x *testMessagingHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+
+	assert.Equal(x.t, "carried1value", vars["carried"])
+	assert.Equal(x.t, "carried2value", vars["carried2"])
 	close(x.finished)
 }

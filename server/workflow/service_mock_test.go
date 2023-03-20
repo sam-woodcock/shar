@@ -21,20 +21,6 @@ type MockNatsService struct {
 	mock.Mock
 }
 
-// AwaitMsg provides a mock function with given fields: ctx, state
-func (_m *MockNatsService) AwaitMsg(ctx context.Context, state *model.WorkflowState) error {
-	ret := _m.Called(ctx, state)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *model.WorkflowState) error); ok {
-		r0 = rf(ctx, state)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // CloseUserTask provides a mock function with given fields: ctx, trackingID
 func (_m *MockNatsService) CloseUserTask(ctx context.Context, trackingID string) error {
 	ret := _m.Called(ctx, trackingID)

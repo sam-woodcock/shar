@@ -30,7 +30,6 @@ import (
 type Nats struct {
 	js                             nats.JetStreamContext
 	txJS                           nats.JetStreamContext
-	messageCompleteProcessor       services.MessageCompleteProcessorFunc
 	eventProcessor                 services.EventProcessorFunc
 	eventJobCompleteProcessor      services.CompleteJobProcessorFunc
 	traversalFunc                  services.TraversalFunc
@@ -218,7 +217,9 @@ func (s *Nats) StartProcessing(ctx context.Context) error {
 	if err := s.processGatewayExecute(ctx); err != nil {
 		return fmt.Errorf("start gateway execute handler: %w", err)
 	}
-
+	//if err := s.messageKick(ctx); err != nil {
+	//	return fmt.Errorf("starting message kick: %w", err)
+	//}
 	return nil
 }
 
@@ -622,11 +623,6 @@ func (s *Nats) GetProcessInstanceStatus(ctx context.Context, id string) ([]*mode
 // SetEventProcessor sets the callback for processing workflow activities.
 func (s *Nats) SetEventProcessor(processor services.EventProcessorFunc) {
 	s.eventProcessor = processor
-}
-
-// SetMessageCompleteProcessor sets the callback for completed messages.
-func (s *Nats) SetMessageCompleteProcessor(processor services.MessageCompleteProcessorFunc) {
-	s.messageCompleteProcessor = processor
 }
 
 // SetMessageProcessor sets the callback used to create new workflow instances based on a timer.

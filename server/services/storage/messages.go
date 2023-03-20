@@ -16,7 +16,37 @@ import (
 	"gitlab.com/shar-workflow/shar/server/vars"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
+	"time"
 )
+
+func (s *Nats) messageKick(ctx context.Context) error {
+	go func() {
+		select {
+		case <-s.closing:
+			return
+		default:
+
+			for {
+				time.Sleep(1 * time.Second)
+				keys, err := s.wfMessageInterest.Keys()
+				if err != nil {
+					continue
+				}
+				for _, k := range keys {
+					fmt.Println("kick")
+					interest := &model.MessageRecipients{}
+					if err := common.LoadObj(ctx, s.wfMessageInterest, k, interest); err != nil {
+						continue
+					}
+					if err := s.deliverMessageToJobRecipient(ctx, interest.Recipient, k); err != nil {
+						continue
+					}
+				}
+			}
+		}
+	}()
+	return nil
+}
 
 // PublishMessage publishes a workflow message.
 func (s *Nats) PublishMessage(ctx context.Context, name string, key string, vars []byte) error {
@@ -59,12 +89,20 @@ func (s *Nats) processMessage(ctx context.Context, log *slog.Logger, msg *nats.M
 	if err := proto.Unmarshal(msg.Data, instance); err != nil {
 		return false, fmt.Errorf("unmarshal message proto: %w", err)
 	}
+	if msgs, err := s.js.KeyValue(subj.NS("Message_%s_", "default") + instance.Name); err != nil {
+		return false, fmt.Errorf("process message getting message keys: %w", err)
+	} else {
+		if err := common.Save(ctx, msgs, ksuid.New().String(), msg.Data); err != nil {
+			return false, fmt.Errorf("process message saving messaGE: %w", err)
+		}
+	}
 	subs := &model.MessageRecipients{}
-	if err := common.LoadObj(ctx, s.wfMessageInterest, instance.Name, subs); err != nil {
+	if err := common.LoadObj(ctx, s.wfMessageInterest, instance.Name, subs); errors2.Is(err, nats.ErrKeyNotFound) {
 		return true, nil
+	} else if err != nil {
+		return true, err
 	}
 	s.deliverMessageToJobRecipient(ctx, subs.Recipient, instance.Name)
-
 	return true, nil
 }
 
@@ -87,17 +125,21 @@ func (s *Nats) deliverMessageToJobRecipient(ctx context.Context, recipients []*m
 		}
 		for _, r := range recipients {
 			if r.Type == model.RecipientType_job && r.CorrelationKey == m.CorrelationKey {
-				//j := &model.WorkflowState{}
-				if err := common.LoadObj(ctx, s.wfVarState, r.Id, &model.WorkflowState{}); err != nil {
-					return fmt.Errorf("get job for message delivery: %w", err)
-				}
 				if lck, err := common.Lock(s.wfLock, r.Id); err != nil {
-					return fmt.Errorf("delivery obtaining lock: %w", err)
+					slog.Error("delivery obtaining lock: %w", err)
+					continue
 				} else if !lck {
 					continue
 				}
-				if err := s.deliverMessageToJob(ctx, r.Id, m); err != nil {
-					return err
+				if err := s.deliverMessageToJob(ctx, r.Id, m); errors2.Is(err, errors.ErrJobNotFound) {
+				} else if err != nil {
+					slog.Error("delivering message", err)
+					panic(err)
+					continue
+				}
+				if err := common.Delete(msgs, k); err != nil {
+					slog.Error("delivering message", err)
+					panic(err)
 				}
 				if err := common.UnLock(s.wfLock, r.Id); err != nil {
 					return fmt.Errorf("delivery releasing lock: %w", err)
@@ -115,7 +157,7 @@ func (s *Nats) deliverMessageToJob(ctx context.Context, jobID string, instance *
 	} else if err != nil {
 		return err
 	}
-
+	job.Vars = instance.Vars
 	if err := s.PublishWorkflowState(ctx, messages.WorkflowJobAwaitMessageComplete, job); err != nil {
 		return fmt.Errorf("publising complete message job: %w", err)
 	}
@@ -137,6 +179,7 @@ func (s *Nats) processAwaitMessageExecute(ctx context.Context) error {
 	return nil
 }
 
+// awaitMessageProcessor waits for WORKFLOW.*.State.Job.AwaitMessage.Execute job and executes a delivery
 func (s *Nats) awaitMessageProcessor(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
 	job := &model.WorkflowState{}
 	if err := proto.Unmarshal(msg.Data, job); err != nil {
@@ -154,10 +197,7 @@ func (s *Nats) awaitMessageProcessor(ctx context.Context, log *slog.Logger, msg 
 	if err != nil {
 		return false, fmt.Errorf("get message element: %w", err)
 	}
-	//wf := &model.Workflow{}
-	//if err := common.LoadObj(ctx, s.wf, state.WorkflowId, wf); err != nil {
-	//	return fmt.Errorf("loading workflow: %w", err)
-	//}
+
 	vrs, err := vars.Decode(ctx, job.Vars)
 	if err != nil {
 		return false, fmt.Errorf("decoding vars for message correlation: %w", err)
