@@ -29,10 +29,6 @@ func main() {
 		fmt.Printf("Deleted stream WORKFLOW\n")
 	}
 	kvDelete(js,
-		messages.KvMessageID,
-		messages.KvMessageSubs,
-		messages.KvMessageSub,
-		messages.KvMessageName,
 		messages.KvUserTask,
 		messages.KvInstance,
 		messages.KvDefinition,

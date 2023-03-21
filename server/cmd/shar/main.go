@@ -17,14 +17,14 @@ func main() {
 	var addSource bool
 	switch cfg.LogLevel {
 	case "debug":
-		lev = slog.DebugLevel
+		lev = slog.LevelDebug
 		addSource = true
 	case "info":
 		lev = slog.LevelInfo
 	case "warn":
-		lev = slog.WarnLevel
+		lev = slog.LevelWarn
 	default:
-		lev = slog.ErrorLevel
+		lev = slog.LevelError
 	}
 	logx.SetDefault(lev, addSource, "shar")
 	if err != nil {
