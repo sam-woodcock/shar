@@ -49,7 +49,7 @@ func (s *Integration) Setup(t *testing.T, authZFn authz.APIFunc, authNFn authn.C
 	s.NatsHost = "127.0.0.1"
 	s.NatsPort = 4459 + rand2.Intn(500)
 	s.NatsURL = fmt.Sprintf("nats://%s:%v", s.NatsHost, s.NatsPort)
-	logx.SetDefault(slog.DebugLevel, true, "shar-Integration-tests")
+	logx.SetDefault(slog.LevelDebug, true, "shar-Integration-tests")
 	s.Cooldown = 4 * time.Second
 	s.Test = t
 	s.FinalVars = make(map[string]interface{})

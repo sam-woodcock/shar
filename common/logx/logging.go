@@ -52,13 +52,34 @@ func NatsMessageLoggingEntrypoint(ctx context.Context, subsystem string, hdr nat
 
 // ContextWith obtains a new logger with an area parameter.  Typically it should be used when obtaining a logger within a programmatic boundary.
 func ContextWith(ctx context.Context, area string) (context.Context, *slog.Logger) {
-	logger := slog.FromContext(ctx).With(AreaLoggingKey, area)
-	return slog.NewContext(ctx, logger), logger
+	logger := FromContext(ctx).With(AreaLoggingKey, area)
+	return NewContext(ctx, logger), logger
 }
 
 func loggingEntrypoint(ctx context.Context, subsystem string, correlationId string) (context.Context, *slog.Logger) {
 	logger := slog.Default().With(slog.String(SubsystemLoggingKey, subsystem), slog.String(CorrelationLoggingKey, correlationId))
-	ctx = slog.NewContext(ctx, logger)
+	ctx = NewContext(ctx, logger)
 	ctx = context.WithValue(ctx, CorrelationContextKey, correlationId)
 	return ctx, logger
+}
+
+type contextKey string
+
+const loggerContextKey contextKey = "ctxLog"
+
+// FromContext fetches a logger from the context or takes the default logger.
+func FromContext(ctx context.Context) *slog.Logger {
+	cl := ctx.Value(loggerContextKey)
+	var ret *slog.Logger
+	if cl == nil {
+		ret = slog.Default()
+	} else {
+		ret = cl.(*slog.Logger)
+	}
+	return ret
+}
+
+// NewContext returns a context containing a logerr.
+func NewContext(ctx context.Context, logger *slog.Logger) context.Context {
+	return context.WithValue(ctx, loggerContextKey, logger)
 }
