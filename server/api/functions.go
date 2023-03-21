@@ -7,12 +7,12 @@ import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/ctxkey"
+	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/model"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/vars"
-	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -278,7 +278,7 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		ProcessInstanceId:  job.ProcessInstanceId,
 		ProcessName:        job.ProcessName,
 	}); err != nil {
-		log := slog.FromContext(ctx)
+		log := logx.FromContext(ctx)
 		log.Error("failed to publish workflow state", err)
 		return nil, fmt.Errorf("failed to publish traversal for handle workflow error: %w", err)
 	}
@@ -294,7 +294,7 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		ProcessInstanceId:  job.ProcessInstanceId,
 		ProcessName:        job.ProcessName,
 	}); err != nil {
-		log := slog.FromContext(ctx)
+		log := logx.FromContext(ctx)
 		log.Error("failed to publish workflow state", err)
 		// We have already traversed so retunring an error here would be incorrect.
 		// It would force reprocessing and possibly double traversing
