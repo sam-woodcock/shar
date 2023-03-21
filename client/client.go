@@ -333,7 +333,7 @@ func (c *Client) listen(ctx context.Context) error {
 }
 
 func (c *Client) listenWorkflowComplete(ctx context.Context) error {
-	log := slog.FromContext(ctx)
+	log := logx.FromContext(ctx)
 	_, err := c.con.Subscribe(subj.NS(messages.WorkflowInstanceTerminated, c.ns), func(msg *nats.Msg) {
 		st := &model.WorkflowState{}
 		if err := proto.Unmarshal(msg.Data, st); err != nil {

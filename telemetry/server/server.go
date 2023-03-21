@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors/keys"
@@ -163,7 +164,7 @@ func (s *Server) workflowTrace(ctx context.Context, log *slog.Logger, msg *nats.
 }
 
 func (s *Server) decodeState(ctx context.Context, msg *nats.Msg) (*model.WorkflowState, bool, error) {
-	log := slog.FromContext(ctx)
+	log := logx.FromContext(ctx)
 	state := &model.WorkflowState{}
 	err := proto.Unmarshal(msg.Data, state)
 	if err != nil {
@@ -188,7 +189,7 @@ func (s *Server) spanStart(ctx context.Context, state *model.WorkflowState) erro
 }
 
 func (s *Server) spanEnd(ctx context.Context, name string, state *model.WorkflowState) error {
-	log := slog.FromContext(ctx)
+	log := logx.FromContext(ctx)
 	oldState := model.WorkflowState{}
 	if err := common.LoadObj(ctx, s.spanKV, common.TrackingID(state.Id).ID(), &oldState); err != nil {
 		log.Error("Failed to load span state:", err, slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
@@ -210,7 +211,7 @@ func (s *Server) spanEnd(ctx context.Context, name string, state *model.Workflow
 }
 
 func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.WorkflowState, newState *model.WorkflowState) error {
-	log := slog.FromContext(ctx)
+	log := logx.FromContext(ctx)
 	traceID := common.KSuidTo128bit(oldState.WorkflowInstanceId)
 	spanID := common.KSuidTo64bit(common.TrackingID(oldState.Id).ID())
 	parentID := common.KSuidTo64bit(common.TrackingID(oldState.Id).ParentID())
