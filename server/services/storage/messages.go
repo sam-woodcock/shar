@@ -28,13 +28,12 @@ func (s *Nats) messageKick(ctx context.Context) error {
 		default:
 
 			for {
-				time.Sleep(1 * time.Second)
+				time.Sleep(30 * time.Second)
 				keys, err := s.wfMessageInterest.Keys()
 				if err != nil {
 					continue
 				}
 				for _, k := range keys {
-					fmt.Println("kick")
 					interest := &model.MessageRecipients{}
 					if err := common.LoadObj(ctx, s.wfMessageInterest, k, interest); err != nil {
 						continue
@@ -123,7 +122,9 @@ func (s *Nats) deliverMessageToJobRecipient(ctx context.Context, recipients []*m
 	}
 	for _, k := range keys {
 		m := &model.MessageInstance{}
-		if err := common.LoadObj(ctx, msgs, k, m); err != nil {
+		if err := common.LoadObj(ctx, msgs, k, m); errors2.Is(err, nats.ErrKeyNotFound) {
+			continue
+		} else if err != nil {
 			return fmt.Errorf("get message instance: %w", err)
 		}
 		for _, r := range recipients {
@@ -135,14 +136,16 @@ func (s *Nats) deliverMessageToJobRecipient(ctx context.Context, recipients []*m
 					continue
 				}
 				if err := s.deliverMessageToJob(ctx, r.Id, m); errors2.Is(err, errors.ErrJobNotFound) {
+					goto releaseAndContinue
 				} else if err != nil {
 					slog.Error("delivering message", err)
-					continue
+					goto releaseAndContinue
 				}
 				if err := common.Delete(msgs, k); err != nil {
 					slog.Error("deleting message", err)
-					continue
+					goto releaseAndContinue
 				}
+			releaseAndContinue:
 				if err := common.UnLock(s.wfLock, r.Id); err != nil {
 					return fmt.Errorf("delivery releasing lock: %w", err)
 				}
@@ -196,17 +199,20 @@ func (s *Nats) awaitMessageProcessor(ctx context.Context, log *slog.Logger, msg 
 	}
 
 	el, err := s.GetElement(ctx, job)
-	if err != nil {
+	if errors2.Is(err, nats.ErrKeyNotFound) {
+		return true, errors.ErrWorkflowFatal{Err: fmt.Errorf("finding associated element: %w", err)}
+	} else if err != nil {
 		return false, fmt.Errorf("get message element: %w", err)
+
 	}
 
 	vrs, err := vars.Decode(ctx, job.Vars)
 	if err != nil {
-		return false, fmt.Errorf("decoding vars for message correlation: %w", err)
+		return false, errors.ErrWorkflowFatal{Err: fmt.Errorf("decoding vars for message correlation: %w", err)}
 	}
 	resAny, err := expression.EvalAny(ctx, "= "+el.Execute, vrs)
 	if err != nil {
-		return false, fmt.Errorf("evaluating message correlation expression: %w", err)
+		return false, errors.ErrWorkflowFatal{Err: fmt.Errorf("evaluating message correlation expression: %w", err)}
 	}
 	res := fmt.Sprintf("%+v", resAny)
 	interest := &model.MessageRecipients{}

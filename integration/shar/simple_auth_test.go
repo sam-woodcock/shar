@@ -84,7 +84,6 @@ func TestNoAuthN(t *testing.T) {
 
 	// Load BPMN workflow
 	b, err := os.ReadFile("../../testdata/simple-workflow.bpmn")
-	fmt.Println("RET1:", err)
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "SimpleWorkflowTest", b)
@@ -112,7 +111,6 @@ func TestSimpleNoAuthZ(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "SimpleWorkflowTest", b)
-	fmt.Println("RET2:", err)
 	assert.ErrorContains(t, err, "authorize")
 
 	tst.AssertCleanKV()
