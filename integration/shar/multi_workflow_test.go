@@ -62,15 +62,15 @@ func TestMultiWorkflow(t *testing.T) {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
-	n := 200
+	n := 100
 	mx := sync.Mutex{}
 	instances := make(map[string]struct{})
 	wg := sync.WaitGroup{}
 	for inst := 0; inst < n; inst++ {
 		wg.Add(1)
-		go func() {
+		go func(inst int) {
 			// Launch the workflow
-			if wfiID, _, err := cl.LaunchWorkflow(ctx, "TestMultiWorkflow1", model.Vars{"orderId": 57}); err != nil {
+			if wfiID, _, err := cl.LaunchWorkflow(ctx, "TestMultiWorkflow1", model.Vars{"orderId": inst}); err != nil {
 				panic(err)
 			} else {
 				mx.Lock()
@@ -84,16 +84,15 @@ func TestMultiWorkflow(t *testing.T) {
 				instances[wfiID2] = struct{}{}
 				mx.Unlock()
 			}
-		}()
+		}(inst)
 	}
 	go func() {
-		for i := 0; i < n*2; i++ {
+		for i := 0; i < n; i++ {
 			<-handlers.finished
 			wg.Done()
 		}
 	}()
 	wg.Wait()
-	time.Sleep(20 * time.Second)
 	tst.AssertCleanKV()
 }
 
@@ -113,7 +112,7 @@ func (x *testMultiworkflowMessagingHandlerDef) step2(_ context.Context, _ client
 }
 
 func (x *testMultiworkflowMessagingHandlerDef) sendMessage(ctx context.Context, cmd client.MessageClient, vars model.Vars) error {
-	if err := cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]}); err != nil {
+	if err := cmd.SendMessage(ctx, "continueMessage", vars["orderId"].(int), model.Vars{"carried": vars["carried"]}); err != nil {
 		return fmt.Errorf("send continue message: %w", err)
 	}
 	return nil

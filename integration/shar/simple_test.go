@@ -62,6 +62,7 @@ type testSimpleHandlerDef struct {
 func (d *testSimpleHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Hi")
 	assert.Equal(d.t, 32768, vars["carried"].(int))
+	assert.Equal(d.t, 42, vars["localVar"].(int))
 	vars["Success"] = true
 	return vars, nil
 }

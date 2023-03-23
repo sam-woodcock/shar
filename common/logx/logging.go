@@ -60,11 +60,12 @@ func ContextWith(ctx context.Context, area string) (context.Context, *slog.Logge
 	return NewContext(ctx, logger), logger
 }
 
+// NewContext creates a new context with the specified logger
 func NewContext(ctx context.Context, logger *slog.Logger) context.Context {
 	return context.WithValue(ctx, ctxLogKey, logger)
 }
 
-// ContextWith obtains a new logger with an area parameter.  Typically it should be used when obtaining a logger within a programmatic boundary.
+// FromContext obtains a logger from the context or takes the default logger.
 func FromContext(ctx context.Context) *slog.Logger {
 	var cl *slog.Logger
 	l := ctx.Value(ctxLogKey)

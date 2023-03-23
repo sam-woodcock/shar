@@ -19,14 +19,14 @@
       <bpmn:errorEventDefinition id="ErrorEventDefinition_0dopbp1" errorRef="Error_1n5a6tv" />
     </bpmn:boundaryEvent>
     <bpmn:sequenceFlow id="Flow_19bx1x7" sourceRef="Event_0u7ah7z" targetRef="Activity_0vt8rl9" />
-    <bpmn:serviceTask id="Activity_13m95k5">
+    <bpmn:serviceTask id="Activity_13m95k5" name="Possibly Could Error">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="couldThrowError" />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_16598pe</bpmn:incoming>
       <bpmn:outgoing>Flow_1o7yj3z</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="Activity_0vt8rl9">
+    <bpmn:serviceTask id="Activity_0vt8rl9" name="Fix Situation">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="fixSituation" />
         <zeebe:ioMapping>
@@ -73,9 +73,11 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_19ldx0p_di" bpmnElement="Activity_13m95k5">
         <dc:Bounds x="310" y="77" width="100" height="80" />
+        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_05sz592_di" bpmnElement="Activity_0vt8rl9">
         <dc:Bounds x="310" y="240" width="100" height="80" />
+        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Event_0rvpyrw_di" bpmnElement="Event_0rvpyrw">
         <dc:Bounds x="342" y="362" width="36" height="36" />

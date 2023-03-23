@@ -8,6 +8,7 @@ import (
 	"gitlab.com/shar-workflow/shar/server/errors"
 )
 
+// RecordHistoryProcessStart records the process start into the history object.
 func (s *Nats) RecordHistoryProcessStart(ctx context.Context, state *model.WorkflowState) error {
 	e := &model.ProcessHistoryEntry{
 		ItemType:           model.ProcessHistoryType_processExecute,
@@ -26,6 +27,8 @@ func (s *Nats) RecordHistoryProcessStart(ctx context.Context, state *model.Workf
 	}
 	return nil
 }
+
+// RecordHistoryActivityExecute records the activity execute into the history object.
 func (s *Nats) RecordHistoryActivityExecute(ctx context.Context, state *model.WorkflowState) error {
 	e := &model.ProcessHistoryEntry{
 		ItemType:          model.ProcessHistoryType_activityExecute,
@@ -46,6 +49,8 @@ func (s *Nats) RecordHistoryActivityExecute(ctx context.Context, state *model.Wo
 	}
 	return nil
 }
+
+// RecordHistoryActivityComplete records the activity completion into the history object.
 func (s *Nats) RecordHistoryActivityComplete(ctx context.Context, state *model.WorkflowState) error {
 	e := &model.ProcessHistoryEntry{
 		ItemType:          model.ProcessHistoryType_activityComplete,
@@ -65,6 +70,8 @@ func (s *Nats) RecordHistoryActivityComplete(ctx context.Context, state *model.W
 	}
 	return nil
 }
+
+// RecordHistoryProcessComplete records the process completion into the history object.
 func (s *Nats) RecordHistoryProcessComplete(ctx context.Context, state *model.WorkflowState) error {
 	e := &model.ProcessHistoryEntry{
 		ItemType:          model.ProcessHistoryType_processComplete,
@@ -83,6 +90,8 @@ func (s *Nats) RecordHistoryProcessComplete(ctx context.Context, state *model.Wo
 	}
 	return nil
 }
+
+// RecordHistoryProcessSpawn records the process spawning a new process into the history object.
 func (s *Nats) RecordHistoryProcessSpawn(ctx context.Context, state *model.WorkflowState, newProcessInstanceID string) error {
 	e := &model.ProcessHistoryEntry{
 		ItemType:          model.ProcessHistoryType_processSpawnSync,
@@ -102,6 +111,7 @@ func (s *Nats) RecordHistoryProcessSpawn(ctx context.Context, state *model.Workf
 	return nil
 }
 
+// RecordHistoryProcessAbort records the process aborting into the history object.
 func (s *Nats) RecordHistoryProcessAbort(ctx context.Context, state *model.WorkflowState) error {
 	e := &model.ProcessHistoryEntry{
 		ItemType:          model.ProcessHistoryType_processAbort,
@@ -121,6 +131,7 @@ func (s *Nats) RecordHistoryProcessAbort(ctx context.Context, state *model.Workf
 	return nil
 }
 
+// GetProcessHistory fetches the history object for a process.
 func (s *Nats) GetProcessHistory(ctx context.Context, processInstanceId string) ([]*model.ProcessHistoryEntry, error) {
 	ph := &model.ProcessHistory{}
 	if err := common.LoadObj(ctx, s.wfHistory, processInstanceId, ph); err != nil {

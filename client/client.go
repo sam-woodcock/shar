@@ -355,7 +355,7 @@ func (c *Client) listenProcessTerminate(ctx context.Context) error {
 			log.Error("proto unmarshal error", err)
 			return true, fmt.Errorf("listenProcessTerminate unmarshalling proto: %w", err)
 		}
-		callCtx := context.WithValue(ctx, keys.ProcessInstanceID, st.ProcessInstanceId)
+		callCtx := context.WithValue(ctx, keys.ContextKey(keys.ProcessInstanceID), st.ProcessInstanceId)
 		v, err := vars.Decode(callCtx, st.Vars)
 		if err != nil {
 			return true, fmt.Errorf("listenProcessTerminate decoding vars: %w", err)
@@ -627,6 +627,7 @@ func (c *Client) GetServerInstanceStats(ctx context.Context) (*model.WorkflowSta
 	return res, nil
 }
 
+// GetProcessHistory gets the history for a process.
 func (c *Client) GetProcessHistory(ctx context.Context, processInstanceId string) (*model.GetProcessHistoryResponse, error) {
 	req := &model.GetProcessHistoryRequest{Id: processInstanceId}
 	res := &model.GetProcessHistoryResponse{}

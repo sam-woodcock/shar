@@ -138,6 +138,10 @@ func (s *SharServer) Listen() error {
 		return fmt.Errorf("APIGetProcessInstanceStatus failed: %w", err)
 	}
 
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetProcessHistory, &model.GetProcessHistoryRequest{}, s.getProcessHistory); err != nil {
+		return fmt.Errorf("APIGetProcessHistory failed: %w", err)
+	}
+
 	slog.Info("shar api listener started")
 	return nil
 }

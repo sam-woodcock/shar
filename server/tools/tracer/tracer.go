@@ -1,10 +1,12 @@
 package tracer
 
 import (
+	"context"
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/vars"
 	"google.golang.org/protobuf/proto"
 	"strings"
 )
@@ -24,6 +26,7 @@ func (o *OpenTrace) Close() {
 
 // Trace sets a consumer onto the workflow messages and outputs them to the console
 func Trace(natsURL string) *OpenTrace {
+	ctx := context.Background()
 	nc, _ := nats.Connect(natsURL)
 	sub, err := nc.Subscribe("WORKFLOW.>", func(msg *nats.Msg) {
 		if strings.HasPrefix(msg.Subject, "WORKFLOW.default.State.") {
@@ -32,7 +35,18 @@ func Trace(natsURL string) *OpenTrace {
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println(msg.Subject, d.State, last4(d.WorkflowInstanceId), "T:"+last4(common.TrackingID(d.Id).ID()), "P:"+last4(common.TrackingID(d.Id).ParentID()), d.ElementType, d.ElementId)
+			dc, err := vars.Decode(ctx, d.Vars)
+			var vrs string
+			if err != nil {
+				vrs = "[error]"
+			} else {
+				vrs = "["
+				for k, v := range dc {
+					vrs = vrs + "\"" + k + "\": " + fmt.Sprintf("%+v", v) + ", "
+				}
+				vrs = vrs + "]"
+			}
+			fmt.Println(msg.Subject, d.State, last4(d.WorkflowInstanceId), "T:"+last4(common.TrackingID(d.Id).ID()), "P:"+last4(common.TrackingID(d.Id).ParentID()), d.ElementType, d.ElementId, vrs)
 		} else {
 			fmt.Println(msg.Subject)
 		}

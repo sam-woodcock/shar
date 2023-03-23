@@ -3,11 +3,11 @@ default: clean proto server tracing cli zen-shar
 configure:
 	@echo "\033[92mConfigure\033[0m"
 	go version
-	go get -d google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1
+	go get -d google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0
 	go get -d google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
 	go get -d github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	go get -d github.com/vektra/mockery/v2@v2.20.2
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	go install github.com/vektra/mockery/v2@v2.20.2
@@ -24,26 +24,26 @@ proto: .FORCE
 server: .FORCE proto
 	@echo "\033[92mCopying files\033[0m"
 	mkdir -p build/server
-	cd server/cmd/shar; go build
+	cd server/cmd/shar; CGO_ENABLED=0 go build
 	cp server/cmd/shar/shar build/server/
 	cp server/cmd/shar/shar server/
 	cp server/Dockerfile build/server/
 tracing: .FORCE
 	mkdir -p build/telemetry
 	@echo "\033[92mBuilding Telemetry\033[0m"
-	cd telemetry/cmd/shar-telemetry; go build
+	cd telemetry/cmd/shar-telemetry; CGO_ENABLED=0 go build
 	cp telemetry/cmd/shar-telemetry/shar-telemetry build/telemetry/
 	cp telemetry/cmd/shar-telemetry/shar-telemetry server/
 	cp telemetry/Dockerfile build/telemetry/
 cli: .FORCE proto
 	mkdir -p build/cli
 	@echo "\033[92mBuilding CLI\033[0m"
-	cd cli/cmd/shar; go build
+	cd cli/cmd/shar; CGO_ENABLED=0 go build
 	cp cli/cmd/shar/shar build/cli/
 zen-shar: .FORCE proto
 	mkdir -p build/zen-shar
 	@echo "\033[92mBuilding Zen\033[0m"
-	cd zen-shar/cmd/zen-shar; go build
+	cd zen-shar/cmd/zen-shar; CGO_ENABLED=0 go build
 	cp zen-shar/cmd/zen-shar/zen-shar build/zen-shar/
 docker: clean proto server tracing .FORCE
 	cd build/server; docker build -t shar .
@@ -64,12 +64,16 @@ test: configure generated-code proto server tracing .FORCE
 	@echo "\033[92mCleaning test cache\033[0m"
 	go clean -testcache
 	@echo "\033[92mRunning tests\033[0m"
-	go test ./...
+	CGO_ENABLED=0 go test ./...
 race: proto server tracing .FORCE
 	@echo "\033[92mCleaning test cache\033[0m"
 	go clean -testcache
 	@echo "\033[92mRunning tests\033[0m"
-	go test ./... --race
+	CGO_ENABLED=0 go test ./... --race
+mod-upgrade:
+	#go list -u -m $(go list -m -f '{{.Indirect}} {{.}}' all | grep '^false' | cut -d ' ' -f2) | grep '\['
+	go get -u ./...
+	go mod tidy
 wasm:
-	cd validator && GOOS=js GOARCH=wasm go build -o json.wasm
+	cd validator && GOOS=js GOARCH=wasm go CGO_ENABLED=0 build -o json.wasm
 .FORCE:

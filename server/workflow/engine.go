@@ -745,13 +745,15 @@ func (c *Engine) completeJobProcessor(ctx context.Context, job *model.WorkflowSt
 func (c *Engine) startJob(ctx context.Context, subject string, job *model.WorkflowState, el *model.Element, v []byte, opts ...storage.PublishOpt) error {
 	job.Execute = &el.Execute
 
-	// if this is a user task, find out who can perfoem it
-	if el.Type == element.UserTask {
+	// skip if this job type requires no input transformation
+	if el.Type != element.MessageIntermediateCatchEvent {
 		job.Vars = nil
-		err := vars.InputVars(ctx, v, &job.Vars, el)
-		if err != nil {
+		if err := vars.InputVars(ctx, v, &job.Vars, el); err != nil {
 			return fmt.Errorf("start job failed to get input variables: %w", err)
 		}
+	}
+	// if this is a user task, find out who can perfoem it
+	if el.Type == element.UserTask {
 		vx, err := vars.Decode(ctx, v)
 		if err != nil {
 			return fmt.Errorf("start job failed to decode input variables: %w", err)
@@ -772,7 +774,6 @@ func (c *Engine) startJob(ctx context.Context, subject string, job *model.Workfl
 
 	// create the job
 	_, err := c.ns.CreateJob(ctx, job)
-
 	if err != nil {
 		return c.engineErr(ctx, "start manual task", err,
 			slog.String(keys.ElementName, el.Name),

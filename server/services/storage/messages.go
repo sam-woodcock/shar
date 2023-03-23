@@ -101,9 +101,11 @@ func (s *Nats) processMessage(ctx context.Context, log *slog.Logger, msg *nats.M
 	if err := common.LoadObj(ctx, s.wfMessageInterest, instance.Name, subs); errors2.Is(err, nats.ErrKeyNotFound) {
 		return true, nil
 	} else if err != nil {
-		return true, err
+		return true, fmt.Errorf("loading message recipients: %w", err)
 	}
-	s.deliverMessageToJobRecipient(ctx, subs.Recipient, instance.Name)
+	if err := s.deliverMessageToJobRecipient(ctx, subs.Recipient, instance.Name); err != nil {
+		return false, err
+	}
 	return true, nil
 }
 
@@ -135,12 +137,11 @@ func (s *Nats) deliverMessageToJobRecipient(ctx context.Context, recipients []*m
 				if err := s.deliverMessageToJob(ctx, r.Id, m); errors2.Is(err, errors.ErrJobNotFound) {
 				} else if err != nil {
 					slog.Error("delivering message", err)
-					panic(err)
 					continue
 				}
 				if err := common.Delete(msgs, k); err != nil {
-					slog.Error("delivering message", err)
-					panic(err)
+					slog.Error("deleting message", err)
+					continue
 				}
 				if err := common.UnLock(s.wfLock, r.Id); err != nil {
 					return fmt.Errorf("delivery releasing lock: %w", err)

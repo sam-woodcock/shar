@@ -46,7 +46,6 @@ func updateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []b
 			testErr := &nats.APIError{}
 			if errors.As(err, &testErr) {
 				if testErr.ErrorCode == JSErrCodeStreamWrongLastSequence {
-					return nil
 					dur, err := rand.Int(rand.Reader, maxJitter) // Jitter
 					if err != nil {
 						panic("read random")
@@ -198,6 +197,7 @@ func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names
 	return nil
 }
 
+// EnsureBucket creates a bucket if it does not exist
 func EnsureBucket(js nats.JetStreamContext, storageType nats.StorageType, name string, ttl time.Duration) error {
 	if _, err := js.KeyValue(name); errors.Is(err, nats.ErrBucketNotFound) {
 		if _, err := js.CreateKeyValue(&nats.KeyValueConfig{
@@ -307,10 +307,11 @@ func Process(ctx context.Context, js nats.JetStreamContext, traceName string, cl
 	return nil
 }
 
-const JSErrCodeStreamWrongLastSequence = 10071
+const jsErrCodeStreamWrongLastSequence = 10071
 
 var lockVal = make([]byte, 0)
 
+// Lock ensures a lock on a given ID.
 func Lock(kv nats.KeyValue, lockID string) (bool, error) {
 	_, err := kv.Create(lockID, lockVal)
 	if errors.Is(err, nats.ErrKeyExists) {
@@ -321,6 +322,7 @@ func Lock(kv nats.KeyValue, lockID string) (bool, error) {
 	return true, nil
 }
 
+// ExtendLock extends the lock past its stale time.
 func ExtendLock(kv nats.KeyValue, lockID string) error {
 	v, err := kv.Get(lockID)
 	if errors.Is(err, nats.ErrKeyNotFound) {
@@ -332,7 +334,7 @@ func ExtendLock(kv nats.KeyValue, lockID string) error {
 	_, err = kv.Update(lockID, lockVal, rev)
 	testErr := &nats.APIError{}
 	if errors.As(err, &testErr) {
-		if testErr.ErrorCode == JSErrCodeStreamWrongLastSequence {
+		if testErr.ErrorCode == jsErrCodeStreamWrongLastSequence {
 			return nil
 		}
 	} else if err != nil {
@@ -341,6 +343,7 @@ func ExtendLock(kv nats.KeyValue, lockID string) error {
 	return nil
 }
 
+// UnLock closes an existing lock.
 func UnLock(kv nats.KeyValue, lockID string) error {
 	_, err := kv.Get(lockID)
 	if errors.Is(err, nats.ErrKeyNotFound) {

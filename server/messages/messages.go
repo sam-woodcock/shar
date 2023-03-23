@@ -17,9 +17,9 @@ const (
 	WorkflowInstanceComplete          = "WORKFLOW.%s.State.Workflow.Complete"         // WorkflowInstanceComplete is the state message subject for completing a workfloe instance.
 	WorkflowInstanceExecute           = "WORKFLOW.%s.State.Workflow.Execute"          // WorkflowInstanceExecute is the state message subject for executing a workflow instance.
 	WorkflowInstanceTerminated        = "WORKFLOW.%s.State.Workflow.Terminated"       // WorkflowInstanceTerminated is the state message subject for a workflow instance terminating.
-	WorkflowJobAwaitMessageExecute    = "WORKFLOW.%s.State.Job.Execute.AwaitMessage"  // WorkflowJobLaunchExecute is the state message subject for awaiting a message.
-	WorkflowJobAwaitMessageComplete   = "WORKFLOW.%s.State.Job.Complete.AwaitMessage" // WorkflowJobLaunchExecute is the state message subject for completing awaiting a message.
-	WorkflowJobAwaitMessageAbort      = "WORKFLOW.%s.State.Job.Abort.AwaitMessage"    // WorkflowJobLaunchExecute is the state message subject for aborting awaiting a message.
+	WorkflowJobAwaitMessageExecute    = "WORKFLOW.%s.State.Job.Execute.AwaitMessage"  // WorkflowJobAwaitMessageExecute is the state message subject for awaiting a message.
+	WorkflowJobAwaitMessageComplete   = "WORKFLOW.%s.State.Job.Complete.AwaitMessage" // WorkflowJobAwaitMessageComplete is the state message subject for completing awaiting a message.
+	WorkflowJobAwaitMessageAbort      = "WORKFLOW.%s.State.Job.Abort.AwaitMessage"    // WorkflowJobAwaitMessageAbort is the state message subject for aborting awaiting a message.
 	WorkflowJobLaunchComplete         = "WORKFLOW.%s.State.Job.Complete.Launch"       // WorkflowJobLaunchComplete is the state message subject for completing a launch subworkflow task.
 	WorkflowJobLaunchExecute          = "WORKFLOW.%s.State.Job.Execute.Launch"        // WorkflowJobLaunchExecute is the state message subject for executing a launch subworkflow task.
 	WorkflowJobManualTaskAbort        = "WORKFLOW.%s.State.Job.Abort.ManualTask"      // WorkflowJobManualTaskAbort is the state message subject for sborting a manual task.

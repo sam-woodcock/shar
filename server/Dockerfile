@@ -1,4 +1,4 @@
-FROM ubuntu
+FROM scratch
 ADD shar /bin/
-RUN chmod +x /bin/shar
+#RUN chmod +x shar
 CMD "/bin/shar"

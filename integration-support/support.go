@@ -166,6 +166,12 @@ func (s *Integration) checkCleanKV() error {
 						err := proto.Unmarshal(p.Value(), str)
 						if err == nil {
 							sc.Dump(str)
+						} else {
+							str := &model.MessageInstance{}
+							err := proto.Unmarshal(p.Value(), str)
+							if err == nil {
+								sc.Dump(str)
+							}
 						}
 					}
 				}

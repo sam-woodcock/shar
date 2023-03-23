@@ -218,9 +218,9 @@ func (s *Nats) StartProcessing(ctx context.Context) error {
 	if err := s.processGatewayExecute(ctx); err != nil {
 		return fmt.Errorf("start gateway execute handler: %w", err)
 	}
-	//if err := s.messageKick(ctx); err != nil {
-	//	return fmt.Errorf("starting message kick: %w", err)
-	//}
+	if err := s.messageKick(ctx); err != nil {
+		return fmt.Errorf("starting message kick: %w", err)
+	}
 	return nil
 }
 
@@ -379,7 +379,9 @@ func (s *Nats) CreateWorkflowInstance(ctx context.Context, wfInstance *model.Wor
 		return nil, fmt.Errorf("save workflow instance object to KV: %w", err)
 	}
 	for _, m := range wf.Messages {
-		common.EnsureBucket(s.js, s.storageType, subj.NS("Message_%s_", "default")+m.Name, 0)
+		if err := common.EnsureBucket(s.js, s.storageType, subj.NS("Message_%s_", "default")+m.Name, 0); err != nil {
+			return nil, fmt.Errorf("ensuring bucket '%s':%w", m.Name, err)
+		}
 	}
 	s.incrementWorkflowStarted()
 	return wfInstance, nil

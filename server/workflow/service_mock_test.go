@@ -761,11 +761,6 @@ func (_m *MockNatsService) SetLaunchFunc(processor services.LaunchFunc) {
 	_m.Called(processor)
 }
 
-// SetMessageCompleteProcessor provides a mock function with given fields: processor
-func (_m *MockNatsService) SetMessageCompleteProcessor(processor services.MessageCompleteProcessorFunc) {
-	_m.Called(processor)
-}
-
 // SetMessageProcessor provides a mock function with given fields: processor
 func (_m *MockNatsService) SetMessageProcessor(processor services.MessageProcessorFunc) {
 	_m.Called(processor)
