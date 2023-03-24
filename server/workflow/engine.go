@@ -267,7 +267,7 @@ func (c *Engine) launch(ctx context.Context, workflowName string, ID common.Trac
 }
 
 func (c *Engine) rollBackLaunch(ctx context.Context, wfi *model.WorkflowInstance) {
-	log := logx.FromContext(ctx)
+	log := slog.FromContext(ctx)
 	log.Info("rolling back workflow launch")
 	err := c.ns.PublishWorkflowState(ctx, messages.WorkflowInstanceAbort, &model.WorkflowState{
 		Id:                 []string{wfi.WorkflowInstanceId},
@@ -803,9 +803,8 @@ func (c *Engine) evaluateOwners(ctx context.Context, owners string, vars model.V
 }
 
 func (c *Engine) engineErr(ctx context.Context, msg string, err error, z ...any) error {
-	log := logx.FromContext(ctx)
-	z = append(z, "error", err.Error())
-	log.Error(msg, z...)
+	log := slog.FromContext(ctx)
+	log.Error(msg, err, z...)
 
 	return fmt.Errorf("engine-error: %w", err)
 }

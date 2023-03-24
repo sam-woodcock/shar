@@ -59,14 +59,14 @@ func init() {
 	var addSource bool
 	switch flag.Value.LogLevel {
 	case "debug":
-		lev = slog.LevelDebug
+		lev = slog.DebugLevel
 		addSource = true
 	case "info":
-		lev = slog.LevelInfo
+		lev = slog.InfoLevel
 	case "warn":
-		lev = slog.LevelWarn
+		lev = slog.WarnLevel
 	default:
-		lev = slog.LevelError
+		lev = slog.ErrorLevel
 	}
 	logx.SetDefault(lev, addSource, "zen-shar")
 }

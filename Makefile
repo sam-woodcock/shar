@@ -58,13 +58,13 @@ clean: .FORCE
 generated-code: configure .FORCE
 	go generate server/workflow/nats-service.go
 test: configure generated-code proto server tracing .FORCE
-	golangci-lint cache clean
-	@echo "\033[92mLinting\033[0m"
-	golangci-lint run -v -E gosec -E revive -E ireturn --timeout 5m0s
 	@echo "\033[92mCleaning test cache\033[0m"
 	go clean -testcache
 	@echo "\033[92mRunning tests\033[0m"
 	go test ./...
+	golangci-lint cache clean
+	@echo "\033[92mLinting\033[0m"
+	golangci-lint run -v -E gosec -E revive -E ireturn --timeout 5m0s
 race: proto server tracing .FORCE
 	@echo "\033[92mCleaning test cache\033[0m"
 	go clean -testcache

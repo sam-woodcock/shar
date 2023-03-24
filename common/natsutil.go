@@ -58,9 +58,9 @@ func updateKV(wf nats.KeyValue, k string, msg proto.Message, updateFn func(v []b
 
 // Save saves a value to a key value store
 func Save(ctx context.Context, wf nats.KeyValue, k string, v []byte) error {
-	log := logx.FromContext(ctx)
-	if log.Enabled(ctx, errors2.VerboseLevel) {
-		log.Log(ctx, errors2.VerboseLevel, "Set KV", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.String("val", string(v)))
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.VerboseLevel) {
+		log.Log(errors2.VerboseLevel, "Set KV", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.String("val", string(v)))
 	}
 	if _, err := wf.Put(k, v); err != nil {
 		return fmt.Errorf("failed to save kv: %w", err)
@@ -70,9 +70,9 @@ func Save(ctx context.Context, wf nats.KeyValue, k string, v []byte) error {
 
 // Load loads a value from a key value store
 func Load(ctx context.Context, wf nats.KeyValue, k string) ([]byte, error) {
-	log := logx.FromContext(ctx)
-	if log.Enabled(ctx, errors2.VerboseLevel) {
-		log.Log(ctx, errors2.VerboseLevel, "Get KV", slog.Any("bucket", wf.Bucket()), slog.String("key", k))
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.VerboseLevel) {
+		log.Log(errors2.VerboseLevel, "Get KV", slog.Any("bucket", wf.Bucket()), slog.String("key", k))
 	}
 	b, err := wf.Get(k)
 	if err == nil {
@@ -83,9 +83,9 @@ func Load(ctx context.Context, wf nats.KeyValue, k string) ([]byte, error) {
 
 // SaveObj save an protobuf message to a key value store
 func SaveObj(ctx context.Context, wf nats.KeyValue, k string, v proto.Message) error {
-	log := logx.FromContext(ctx)
-	if log.Enabled(ctx, errors2.TraceLevel) {
-		log.Log(ctx, errors2.TraceLevel, "save KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("val", v))
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.TraceLevel) {
+		log.Log(errors2.TraceLevel, "save KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("val", v))
 	}
 	b, err := proto.Marshal(v)
 	if err == nil {
@@ -96,9 +96,9 @@ func SaveObj(ctx context.Context, wf nats.KeyValue, k string, v proto.Message) e
 
 // LoadObj loads a protobuf message from a key value store
 func LoadObj(ctx context.Context, wf nats.KeyValue, k string, v proto.Message) error {
-	log := logx.FromContext(ctx)
-	if log.Enabled(ctx, errors2.TraceLevel) {
-		log.Log(ctx, errors2.TraceLevel, "load KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("val", v))
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.TraceLevel) {
+		log.Log(errors2.TraceLevel, "load KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("val", v))
 	}
 	kv, err := Load(ctx, wf, k)
 	if err != nil {
@@ -112,9 +112,9 @@ func LoadObj(ctx context.Context, wf nats.KeyValue, k string, v proto.Message) e
 
 // UpdateObj saves an protobuf message to a key value store after using updateFN to update the message.
 func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) error {
-	log := logx.FromContext(ctx)
-	if log.Enabled(ctx, errors2.TraceLevel) {
-		log.Log(ctx, errors2.TraceLevel, "update KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("fn", reflect.TypeOf(updateFn)))
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.TraceLevel) {
+		log.Log(errors2.TraceLevel, "update KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("fn", reflect.TypeOf(updateFn)))
 	}
 	if oldk, err := wf.Get(k); errors.Is(err, nats.ErrKeyNotFound) || (err == nil && oldk.Value() == nil) {
 		if err := SaveObj(ctx, wf, k, msg); err != nil {
@@ -139,9 +139,9 @@ func UpdateObj[T proto.Message](ctx context.Context, wf nats.KeyValue, k string,
 
 // UpdateObjIsNew saves an protobuf message to a key value store after using updateFN to update the message, and returns true if this is a new value.
 func UpdateObjIsNew[T proto.Message](ctx context.Context, wf nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) (bool, error) {
-	log := logx.FromContext(ctx)
-	if log.Enabled(ctx, errors2.TraceLevel) {
-		log.Log(ctx, errors2.TraceLevel, "update KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("fn", reflect.TypeOf(updateFn)))
+	log := slog.FromContext(ctx)
+	if log.Enabled(errors2.TraceLevel) {
+		log.Log(errors2.TraceLevel, "update KV object", slog.String("bucket", wf.Bucket()), slog.String("key", k), slog.Any("fn", reflect.TypeOf(updateFn)))
 	}
 	isNew := false
 	if oldk, err := wf.Get(k); errors.Is(err, nats.ErrKeyNotFound) || (err == nil && oldk.Value() == nil) {
@@ -194,7 +194,7 @@ func EnsureBuckets(js nats.JetStreamContext, storageType nats.StorageType, names
 
 // Process processes messages from a nats consumer and executes a function against each one.
 func Process(ctx context.Context, js nats.JetStreamContext, traceName string, closer chan struct{}, subject string, durable string, concurrency int, fn func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error)) error {
-	log := logx.FromContext(ctx)
+	log := slog.FromContext(ctx)
 	if !strings.HasPrefix(durable, "ServiceTask_") {
 		conInfo, err := js.ConsumerInfo("WORKFLOW", durable)
 		if conInfo.Config.Durable == "" || err != nil {

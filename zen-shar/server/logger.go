@@ -21,12 +21,12 @@ func (n *NatsLogger) Warnf(format string, v ...interface{}) {
 
 // Fatalf logs a fatal error
 func (n *NatsLogger) Fatalf(format string, v ...interface{}) {
-	slog.Error(fmt.Sprintf(format, v...))
+	slog.Log(slog.ErrorLevel, fmt.Sprintf(format, v...))
 }
 
 // Errorf logs an error
 func (n *NatsLogger) Errorf(format string, v ...interface{}) {
-	slog.Error(fmt.Sprintf(format, v...))
+	slog.Log(slog.ErrorLevel, fmt.Sprintf(format, v...))
 }
 
 // Debugf logs a debug statement
