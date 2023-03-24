@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/errors/keys"
@@ -163,11 +164,11 @@ func (s *Server) workflowTrace(ctx context.Context, log *slog.Logger, msg *nats.
 }
 
 func (s *Server) decodeState(ctx context.Context, msg *nats.Msg) (*model.WorkflowState, bool, error) {
-	log := slog.FromContext(ctx)
+	log := logx.FromContext(ctx)
 	state := &model.WorkflowState{}
 	err := proto.Unmarshal(msg.Data, state)
 	if err != nil {
-		log.Error("unable to unmarshal span", err)
+		log.Error("unmarshal span", err)
 		return &model.WorkflowState{}, true, abandon(err)
 	}
 
@@ -188,10 +189,10 @@ func (s *Server) spanStart(ctx context.Context, state *model.WorkflowState) erro
 }
 
 func (s *Server) spanEnd(ctx context.Context, name string, state *model.WorkflowState) error {
-	log := slog.FromContext(ctx)
+	log := logx.FromContext(ctx)
 	oldState := model.WorkflowState{}
 	if err := common.LoadObj(ctx, s.spanKV, common.TrackingID(state.Id).ID(), &oldState); err != nil {
-		log.Error("Failed to load span state:", err, slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
+		log.Error("load span state:", err, slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
 		return abandon(err)
 	}
 	state.WorkflowInstanceId = oldState.WorkflowInstanceId
@@ -203,14 +204,14 @@ func (s *Server) spanEnd(ctx context.Context, name string, state *model.Workflow
 	state.ElementType = oldState.ElementType
 	state.State = oldState.State
 	if err := s.saveSpan(ctx, name, &oldState, state); err != nil {
-		log.Error("Failed to record span:", err, slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
+		log.Error("record span:", err, slog.String(keys.TrackingID, common.TrackingID(state.Id).ID()))
 		return fmt.Errorf("save span failed: %w", err)
 	}
 	return nil
 }
 
 func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.WorkflowState, newState *model.WorkflowState) error {
-	log := slog.FromContext(ctx)
+	log := logx.FromContext(ctx)
 	traceID := common.KSuidTo128bit(oldState.WorkflowInstanceId)
 	spanID := common.KSuidTo64bit(common.TrackingID(oldState.Id).ID())
 	parentID := common.KSuidTo64bit(common.TrackingID(oldState.Id).ParentID())
@@ -285,7 +286,7 @@ func (s *Server) saveSpan(ctx context.Context, name string, oldState *model.Work
 	err = s.spanKV.Delete(common.TrackingID(oldState.Id).ID())
 	if err != nil {
 		id := common.TrackingID(oldState.Id).ID()
-		log.Warn("Could not delete the cached span", err, slog.String(keys.TrackingID, id))
+		log.Warn("delete the cached span", err, slog.String(keys.TrackingID, id))
 	}
 	return nil
 }

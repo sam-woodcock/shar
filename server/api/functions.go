@@ -7,12 +7,12 @@ import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/ctxkey"
+	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	"gitlab.com/shar-workflow/shar/model"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/messages"
 	"gitlab.com/shar-workflow/shar/server/vars"
-	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -28,11 +28,11 @@ func (s *SharServer) getProcessInstanceStatus(ctx context.Context, req *model.Ge
 func (s *SharServer) listWorkflowInstanceProcesses(ctx context.Context, req *model.ListWorkflowInstanceProcessesRequest) (*model.ListWorkflowInstanceProcessesResult, error) {
 	ctx, instance, err2 := s.authFromInstanceID(ctx, req.Id)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
 	res, err := s.ns.ListWorkflowInstanceProcesses(ctx, instance.WorkflowInstanceId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow instance status: %w", err)
+		return nil, fmt.Errorf("get workflow instance status: %w", err)
 	}
 	return &model.ListWorkflowInstanceProcessesResult{ProcessInstanceId: res}, nil
 }
@@ -40,7 +40,7 @@ func (s *SharServer) listWorkflowInstanceProcesses(ctx context.Context, req *mod
 func (s *SharServer) listWorkflows(ctx context.Context, _ *emptypb.Empty) (*model.ListWorkflowsResponse, error) {
 	ctx, err2 := s.authForNonWorkflow(ctx)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
 	res, errs := s.ns.ListWorkflows(ctx)
 	ret := make([]*model.ListWorkflowResult, 0)
@@ -55,18 +55,16 @@ func (s *SharServer) listWorkflows(ctx context.Context, _ *emptypb.Empty) (*mode
 				Version: winf.Version,
 			})
 		case err := <-errs:
-			return nil, fmt.Errorf("failed to list workflowsr: %w", err)
+			return nil, fmt.Errorf("list workflowsr: %w", err)
 		}
 	}
 }
 
 func (s *SharServer) sendMessage(ctx context.Context, req *model.SendMessageRequest) (*emptypb.Empty, error) {
-	ctx, instance, err2 := s.authFromInstanceID(ctx, req.WorkflowInstanceId)
-	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
-	}
-	if err := s.ns.PublishMessage(ctx, instance.WorkflowInstanceId, req.Name, req.Key, req.Vars); err != nil {
-		return nil, fmt.Errorf("failed to send message: %w", err)
+	//TODO: how do we auth this?
+
+	if err := s.ns.PublishMessage(ctx, req.Name, req.CorrelationKey, req.Vars); err != nil {
+		return nil, fmt.Errorf("send message: %w", err)
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -74,10 +72,10 @@ func (s *SharServer) sendMessage(ctx context.Context, req *model.SendMessageRequ
 func (s *SharServer) completeManualTask(ctx context.Context, req *model.CompleteManualTaskRequest) (*emptypb.Empty, error) {
 	ctx, job, err2 := s.authFromJobID(ctx, req.TrackingId)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
 	if err := s.engine.CompleteManualTask(ctx, job, req.Vars); err != nil {
-		return nil, fmt.Errorf("failed to complete manual task: %w", err)
+		return nil, fmt.Errorf("complete manual task: %w", err)
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -85,10 +83,10 @@ func (s *SharServer) completeManualTask(ctx context.Context, req *model.Complete
 func (s *SharServer) completeServiceTask(ctx context.Context, req *model.CompleteServiceTaskRequest) (*emptypb.Empty, error) {
 	ctx, job, err2 := s.authFromJobID(ctx, req.TrackingId)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
 	if err := s.engine.CompleteServiceTask(ctx, job, req.Vars); err != nil {
-		return nil, fmt.Errorf("failed to complete service task: %w", err)
+		return nil, fmt.Errorf("complete service task: %w", err)
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -96,10 +94,10 @@ func (s *SharServer) completeServiceTask(ctx context.Context, req *model.Complet
 func (s *SharServer) completeSendMessageTask(ctx context.Context, req *model.CompleteSendMessageRequest) (*emptypb.Empty, error) {
 	ctx, job, err2 := s.authFromJobID(ctx, req.TrackingId)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
 	if err := s.engine.CompleteSendMessageTask(ctx, job, req.Vars); err != nil {
-		return nil, fmt.Errorf("failed to complete send message task: %w", err)
+		return nil, fmt.Errorf("complete send message task: %w", err)
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -107,10 +105,10 @@ func (s *SharServer) completeSendMessageTask(ctx context.Context, req *model.Com
 func (s *SharServer) completeUserTask(ctx context.Context, req *model.CompleteUserTaskRequest) (*emptypb.Empty, error) {
 	ctx, job, err2 := s.authFromJobID(ctx, req.TrackingId)
 	if err2 != nil {
-		return &emptypb.Empty{}, fmt.Errorf("failed to authorize complete user task: %w", err2)
+		return &emptypb.Empty{}, fmt.Errorf("authorize complete user task: %w", err2)
 	}
 	if err := s.engine.CompleteUserTask(ctx, job, req.Vars); err != nil {
-		return nil, fmt.Errorf("failed to complete user task: %w", err)
+		return nil, fmt.Errorf("complete user task: %w", err)
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -118,11 +116,11 @@ func (s *SharServer) completeUserTask(ctx context.Context, req *model.CompleteUs
 func (s *SharServer) storeWorkflow(ctx context.Context, wf *model.Workflow) (*wrapperspb.StringValue, error) {
 	ctx, err2 := s.authForNamedWorkflow(ctx, wf.Name)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize complete user task: %w", err2)
+		return nil, fmt.Errorf("authorize complete user task: %w", err2)
 	}
 	res, err := s.engine.LoadWorkflow(ctx, wf)
 	if err != nil {
-		return nil, fmt.Errorf("failed to store workflow: %w", err)
+		return nil, fmt.Errorf("store workflow: %w", err)
 	}
 	return &wrapperspb.StringValue{Value: res}, nil
 }
@@ -130,23 +128,11 @@ func (s *SharServer) storeWorkflow(ctx context.Context, wf *model.Workflow) (*wr
 func (s *SharServer) getServiceTaskRoutingID(ctx context.Context, taskName *wrapperspb.StringValue) (*wrapperspb.StringValue, error) {
 	ctx, err2 := s.authForNonWorkflow(ctx)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
 	res, err := s.ns.GetServiceTaskRoutingKey(ctx, taskName.Value)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get service task routing id: %w", err)
-	}
-	return &wrapperspb.StringValue{Value: res}, nil
-}
-
-func (s *SharServer) getMessageSenderRoutingID(ctx context.Context, req *model.GetMessageSenderRoutingIdRequest) (*wrapperspb.StringValue, error) {
-	ctx, err2 := s.authForNonWorkflow(ctx)
-	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
-	}
-	res, err := s.ns.GetMessageSenderRoutingKey(ctx, req.WorkflowName, req.MessageName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get message sender routing id: %w", err)
+		return nil, fmt.Errorf("get service task routing id: %w", err)
 	}
 	return &wrapperspb.StringValue{Value: res}, nil
 }
@@ -154,11 +140,11 @@ func (s *SharServer) getMessageSenderRoutingID(ctx context.Context, req *model.G
 func (s *SharServer) launchWorkflow(ctx context.Context, req *model.LaunchWorkflowRequest) (*model.LaunchWorkflowResponse, error) {
 	ctx, err2 := s.authForNamedWorkflow(ctx, req.Name)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize complete user task: %w", err2)
+		return nil, fmt.Errorf("authorize complete user task: %w", err2)
 	}
 	wfiID, wfID, err := s.engine.Launch(ctx, req.Name, req.Vars)
 	if err != nil {
-		return nil, fmt.Errorf("failed to launch workflow instance kv: %w", err)
+		return nil, fmt.Errorf("launch workflow instance kv: %w", err)
 	}
 	return &model.LaunchWorkflowResponse{WorkflowId: wfID, InstanceId: wfiID}, nil
 }
@@ -166,11 +152,17 @@ func (s *SharServer) launchWorkflow(ctx context.Context, req *model.LaunchWorkfl
 func (s *SharServer) cancelWorkflowInstance(ctx context.Context, req *model.CancelWorkflowInstanceRequest) (*emptypb.Empty, error) {
 	ctx, instance, err2 := s.authFromInstanceID(ctx, req.Id)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
-	err := s.engine.CancelWorkflowInstance(ctx, instance.WorkflowInstanceId, req.State, req.Error)
+	// TODO: get working state here
+	state := &model.WorkflowState{
+		WorkflowInstanceId: instance.WorkflowInstanceId,
+		State:              req.State,
+		Error:              req.Error,
+	}
+	err := s.engine.CancelWorkflowInstance(ctx, state)
 	if err != nil {
-		return nil, fmt.Errorf("failed to cancel workflow instance kv: %w", err)
+		return nil, fmt.Errorf("cancel workflow instance kv: %w", err)
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -178,7 +170,7 @@ func (s *SharServer) cancelWorkflowInstance(ctx context.Context, req *model.Canc
 func (s *SharServer) listWorkflowInstance(ctx context.Context, req *model.ListWorkflowInstanceRequest) (*model.ListWorkflowInstanceResponse, error) {
 	ctx, err2 := s.authForNamedWorkflow(ctx, req.WorkflowName)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize complete user task: %w", err2)
+		return nil, fmt.Errorf("authorize complete user task: %w", err2)
 	}
 	wch, errs := s.ns.ListWorkflowInstance(ctx, req.WorkflowName)
 	ret := make([]*model.ListWorkflowInstanceResult, 0)
@@ -193,7 +185,7 @@ func (s *SharServer) listWorkflowInstance(ctx context.Context, req *model.ListWo
 				Version: winf.Version,
 			})
 		case err := <-errs:
-			return nil, fmt.Errorf("failed to list workflow instancesr: %w", err)
+			return nil, fmt.Errorf("list workflow instancesr: %w", err)
 		}
 	}
 }
@@ -201,7 +193,7 @@ func (s *SharServer) listWorkflowInstance(ctx context.Context, req *model.ListWo
 func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleWorkflowErrorRequest) (*model.HandleWorkflowErrorResponse, error) {
 	ctx, job, err2 := s.authFromJobID(ctx, req.TrackingId)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
 	// Sanity check
 	if req.ErrorCode == "" {
@@ -211,7 +203,7 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 	// Get the workflow, so we can look up the error definitions
 	wf, err := s.ns.GetWorkflow(ctx, job.WorkflowId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow definition for handle workflow error: %w", err)
+		return nil, fmt.Errorf("get workflow definition for handle workflow error: %w", err)
 	}
 
 	// Get the element corresponding to the job
@@ -233,10 +225,18 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		werr := &errors2.ErrWorkflowFatal{Err: fmt.Errorf("workflow-fatal: can't handle error code %s as the workflow doesn't support it: %w", req.ErrorCode, errors2.ErrWorkflowErrorNotFound)}
 		// TODO: This always assumes service task.  Wrong!
 		if err := s.ns.PublishWorkflowState(ctx, subj.NS(messages.WorkflowJobServiceTaskAbort, "default"), job); err != nil {
-			return nil, fmt.Errorf("failed to cencel job: %w", werr)
+			return nil, fmt.Errorf("cencel job: %w", werr)
 		}
-		if _, err := s.cancelWorkflowInstance(ctx, &model.CancelWorkflowInstanceRequest{Id: job.WorkflowInstanceId, State: model.CancellationState_errored}); err != nil {
-			return nil, fmt.Errorf("failed to cancel workflow instance: %w", werr)
+
+		cancelState := common.CopyWorkflowState(job)
+		cancelState.State = model.CancellationState_errored
+		cancelState.Error = &model.Error{
+			Id:   "UNKNOWN",
+			Name: "UNKNOWN",
+			Code: req.ErrorCode,
+		}
+		if err := s.engine.CancelWorkflowInstance(ctx, cancelState); err != nil {
+			return nil, fmt.Errorf("cancel workflow instance: %w", werr)
 		}
 		return nil, fmt.Errorf("workflow halted: %w", werr)
 	}
@@ -262,7 +262,7 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 
 	oldState, err := s.ns.GetOldState(ctx, common.TrackingID(job.Id).Pop().ID())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get old state for handle workflow error: %w", err)
+		return nil, fmt.Errorf("get old state for handle workflow error: %w", err)
 	}
 	if err := vars.OutputVars(ctx, req.Vars, &oldState.Vars, caughtError.OutputTransform); err != nil {
 		return nil, &errors2.ErrWorkflowFatal{Err: err}
@@ -278,9 +278,9 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		ProcessInstanceId:  job.ProcessInstanceId,
 		ProcessName:        job.ProcessName,
 	}); err != nil {
-		log := slog.FromContext(ctx)
-		log.Error("failed to publish workflow state", err)
-		return nil, fmt.Errorf("failed to publish traversal for handle workflow error: %w", err)
+		log := logx.FromContext(ctx)
+		log.Error("publish workflow state", err)
+		return nil, fmt.Errorf("publish traversal for handle workflow error: %w", err)
 	}
 	// TODO: This always assumes service task.  Wrong!
 	if err := s.ns.PublishWorkflowState(ctx, messages.WorkflowJobServiceTaskAbort, &model.WorkflowState{
@@ -294,12 +294,12 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 		ProcessInstanceId:  job.ProcessInstanceId,
 		ProcessName:        job.ProcessName,
 	}); err != nil {
-		log := slog.FromContext(ctx)
-		log.Error("failed to publish workflow state", err)
+		log := logx.FromContext(ctx)
+		log.Error("publish workflow state", err)
 		// We have already traversed so retunring an error here would be incorrect.
 		// It would force reprocessing and possibly double traversing
 		// TODO: develop an idempotent behaviour based upon hash nats message ids + deduplication
-		return nil, fmt.Errorf("failed to publish abort task for handle workflow error: %w", err)
+		return nil, fmt.Errorf("publish abort task for handle workflow error: %w", err)
 	}
 	return &model.HandleWorkflowErrorResponse{Handled: true}, nil
 }
@@ -307,18 +307,18 @@ func (s *SharServer) handleWorkflowError(ctx context.Context, req *model.HandleW
 func (s *SharServer) listUserTaskIDs(ctx context.Context, req *model.ListUserTasksRequest) (*model.UserTasks, error) {
 	ctx, err2 := s.authForNonWorkflow(ctx)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
 	oid, err := s.ns.OwnerID(req.Owner)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get owner ID: %w", err)
+		return nil, fmt.Errorf("get owner ID: %w", err)
 	}
 	ut, err := s.ns.GetUserTaskIDs(ctx, oid)
 	if errors.Is(err, nats.ErrKeyNotFound) {
 		return &model.UserTasks{Id: []string{}}, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user task IDs: %w", err)
+		return nil, fmt.Errorf("get user task IDs: %w", err)
 	}
 	return ut, nil
 }
@@ -326,7 +326,7 @@ func (s *SharServer) listUserTaskIDs(ctx context.Context, req *model.ListUserTas
 func (s *SharServer) getUserTask(ctx context.Context, req *model.GetUserTaskRequest) (*model.GetUserTaskResponse, error) {
 	ctx, job, err2 := s.authFromJobID(ctx, req.TrackingId)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
 	wf, err := s.ns.GetWorkflow(ctx, job.WorkflowId)
 	if err != nil {
@@ -348,7 +348,7 @@ func (s *SharServer) getUserTask(ctx context.Context, req *model.GetUserTaskRequ
 func (s *SharServer) getServerInstanceStats(ctx context.Context, _ *emptypb.Empty) (*model.WorkflowStats, error) {
 	ctx, err2 := s.authForNonWorkflow(ctx)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
 	ret := *s.ns.WorkflowStats()
 	return &ret, nil
@@ -357,11 +357,11 @@ func (s *SharServer) getServerInstanceStats(ctx context.Context, _ *emptypb.Empt
 func (s *SharServer) getWorkflowVersions(ctx context.Context, req *model.GetWorkflowVersionsRequest) (*model.GetWorkflowVersionsResponse, error) {
 	ctx, err2 := s.authForNamedWorkflow(ctx, req.Name)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
 	ret, err := s.ns.GetWorkflowVersions(ctx, req.Name)
 	if err != nil {
-		return nil, fmt.Errorf("failed get workflow versions: %w", err)
+		return nil, fmt.Errorf("get workflow versions: %w", err)
 	}
 	return &model.GetWorkflowVersionsResponse{Versions: ret}, nil
 }
@@ -369,11 +369,23 @@ func (s *SharServer) getWorkflowVersions(ctx context.Context, req *model.GetWork
 func (s *SharServer) getWorkflow(ctx context.Context, req *model.GetWorkflowRequest) (*model.GetWorkflowResponse, error) {
 	ctx, err2 := s.authForNonWorkflow(ctx)
 	if err2 != nil {
-		return nil, fmt.Errorf("failed to authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
 	ret, err := s.ns.GetWorkflow(ctx, req.Id)
 	if err != nil {
-		return nil, fmt.Errorf("failed get workflow: %w", err)
+		return nil, fmt.Errorf("get workflow: %w", err)
 	}
 	return &model.GetWorkflowResponse{Definition: ret}, nil
+}
+
+func (s *SharServer) getProcessHistory(ctx context.Context, req *model.GetProcessHistoryRequest) (*model.GetProcessHistoryResponse, error) {
+	ctx, _, err := s.authFromProcessInstanceID(ctx, req.Id)
+	if err != nil {
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err)
+	}
+	ret, err := s.ns.GetProcessHistory(ctx, req.Id)
+	if err != nil {
+		return nil, fmt.Errorf("get process history: %w", err)
+	}
+	return &model.GetProcessHistoryResponse{Entry: ret}, nil
 }

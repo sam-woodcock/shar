@@ -43,7 +43,7 @@ func tagGateways(process *model.Process, els map[string]*model.Element, back map
 	for _, el := range process.Elements {
 		if el.Type == element.Gateway && el.Gateway.Direction == model.GatewayDirection_convergent {
 			if err := tagReciprocal(el, back, els); err != nil {
-				return fmt.Errorf("failed to find reciprocal gateway: %w", err)
+				return fmt.Errorf("find reciprocal gateway: %w", err)
 			}
 		}
 	}

@@ -10,7 +10,7 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/api"
 	"gitlab.com/shar-workflow/shar/server/health"
-	"gitlab.com/shar-workflow/shar/server/services"
+	"gitlab.com/shar-workflow/shar/server/services/storage"
 	"golang.org/x/exp/slog"
 	gogrpc "google.golang.org/grpc"
 	grpcHealth "google.golang.org/grpc/health/grpc_health_v1"
@@ -85,13 +85,13 @@ func (s *Server) Listen(natsURL string, grpcPort int) {
 		// Create health server and expose on GRPC
 		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
 		if err != nil {
-			slog.Error("failed to listen", err, slog.Int64("grpcPort", int64(grpcPort)))
+			slog.Error("listen", err, slog.Int64("grpcPort", int64(grpcPort)))
 			panic(err)
 		}
 
 		s.grpcServer = gogrpc.NewServer()
 		if err := registerServer(s.grpcServer, s.healthService); err != nil {
-			slog.Error("failed to register grpc health server", err, slog.Int64("grpcPort", int64(grpcPort)))
+			slog.Error("register grpc health server", err, slog.Int64("grpcPort", int64(grpcPort)))
 			panic(err)
 		}
 
@@ -143,15 +143,15 @@ func (s *Server) Shutdown() {
 	}
 }
 
-func (s *Server) createServices(natsURL string, ephemeral bool, allowOrphanServiceTasks bool) *services.NatsService {
+func (s *Server) createServices(natsURL string, ephemeral bool, allowOrphanServiceTasks bool) *storage.Nats {
 	conn, err := nats.Connect(natsURL)
 	if err != nil {
-		slog.Error("could not connect to NATS", err, slog.String("url", natsURL))
+		slog.Error("connect to NATS", err, slog.String("url", natsURL))
 		panic(err)
 	}
 	txConn, err := nats.Connect(natsURL)
 	if err != nil {
-		slog.Error("could not connect to NATS", err, slog.String("url", natsURL))
+		slog.Error("connect to NATS", err, slog.String("url", natsURL))
 		panic(err)
 	}
 
@@ -159,7 +159,7 @@ func (s *Server) createServices(natsURL string, ephemeral bool, allowOrphanServi
 		panic(errors.New("cannot form JetSteram connection"))
 	} else {
 		if _, err := js.AccountInfo(); err != nil {
-			panic(errors.New("could not contact JetStream. ensure it is enabled on the specified NATS instance"))
+			panic(errors.New("contact JetStream. ensure it is enabled on the specified NATS instance"))
 		}
 	}
 
@@ -167,9 +167,9 @@ func (s *Server) createServices(natsURL string, ephemeral bool, allowOrphanServi
 	if ephemeral {
 		store = nats.MemoryStorage
 	}
-	ns, err := services.NewNatsService(conn, txConn, store, s.concurrency, allowOrphanServiceTasks)
+	ns, err := storage.New(conn, txConn, store, s.concurrency, allowOrphanServiceTasks)
 	if err != nil {
-		slog.Error("failed to create NATS KV store", err)
+		slog.Error("create NATS KV store", err)
 		panic(err)
 	}
 	return ns

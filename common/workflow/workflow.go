@@ -24,11 +24,11 @@ func GetHash(wf *model.Workflow) ([]byte, error) {
 	}(wf)
 	b, err := json.Marshal(wf)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal the workflow definition: %w", err)
+		return nil, fmt.Errorf("marshal the workflow definition: %w", err)
 	}
 	h := sha256.New()
 	if _, err := h.Write(b); err != nil {
-		return nil, fmt.Errorf("could not write the workflow definitino to the hash provider: %s", wf.Name)
+		return nil, fmt.Errorf("write the workflow definitino to the hash provider: %s", wf.Name)
 	}
 	hash := h.Sum(nil)
 	return hash, nil

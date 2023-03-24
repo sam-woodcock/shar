@@ -24,7 +24,7 @@ func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 	errs := make(map[string]string)
 	doc, err := xmlquery.Parse(rdr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse xml: %w", err)
+		return nil, fmt.Errorf("parse xml: %w", err)
 	}
 	prXmls := doc.SelectElements("//bpmn:process")
 	wf := &model.Workflow{
@@ -39,7 +39,7 @@ func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
 		errXML := doc.SelectElements("//bpmn:error")
 		pr.Name = prXML.SelectAttr("id")
 		if err := parseProcess(doc, wf, prXML, pr, msgXML, errXML, msgs, errs); err != nil {
-			return nil, fmt.Errorf("failed to parse process: %w", err)
+			return nil, fmt.Errorf("parse process: %w", err)
 		}
 		wf.Process[pr.Name] = pr
 	}
@@ -118,7 +118,7 @@ func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i 
 			parseIntermediateThrowEvent(i, el, wf, msgs)
 		case "startEvent":
 			if err := parseStartEvent(i, el); err != nil {
-				return fmt.Errorf("failed to parse start events: %w", err)
+				return fmt.Errorf("parse start events: %w", err)
 			}
 		case "exclusiveGateway":
 			el.Type = element.Gateway
@@ -137,10 +137,10 @@ func parseElements(doc *xmlquery.Node, wf *model.Workflow, pr *model.Process, i 
 		parseElementErrors(doc, i, el)
 		parseZeebeExtensions(doc, el, i)
 		if err := parseSubprocess(doc, wf, el, i, msgs, errs); err != nil {
-			return fmt.Errorf("failed to parse sub-processes: %w", err)
+			return fmt.Errorf("parse sub-processes: %w", err)
 		}
 		if err := parseSubscription(wf, el, i, msgs, errs); err != nil {
-			return fmt.Errorf("failed to parse subscription: %w", err)
+			return fmt.Errorf("parse subscription: %w", err)
 		}
 		pr.Elements = append(pr.Elements, el)
 	}
@@ -164,13 +164,13 @@ func parseStartEvent(n *xmlquery.Node, el *model.Element) error {
 		timeCycle := def.SelectElement("bpmn:timeCycle/text()")
 		timeDate := def.SelectElement("bpmn:timeDate/text()")
 		if timeCycle == nil && timeDate == nil {
-			return fmt.Errorf("could not parse start event: %w", errors2.ErrBadTimerEventDefinition)
+			return fmt.Errorf("parse start event: %w", errors2.ErrBadTimerEventDefinition)
 		}
 		var t *model.WorkflowTimerDefinition
 		if timeDate != nil {
 			tval, err := iso8601.ParseString(timeDate.Data)
 			if err != nil {
-				return fmt.Errorf("failed to parse ISO8601 duration: %w", err)
+				return fmt.Errorf("parse ISO8601 duration: %w", err)
 			}
 			t = &model.WorkflowTimerDefinition{
 				Type:  model.WorkflowTimerType_fixed,
@@ -184,7 +184,7 @@ func parseStartEvent(n *xmlquery.Node, el *model.Element) error {
 
 			repeat, err := strconv.Atoi(parts[0][1:])
 			if err != nil {
-				return fmt.Errorf("could not parse time cycle repeat: %w", errors2.ErrBadTimeCycle)
+				return fmt.Errorf("parse time cycle repeat: %w", errors2.ErrBadTimeCycle)
 			}
 			dur, err := ParseISO8601(parts[1])
 			if err != nil {
@@ -273,7 +273,7 @@ func parseSubscription(wf *model.Workflow, el *model.Element, i *xmlquery.Node, 
 			el.Msg = msgs[ref]
 			c, err := getCorrelation(wf.Messages, el.Msg)
 			if err != nil {
-				return fmt.Errorf("failed to get subscription correlation: %w", err)
+				return fmt.Errorf("get subscription correlation: %w", err)
 			}
 			el.Execute = c
 			return nil
@@ -283,7 +283,7 @@ func parseSubscription(wf *model.Workflow, el *model.Element, i *xmlquery.Node, 
 			el.Type = element.TimerIntermediateCatchEvent
 			dur, err := parseDuration(ref)
 			if err != nil {
-				return fmt.Errorf("failed to parse duration: %w", err)
+				return fmt.Errorf("parse duration: %w", err)
 			}
 			el.Execute = dur
 			return nil
@@ -319,7 +319,7 @@ func getCorrelation(messages []*model.Element, msg string) (string, error) {
 			return v.Execute, nil
 		}
 	}
-	return "", fmt.Errorf("could not find message %s: %w", msg, errors2.ErrCorrelationFail)
+	return "", fmt.Errorf("find message %s: %w", msg, errors2.ErrCorrelationFail)
 }
 
 func parseSubprocess(doc *xmlquery.Node, wf *model.Workflow, el *model.Element, i *xmlquery.Node, msgs map[string]string, errs map[string]string) error {
@@ -328,7 +328,7 @@ func parseSubprocess(doc *xmlquery.Node, wf *model.Workflow, el *model.Element, 
 			Elements: make([]*model.Element, 0),
 		}
 		if err := parseProcess(doc, wf, i, pr, nil, nil, msgs, errs); err != nil {
-			return fmt.Errorf("failed to parse process: %w", err)
+			return fmt.Errorf("parse process: %w", err)
 		}
 		el.Process = pr
 	}

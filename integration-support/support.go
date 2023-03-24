@@ -49,7 +49,7 @@ func (s *Integration) Setup(t *testing.T, authZFn authz.APIFunc, authNFn authn.C
 	s.NatsHost = "127.0.0.1"
 	s.NatsPort = 4459 + rand2.Intn(500)
 	s.NatsURL = fmt.Sprintf("nats://%s:%v", s.NatsHost, s.NatsPort)
-	logx.SetDefault(slog.DebugLevel, true, "shar-Integration-tests")
+	logx.SetDefault(slog.LevelDebug, true, "shar-Integration-tests")
 	s.Cooldown = 4 * time.Second
 	s.Test = t
 	s.FinalVars = make(map[string]interface{})
@@ -142,7 +142,8 @@ func (s *Integration) checkCleanKV() error {
 			"WORKFLOW_MSGNAME",
 			"WORKFLOW_OWNERNAME",
 			"WORKFLOW_OWNERID",
-			"WORKFLOW_USERTASK":
+			"WORKFLOW_USERTASK",
+			"WORKFLOW_HISTORY":
 			//noop
 		default:
 			if len(keys) > 0 {
@@ -165,6 +166,12 @@ func (s *Integration) checkCleanKV() error {
 						err := proto.Unmarshal(p.Value(), str)
 						if err == nil {
 							sc.Dump(str)
+						} else {
+							str := &model.MessageInstance{}
+							err := proto.Unmarshal(p.Value(), str)
+							if err == nil {
+								sc.Dump(str)
+							}
 						}
 					}
 				}
@@ -246,11 +253,11 @@ func (s *Integration) Teardown() {
 func (s *Integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:ireturn
 	con, err := s.GetNats()
 	if err != nil {
-		return nil, fmt.Errorf("could not get NATS: %w", err)
+		return nil, fmt.Errorf("get NATS: %w", err)
 	}
 	js, err := con.JetStream()
 	if err != nil {
-		return nil, fmt.Errorf("could not obtain JetStream connection: %w", err)
+		return nil, fmt.Errorf("obtain JetStream connection: %w", err)
 	}
 	return js, nil
 }
@@ -261,27 +268,18 @@ func (s *Integration) GetJetstream() (nats.JetStreamContext, error) { //nolint:i
 func (s *Integration) GetNats() (*nats.Conn, error) {
 	con, err := nats.Connect(s.NatsURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
+		return nil, fmt.Errorf("connect to NATS: %w", err)
 	}
 	return con, nil
 }
 
-// AwaitWorkflowComplete - waits for a workflow instance to be completed.
-func (s *Integration) AwaitWorkflowComplete(t *testing.T, complete chan *model.WorkflowInstanceComplete, wfiID string) *model.WorkflowInstanceComplete {
-	finish := make(chan *model.WorkflowInstanceComplete)
-	go func() {
-		// wait for the workflow to complete
-		for i := range complete {
-			if i.WorkflowInstanceId == wfiID {
-				finish <- i
-			}
-		}
-	}()
+// WaitForChan waits for a chan struct{} with a duration timeout.
+func WaitForChan(t *testing.T, c chan struct{}, d time.Duration) {
 	select {
-	case c := <-finish:
-		return c
-	case <-time.After(20 * time.Second):
-		require.Fail(t, "timed out")
-		return nil
+	case <-c:
+		return
+	case <-time.After(d):
+		assert.Fail(t, "timed out waiting for completion")
+		return
 	}
 }

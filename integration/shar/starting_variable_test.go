@@ -32,15 +32,13 @@ func TestStartingVariable(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "SimpleWorkflowTest", b)
 	require.NoError(t, err)
 
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-
-	d := &testStartingVariableHandlerDef{}
+	d := &testStartingVariableHandlerDef{finished: make(chan struct{})}
 
 	// Register a service task
-	cl.RegisterWorkflowInstanceComplete(complete)
 	err = cl.RegisterServiceTask(ctx, "DummyTask", d.integrationSimple)
 	require.NoError(t, err)
-
+	err = cl.RegisterProcessComplete("", d.processEnd)
+	require.NoError(t, err)
 	// Launch the workflow
 	_, _, err = cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{})
 
@@ -49,10 +47,15 @@ func TestStartingVariable(t *testing.T) {
 }
 
 type testStartingVariableHandlerDef struct {
+	finished chan struct{}
 }
 
 func (d *testStartingVariableHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	fmt.Println("Hi")
 	fmt.Println("carried", vars["carried"])
 	return vars, nil
+}
+
+func (d *testStartingVariableHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	close(d.finished)
 }

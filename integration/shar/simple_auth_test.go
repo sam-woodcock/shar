@@ -48,17 +48,15 @@ func TestSimpleAuthZ(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "SimpleWorkflowTest", b)
 	require.NoError(t, err)
 
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-
-	d := &testSimpleAuthHandlerDef{t: t}
+	d := &testSimpleAuthHandlerDef{t: t, finished: make(chan struct{})}
 
 	// Register a service task
-	cl.RegisterWorkflowInstanceComplete(complete)
 	err = cl.RegisterServiceTask(ctx, "SimpleProcess", d.integrationSimple)
 	require.NoError(t, err)
-
+	err = cl.RegisterProcessComplete("SimpleProcess", d.processEnd)
+	require.NoError(t, err)
 	// Launch the workflow
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{})
+	_, _, err = cl.LaunchWorkflow(ctx, "SimpleWorkflowTest", model.Vars{})
 	require.NoError(t, err)
 	// Listen for service tasks
 	go func() {
@@ -66,7 +64,7 @@ func TestSimpleAuthZ(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	tst.AwaitWorkflowComplete(t, complete, wfiID)
+	support.WaitForChan(t, d.finished, 20*time.Second)
 	tst.AssertCleanKV()
 }
 
@@ -86,11 +84,10 @@ func TestNoAuthN(t *testing.T) {
 
 	// Load BPMN workflow
 	b, err := os.ReadFile("../../testdata/simple-workflow.bpmn")
-	fmt.Println("RET1:", err)
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "SimpleWorkflowTest", b)
-	assert.ErrorContains(t, err, "failed to authenticate")
+	assert.ErrorContains(t, err, "authenticate")
 
 }
 
@@ -114,8 +111,7 @@ func TestSimpleNoAuthZ(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "SimpleWorkflowTest", b)
-	fmt.Println("RET2:", err)
-	assert.ErrorContains(t, err, "failed to authorize")
+	assert.ErrorContains(t, err, "authorize")
 
 	tst.AssertCleanKV()
 }
@@ -189,7 +185,8 @@ func APIauth(api string, permissions map[string]struct{}) bool {
 }
 
 type testSimpleAuthHandlerDef struct {
-	t *testing.T
+	t        *testing.T
+	finished chan struct{}
 }
 
 func (d *testSimpleAuthHandlerDef) integrationSimple(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
@@ -197,4 +194,8 @@ func (d *testSimpleAuthHandlerDef) integrationSimple(_ context.Context, _ client
 	assert.Equal(d.t, 32768, vars["carried"].(int))
 	vars["Success"] = true
 	return vars, nil
+}
+
+func (d *testSimpleAuthHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	close(d.finished)
 }

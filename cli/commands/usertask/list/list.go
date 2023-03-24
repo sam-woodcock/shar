@@ -26,7 +26,7 @@ func run(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	shar := client.New()
 	if err := shar.Dial(flag.Value.Server); err != nil {
-		return fmt.Errorf("error dialling server: %w", err)
+		return fmt.Errorf("dialling server: %w", err)
 	}
 	ut, err := shar.ListUserTaskIDs(ctx, args[0])
 	if err != nil {
@@ -36,7 +36,7 @@ func run(cmd *cobra.Command, args []string) error {
 	for i, v := range ut.Id {
 		ut, _, err := shar.GetUserTask(ctx, args[0], v)
 		if err != nil {
-			return fmt.Errorf("failed to get user task %s: %w", v, err)
+			return fmt.Errorf("get user task %s: %w", v, err)
 		}
 		res[i] = ut
 	}

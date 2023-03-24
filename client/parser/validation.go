@@ -54,7 +54,7 @@ func checkVariables(process *model.Process) error {
 			for _, exp := range e.InputTransform {
 				v2, err := expression.GetVariables(exp)
 				if err != nil {
-					return fmt.Errorf("failed to get input transform variables: %w", err)
+					return fmt.Errorf("get input transform variables: %w", err)
 				}
 				for k := range v2 {
 					inputVars[k] = struct{}{}
@@ -65,7 +65,7 @@ func checkVariables(process *model.Process) error {
 			for exp := range e.OutputTransform {
 				v2, err := expression.GetVariables("=" + exp)
 				if err != nil {
-					return fmt.Errorf("failed to get output transform variables: %w", err)
+					return fmt.Errorf("get output transform variables: %w", err)
 				}
 				for k := range v2 {
 					outputVars[k] = struct{}{}
@@ -90,7 +90,7 @@ func checkVariables(process *model.Process) error {
 				for exp := range t.OutputTransform {
 					v2, err := expression.GetVariables("=" + exp)
 					if err != nil {
-						return fmt.Errorf("failed to get error variables: %w", err)
+						return fmt.Errorf("get error variables: %w", err)
 					}
 					for k := range v2 {
 						outputVars[k] = struct{}{}

@@ -16,12 +16,11 @@ import (
 
 //goland:noinspection GoNilness
 func TestMultiWorkflow(t *testing.T) {
-	tst := &support.Integration{}
-	tst.WithTrace = true
+	tst := &support.Integration{Cooldown: 45 * time.Second}
+	//tst.WithTrace = true
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
-	tst.Cooldown = 5 * time.Second
-	handlers := &testMultiworkflowMessagingHandlerDef{t: t}
+	handlers := &testMultiworkflowMessagingHandlerDef{t: t, finished: make(chan struct{})}
 
 	// Create a starting context
 	ctx := context.Background()
@@ -45,8 +44,6 @@ func TestMultiWorkflow(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestMultiWorkflow2", b2)
 	require.NoError(t, err)
 
-	complete := make(chan *model.WorkflowInstanceComplete, 400)
-
 	// Register a service task
 	err = cl.RegisterServiceTask(ctx, "step1", handlers.step1)
 	require.NoError(t, err)
@@ -58,22 +55,22 @@ func TestMultiWorkflow(t *testing.T) {
 	err = cl.RegisterMessageSender(ctx, "TestMultiWorkflow1", "continueMessage", handlers.sendMessage)
 	require.NoError(t, err)
 
-	cl.RegisterWorkflowInstanceComplete(complete)
-
+	err = cl.RegisterProcessComplete("Process_03llwnm", handlers.processEnd)
+	require.NoError(t, err)
 	// Listen for service tasks
 	go func() {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
-	n := 25
+	n := 100
 	mx := sync.Mutex{}
 	instances := make(map[string]struct{})
 	wg := sync.WaitGroup{}
 	for inst := 0; inst < n; inst++ {
-		wg.Add(2)
-		go func() {
+		wg.Add(1)
+		go func(inst int) {
 			// Launch the workflow
-			if wfiID, _, err := cl.LaunchWorkflow(ctx, "TestMultiWorkflow1", model.Vars{"orderId": 57}); err != nil {
+			if wfiID, _, err := cl.LaunchWorkflow(ctx, "TestMultiWorkflow1", model.Vars{"orderId": inst}); err != nil {
 				panic(err)
 			} else {
 				mx.Lock()
@@ -87,15 +84,12 @@ func TestMultiWorkflow(t *testing.T) {
 				instances[wfiID2] = struct{}{}
 				mx.Unlock()
 			}
-		}()
+		}(inst)
 	}
 	go func() {
-		for i := 0; i < n*2; i++ {
-			c := <-complete
+		for i := 0; i < n; i++ {
+			<-handlers.finished
 			wg.Done()
-			mx.Lock()
-			delete(instances, c.WorkflowInstanceId)
-			mx.Unlock()
 		}
 	}()
 	wg.Wait()
@@ -103,7 +97,8 @@ func TestMultiWorkflow(t *testing.T) {
 }
 
 type testMultiworkflowMessagingHandlerDef struct {
-	t *testing.T
+	t        *testing.T
+	finished chan struct{}
 }
 
 func (x *testMultiworkflowMessagingHandlerDef) step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
@@ -117,8 +112,8 @@ func (x *testMultiworkflowMessagingHandlerDef) step2(_ context.Context, _ client
 }
 
 func (x *testMultiworkflowMessagingHandlerDef) sendMessage(ctx context.Context, cmd client.MessageClient, vars model.Vars) error {
-	if err := cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]}); err != nil {
-		return fmt.Errorf("failed to send continue message: %w", err)
+	if err := cmd.SendMessage(ctx, "continueMessage", vars["orderId"].(int), model.Vars{"carried": vars["carried"]}); err != nil {
+		return fmt.Errorf("send continue message: %w", err)
 	}
 	return nil
 }
@@ -127,4 +122,8 @@ func (x *testMultiworkflowMessagingHandlerDef) sendMessage(ctx context.Context, 
 func (x *testMultiworkflowMessagingHandlerDef) simpleProcess(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	assert.Equal(x.t, 32768, vars["carried"].(int))
 	return model.Vars{}, nil
+}
+
+func (x *testMultiworkflowMessagingHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	x.finished <- struct{}{}
 }

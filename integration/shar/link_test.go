@@ -11,6 +11,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestLink(t *testing.T) {
@@ -33,12 +34,9 @@ func TestLink(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "LinkTest", b)
 	require.NoError(t, err)
 
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-
-	d := &testLinkHandlerDef{t: t}
+	d := &testLinkHandlerDef{t: t, finished: make(chan struct{})}
 
 	// Register a service task
-	cl.RegisterWorkflowInstanceComplete(complete)
 	err = cl.RegisterServiceTask(ctx, "spillage", d.spillage)
 	require.NoError(t, err)
 	err = cl.RegisterServiceTask(ctx, "dontCry", d.dontCry)
@@ -47,16 +45,18 @@ func TestLink(t *testing.T) {
 	require.NoError(t, err)
 	err = cl.RegisterServiceTask(ctx, "wipeItUp", d.wipeItUp)
 	require.NoError(t, err)
+	err = cl.RegisterProcessComplete("Process_0e9etnb", d.processEnd)
+	require.NoError(t, err)
 
 	// Launch the workflow
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "LinkTest", model.Vars{})
+	_, _, err = cl.LaunchWorkflow(ctx, "LinkTest", model.Vars{})
 	require.NoError(t, err)
 	// Listen for service tasks
 	go func() {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
-	tst.AwaitWorkflowComplete(t, complete, wfiID)
+	support.WaitForChan(t, d.finished, 20*time.Second)
 	assert.True(t, d.hitEnd)
 	assert.True(t, d.hitResponse)
 	tst.AssertCleanKV()
@@ -67,6 +67,7 @@ type testLinkHandlerDef struct {
 	mx          sync.Mutex
 	hitEnd      bool
 	hitResponse bool
+	finished    chan struct{}
 }
 
 func (d *testLinkHandlerDef) spillage(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
@@ -97,4 +98,8 @@ func (d *testLinkHandlerDef) wipeItUp(_ context.Context, _ client.JobClient, var
 	defer d.mx.Unlock()
 	d.hitEnd = true
 	return vars, nil
+}
+
+func (d *testLinkHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	close(d.finished)
 }

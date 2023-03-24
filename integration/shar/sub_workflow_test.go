@@ -9,10 +9,12 @@ import (
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestSubWorkflow(t *testing.T) {
 	tst := &support.Integration{}
+	tst.WithTrace = true
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
@@ -38,32 +40,32 @@ func TestSubWorkflow(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "SubWorkflowDemo", w2)
 	require.NoError(t, err)
 
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-
-	d := &testSubWorkflowHandlerDef{}
+	d := &testSubWorkflowHandlerDef{finished: make(chan struct{})}
 
 	// Register a service task
-	cl.RegisterWorkflowInstanceComplete(complete)
 	err = cl.RegisterServiceTask(ctx, "BeforeCallingSubProcess", d.beforeCallingSubProcess)
 	require.NoError(t, err)
 	err = cl.RegisterServiceTask(ctx, "DuringSubProcess", d.duringSubProcess)
 	require.NoError(t, err)
 	err = cl.RegisterServiceTask(ctx, "AfterCallingSubProcess", d.afterCallingSubProcess)
 	require.NoError(t, err)
+	err = cl.RegisterProcessComplete("WorkflowDemo", d.processEnd)
+	require.NoError(t, err)
 
 	// Launch the workflow
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "MasterWorkflowDemo", model.Vars{})
+	_, _, err = cl.LaunchWorkflow(ctx, "MasterWorkflowDemo", model.Vars{})
 	require.NoError(t, err)
 	// Listen for service tasks
 	go func() {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
-	tst.AwaitWorkflowComplete(t, complete, wfiID)
+	support.WaitForChan(t, d.finished, 20*time.Second)
 	tst.AssertCleanKV()
 }
 
 type testSubWorkflowHandlerDef struct {
+	finished chan struct{}
 }
 
 func (d *testSubWorkflowHandlerDef) afterCallingSubProcess(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
@@ -79,4 +81,8 @@ func (d *testSubWorkflowHandlerDef) duringSubProcess(_ context.Context, _ client
 
 func (d *testSubWorkflowHandlerDef) beforeCallingSubProcess(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	return model.Vars{"x": 1}, nil
+}
+
+func (d *testSubWorkflowHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	close(d.finished)
 }

@@ -15,16 +15,17 @@ import (
 
 func TestBoundaryTimer(t *testing.T) {
 	tst := &support.Integration{}
+	tst.WithTrace = true
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	d := &testBoundaryTimerDef{
-		tst: tst,
+		tst:      tst,
+		finished: make(chan struct{}),
 	}
 
-	wfiID := executeBoundaryTimerTest(t, complete, d)
-	tst.AwaitWorkflowComplete(t, complete, wfiID)
+	executeBoundaryTimerTest(t, d)
+	support.WaitForChan(t, d.finished, 20*time.Second)
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
@@ -34,21 +35,19 @@ func TestBoundaryTimer(t *testing.T) {
 
 func TestBoundaryTimerTimeout(t *testing.T) {
 	tst := &support.Integration{}
+	tst.WithTrace = true
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
-	//sub := tracer.Trace("nats://127.0.0.1:4459")
-	//defer sub.Drain()
-
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	d := &testBoundaryTimerDef{
 		CanTimeOutPause:  time.Second * 5,
 		CheckResultPause: time.Second * 4,
 		tst:              tst,
+		finished:         make(chan struct{}),
 	}
 
-	wfiID := executeBoundaryTimerTest(t, complete, d)
-	tst.AwaitWorkflowComplete(t, complete, wfiID)
+	executeBoundaryTimerTest(t, d)
+	support.WaitForChan(t, d.finished, 20*time.Second)
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
@@ -61,14 +60,14 @@ func TestExclusiveGateway(t *testing.T) {
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
 	d := &testBoundaryTimerDef{
 		CheckResultPause: time.Second * 3,
 		tst:              tst,
+		finished:         make(chan struct{}),
 	}
 
-	wfiID := executeBoundaryTimerTest(t, complete, d)
-	tst.AwaitWorkflowComplete(t, complete, wfiID)
+	executeBoundaryTimerTest(t, d)
+	support.WaitForChan(t, d.finished, 20*time.Second)
 	fmt.Println("CanTimeOut Called:", d.CanTimeOutCalled)
 	fmt.Println("NoTimeout Called:", d.NoTimeoutCalled)
 	fmt.Println("TimedOut Called:", d.TimedOutCalled)
@@ -76,7 +75,7 @@ func TestExclusiveGateway(t *testing.T) {
 	tst.AssertCleanKV()
 }
 
-func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanceComplete, d *testBoundaryTimerDef) string {
+func executeBoundaryTimerTest(t *testing.T, d *testBoundaryTimerDef) string {
 
 	// Create a starting context
 	ctx := context.Background()
@@ -94,7 +93,7 @@ func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanc
 	require.NoError(t, err)
 
 	// Register a service task
-	cl.RegisterWorkflowInstanceComplete(complete)
+
 	err = cl.RegisterServiceTask(ctx, "CanTimeout", d.canTimeout)
 	require.NoError(t, err)
 	err = cl.RegisterServiceTask(ctx, "TimedOut", d.timedOut)
@@ -103,7 +102,8 @@ func executeBoundaryTimerTest(t *testing.T, complete chan *model.WorkflowInstanc
 	require.NoError(t, err)
 	err = cl.RegisterServiceTask(ctx, "NoTimeout", d.noTimeout)
 	require.NoError(t, err)
-
+	err = cl.RegisterProcessComplete("Process_16piog5", d.processEnd)
+	require.NoError(t, err)
 	// Launch the workflow
 	wfiID, _, err := cl.LaunchWorkflow(ctx, "PossibleTimeout", model.Vars{})
 	require.NoError(t, err)
@@ -125,6 +125,7 @@ type testBoundaryTimerDef struct {
 	CheckResultPause  time.Duration
 	NoTimeoutPause    time.Duration
 	tst               *support.Integration
+	finished          chan struct{}
 }
 
 func (d *testBoundaryTimerDef) canTimeout(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
@@ -156,4 +157,8 @@ func (d *testBoundaryTimerDef) checkResult(_ context.Context, _ client.JobClient
 	d.mx.Unlock()
 	time.Sleep(d.CheckResultPause)
 	return vars, nil
+}
+
+func (d *testBoundaryTimerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	d.finished <- struct{}{}
 }

@@ -1,5 +1,8 @@
 package keys
 
+// ContextKey is the wrapper for using context keys
+type ContextKey string
+
 const (
 	// ElementName is the key of the currently executing workflow element.
 	ElementName = "el.name"

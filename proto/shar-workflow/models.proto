@@ -136,6 +136,34 @@ message WorkflowState {
   map<string,GatewayExpectations> gatewayExpectations = 21; // GatewayExpectations - a list of dynamic gateway expectations set during traversing from a divergent gateway with a reciprocal.
 }
 
+enum ProcessHistoryType {
+  processExecute = 0;
+  activityExecute = 1;
+  activityComplete =2;
+  processSpawnSync = 3;
+  processComplete = 4;
+  processAbort = 5;
+  activityAbort = 6;
+}
+
+message ProcessHistoryEntry {
+  ProcessHistoryType itemType = 1;
+  optional string workflowId = 2;
+  optional string workflowInstanceId = 3;
+  optional string elementId = 4;
+  optional string processInstanceId = 5;
+  optional CancellationState cancellationState = 6;
+  bytes vars = 7;
+  optional WorkflowTimer timer = 8;
+  optional Error error = 9;
+  int64 unixTimeNano = 10;
+  optional string execute = 11;
+}
+
+message ProcessHistory {
+  repeated ProcessHistoryEntry item = 1;
+}
+
 message SatisfiesGateway {
   repeated string instanceTracking = 1; // instanceTracking - a list of paths that satisfy the gateway.
 }
@@ -194,13 +222,23 @@ message ProcessInstance {
 
 // MessageInstance represents a workflow message.
 message MessageInstance {
-  string messageId = 1; // MessageId - the unique messageId for the message.
+  string name = 1; // MessageId - the unique messageId for the message.
   string correlationKey = 2; // CorrelationKey - a receiving key to correlate this message to.
   bytes vars = 3; // Vars - A go binary encoded map[string]interface{} of variables.
 }
 
-message WorkflowInstanceSubscribers {
-  repeated string list = 1;
+enum RecipientType {
+  job = 0;
+}
+
+message MessageRecipient {
+  RecipientType type = 1;
+  string  id = 2;
+  string CorrelationKey = 3;
+}
+
+message MessageRecipients {
+  repeated MessageRecipient recipient = 1;
 }
 
 message UserTasks {
@@ -303,9 +341,8 @@ message ListWorkflowResult {
 
 message SendMessageRequest {
   string name = 1;
-  string key = 2;
-  string workflowInstanceId = 3;
-  bytes vars = 4;
+  string correlationKey = 2;
+  bytes vars = 3;
 }
 
 message WorkflowInstanceComplete {
@@ -346,10 +383,10 @@ message GetUserTaskRequest {
   string trackingId = 2;
 }
 
-message GetMessageSenderRoutingIdRequest {
-  string workflowName = 1;
-  string messageName = 2;
-}
+//message GetMessageSenderRoutingIdRequest {
+//  string workflowName = 1;
+//  string messageName = 2;
+//}
 
 message GetUserTaskResponse {
   string trackingId = 1;
@@ -384,6 +421,14 @@ message GetWorkflowRequest {
 
 message GetWorkflowResponse {
   Workflow definition = 1;
+}
+
+message GetProcessHistoryRequest {
+  string Id = 1;
+}
+
+message GetProcessHistoryResponse {
+  repeated ProcessHistoryEntry entry = 1;
 }
 
 message WorkflowStats {

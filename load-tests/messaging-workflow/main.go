@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+var finished = make(chan struct{})
+
 func main() {
 	// Create a starting context
 	ctx := context.Background()
@@ -47,8 +49,10 @@ func main() {
 	}
 
 	// A hook to watch for completion
-	complete := make(chan *model.WorkflowInstanceComplete, 10000)
-	cl1.RegisterWorkflowInstanceComplete(complete)
+	err = cl1.RegisterProcessComplete("Process_03llwnm", processEnd)
+	if err != nil {
+		panic(err)
+	}
 
 	// Listen for service tasks
 	go func() {
@@ -72,7 +76,7 @@ func main() {
 	}
 	// wait for the workflow to complete
 	for i := 0; i < n; i++ {
-		<-complete
+		<-finished
 		wg.Done()
 	}
 	wg.Wait()
@@ -92,7 +96,11 @@ func step2(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, err
 func sendMessage(ctx context.Context, cmd client.MessageClient, _ model.Vars) error {
 	fmt.Println("Sending Message...")
 	if err := cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{}); err != nil {
-		return fmt.Errorf("failed to send continue message: %w", err)
+		return fmt.Errorf("send continue message: %w", err)
 	}
 	return nil
+}
+
+func processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	finished <- struct{}{}
 }

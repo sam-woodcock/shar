@@ -17,6 +17,9 @@ const (
 	WorkflowInstanceComplete          = "WORKFLOW.%s.State.Workflow.Complete"         // WorkflowInstanceComplete is the state message subject for completing a workfloe instance.
 	WorkflowInstanceExecute           = "WORKFLOW.%s.State.Workflow.Execute"          // WorkflowInstanceExecute is the state message subject for executing a workflow instance.
 	WorkflowInstanceTerminated        = "WORKFLOW.%s.State.Workflow.Terminated"       // WorkflowInstanceTerminated is the state message subject for a workflow instance terminating.
+	WorkflowJobAwaitMessageExecute    = "WORKFLOW.%s.State.Job.Execute.AwaitMessage"  // WorkflowJobAwaitMessageExecute is the state message subject for awaiting a message.
+	WorkflowJobAwaitMessageComplete   = "WORKFLOW.%s.State.Job.Complete.AwaitMessage" // WorkflowJobAwaitMessageComplete is the state message subject for completing awaiting a message.
+	WorkflowJobAwaitMessageAbort      = "WORKFLOW.%s.State.Job.Abort.AwaitMessage"    // WorkflowJobAwaitMessageAbort is the state message subject for aborting awaiting a message.
 	WorkflowJobLaunchComplete         = "WORKFLOW.%s.State.Job.Complete.Launch"       // WorkflowJobLaunchComplete is the state message subject for completing a launch subworkflow task.
 	WorkflowJobLaunchExecute          = "WORKFLOW.%s.State.Job.Execute.Launch"        // WorkflowJobLaunchExecute is the state message subject for executing a launch subworkflow task.
 	WorkflowJobManualTaskAbort        = "WORKFLOW.%s.State.Job.Abort.ManualTask"      // WorkflowJobManualTaskAbort is the state message subject for sborting a manual task.
@@ -41,7 +44,7 @@ const (
 	WorkflowJobGatewayTaskAbort       = "WORKFLOW.%s.State.Job.Abort.Gateway"         // WorkflowJobGatewayTaskAbort is the state message subject for aborting a gateway task.
 	WorkflowLog                       = "WORKFLOW.%s.State.Log"                       // WorkflowLog is the state message subject for logging messages to a workflow activity.
 	WorkflowLogAll                    = "WORKFLOW.%s.State.Log.*"                     // WorkflowLogAll is the wildcard state message subject for all logging messages.
-	WorkflowMessages                  = "WORKFLOW.%s.Message.>"                       // WorkflowMessages is the wildcard state message subject for all workflow messages.
+	WorkflowMessage                   = "WORKFLOW.%s.Message"                         // WorkflowMessage is the state message subject for all workflow messages.
 	WorkflowProcessComplete           = "WORKFLOW.%s.State.Process.Complete"          // WorkflowProcessComplete is the state message subject for completing a workfloe process.
 	WorkflowProcessExecute            = "WORKFLOW.%s.State.Process.Execute"           // WorkflowProcessExecute is the state message subject for executing a workflow process.
 	WorkflowProcessTerminated         = "WORKFLOW.%s.State.Process.Terminated"        // WorkflowProcessTerminated is the state message subject for a workflow process terminating.
@@ -82,6 +85,7 @@ var AllMessages = []string{
 	subj.NS(WorkflowCommands, "*"),
 	subj.NS(WorkflowElementTimedExecute, "*"),
 	subj.NS(WorkflowInstanceAll, "*"),
+	subj.NS(WorkflowJobAwaitMessageExecute, "*"),
 	subj.NS(WorkflowJobLaunchExecute, "*"),
 	subj.NS(WorkflowJobManualTaskExecute, "*"),
 	subj.NS(WorkflowJobSendMessageExecuteWild, "*"),
@@ -90,7 +94,7 @@ var AllMessages = []string{
 	subj.NS(WorkflowJobTimerTaskExecute, "*"),
 	subj.NS(WorkflowJobUserTaskExecute, "*"),
 	subj.NS(WorkflowLogAll, "*"),
-	subj.NS(WorkflowMessages, "*"),
+	subj.NS(WorkflowMessage, "*"),
 	subj.NS(WorkflowProcessComplete, "*"),
 	subj.NS(WorkflowProcessExecute, "*"),
 	subj.NS(WorkflowProcessTerminated, "*"),
@@ -102,7 +106,7 @@ var AllMessages = []string{
 }
 
 // WorkflowMessageFormat provides the template for sending workflow messages.
-var WorkflowMessageFormat = "WORKFLOW.%s.Message.%s.%s"
+var WorkflowMessageFormat = "WORKFLOW.%s.Message.%s"
 
 const (
 	APIAll                           = "WORKFLOW.Api.*"                             // APIAll is all API message subjects.
@@ -126,18 +130,16 @@ const (
 	APIGetProcessInstanceStatus      = "WORKFLOW.Api.GetProcessInstanceStatus"      // APIGetProcessInstanceStatus is the get process instance status API subject.
 	APIGetWorkflowVersions           = "WORKFLOW.Api.GetWorkflowVersions"           // APIGetWorkflowVersions is the get workflow versions API message subject.
 	APIGetWorkflow                   = "WORKFLOW.Api.GetWorkflow"                   // APIGetWorkflow is the get workflow API message subject.
+	APIGetProcessHistory             = "WORKFLOW.Api.GetProcessHistory"             // APIGetProcessHistory is the get process history API message subject.
 )
 
 var (
-	KvMessageSubs     = "WORKFLOW_MSGSUBS"    // KvMessageSubs is the name of the key value store that holds the list of message subscriber IDs for a workflow message.
-	KvMessageSub      = "WORKFLOW_MSGSUB"     // KvMessageSub is the name of the key value store that holds each message subscriber.
 	KvJob             = "WORKFLOW_JOB"        // KvJob is the name of the key value store that holds workflow jobs.
 	KvVersion         = "WORKFLOW_VERSION"    // KvVersion is the name of the key value store that holds an ordered list of workflow version IDs for a given workflow
 	KvDefinition      = "WORKFLOW_DEF"        // KvDefinition is the name of the key value store that holds the state machine definition for workflows
 	KvTracking        = "WORKFLOW_TRACKING"   // KvTracking is the name of the key value store that holds the state of a workflow task.
 	KvInstance        = "WORKFLOW_INSTANCE"   // KvInstance is the name of the key value store that holds workflow instance information.
-	KvMessageName     = "WORKFLOW_MSGNAME"    // KvMessageName is the name of the key value store that holds message IDs for message names.
-	KvMessageID       = "WORKFLOW_MSGID"      // KvMessageID is the name of the key value store that holds message names for message IDs
+	KvMessageInterest = "WORKFLOW_MSGNAME"    // KvMessageInterest is the name of the key value store that holds recipients for messages.
 	KvUserTask        = "WORKFLOW_USERTASK"   // KvUserTask is the name of the key value store that holds active user tasks.
 	KvOwnerName       = "WORKFLOW_OWNERNAME"  // KvOwnerName is the name of the key value store that holds owner names for owner IDs
 	KvOwnerID         = "WORKFLOW_OWNERID"    // KvOwnerID is the name of the key value store that holds owner IDs for owner names.
@@ -146,4 +148,6 @@ var (
 	KvVarState        = "WORKFLOW_VARSTATE"   // KvVarState is the name of the key value store that holds the state of variables upon entering a task.
 	KvProcessInstance = "WORKFLOW_PROCESS"    // KvProcessInstance is the name of the key value store holding process instances.
 	KvGateway         = "WORKFLOW_GATEWAY"    // KvGateway is the name of the key value store holding gateway instances.
+	KvHistory         = "WORKFLOW_HISTORY"    // KvHistory is the name of the key value store holding process histories.
+	KvLock            = "WORKFLOW_GENLCK"     // KvLock is the name of the key value store holding locks.
 )

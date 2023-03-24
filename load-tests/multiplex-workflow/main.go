@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+var finished = make(chan struct{})
+
 func main() {
 	// Create a starting context
 	ctx := context.Background()
@@ -86,8 +88,10 @@ func main() {
 	}
 
 	// A hook to watch for completion
-	complete := make(chan *model.WorkflowInstanceComplete, 10000)
-	cl1.RegisterWorkflowInstanceComplete(complete)
+	err = cl1.RegisterProcessComplete("Process_03llwnm", processEnd)
+	if err != nil {
+		panic(err)
+	}
 
 	// Listen for service tasks
 	go func() {
@@ -121,7 +125,7 @@ func main() {
 	}
 	// wait for the workflow to complete
 	for i := 0; i < n*2; i++ {
-		<-complete
+		<-finished
 		wg.Done()
 	}
 	wg.Wait()
@@ -168,4 +172,8 @@ func sub1Task(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, 
 	time.Sleep(1 * time.Second)
 	//fmt.Println("sub workflow task 1")
 	return model.Vars{}, nil
+}
+
+func processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	finished <- struct{}{}
 }

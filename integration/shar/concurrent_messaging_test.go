@@ -9,6 +9,7 @@ import (
 	support "gitlab.com/shar-workflow/shar/integration-support"
 	"gitlab.com/shar-workflow/shar/model"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -19,12 +20,12 @@ func TestConcurrentMessaging(t *testing.T) {
 	tst := &support.Integration{
 		Cooldown: time.Second * 10,
 	}
-	tst.WithTrace = true
+	//tst.WithTrace = true
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 	tst.Cooldown = 5 * time.Second
 
-	handlers := &testConcurrentMessagingHandlerDef{}
+	handlers := &testConcurrentMessagingHandlerDef{finished: make(chan struct{})}
 	handlers.tst = tst
 	// Create a starting context
 	ctx := context.Background()
@@ -41,8 +42,6 @@ func TestConcurrentMessaging(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestConcurrentMessaging", b)
 	require.NoError(t, err)
 
-	complete := make(chan *model.WorkflowInstanceComplete, 101)
-
 	// Register a service task
 	err = cl.RegisterServiceTask(ctx, "step1", handlers.step1)
 	require.NoError(t, err)
@@ -50,45 +49,46 @@ func TestConcurrentMessaging(t *testing.T) {
 	require.NoError(t, err)
 	err = cl.RegisterMessageSender(ctx, "TestConcurrentMessaging", "continueMessage", handlers.sendMessage)
 	require.NoError(t, err)
-	cl.RegisterWorkflowInstanceComplete(complete)
-
+	err = cl.RegisterProcessComplete("Process_03llwnm", handlers.processEnd)
+	require.NoError(t, err)
 	// Listen for service tasks
 	go func() {
 		err := cl.Listen(ctx)
 		require.NoError(t, err)
 	}()
 
-	instances := make(map[string]struct{})
-
+	handlers.instComplete = make(map[string]struct{})
 	n := 50
+	launch := 0
 	tm := time.Now()
 	for inst := 0; inst < n; inst++ {
-		go func() {
+		go func(inst int) {
 			// Launch the workflow
-			if wfiID, _, err := cl.LaunchWorkflow(ctx, "TestConcurrentMessaging", model.Vars{"orderId": 57}); err != nil {
+			if _, _, err := cl.LaunchWorkflow(ctx, "TestConcurrentMessaging", model.Vars{"orderId": inst}); err != nil {
 				panic(err)
 			} else {
-				instances[wfiID] = struct{}{}
+				handlers.mx.Lock()
+				launch++
+				handlers.instComplete[strconv.Itoa(inst)] = struct{}{}
+				handlers.mx.Unlock()
 			}
-		}()
+		}(inst)
 	}
 	for inst := 0; inst < n; inst++ {
-		select {
-		case c := <-complete:
-			fmt.Println(c.WorkflowInstanceId)
-		case <-time.After(5 * time.Second):
-			require.Fail(t, "timed out")
-		}
+		support.WaitForChan(t, handlers.finished, 20*time.Second)
 	}
-	assert.Equal(t, handlers.received, n)
 	fmt.Println("Stopwatch:", -time.Until(tm))
 	tst.AssertCleanKV()
+	assert.Equal(t, launch, handlers.received)
+	assert.Equal(t, 0, len(handlers.instComplete))
 }
 
 type testConcurrentMessagingHandlerDef struct {
-	mx       sync.Mutex
-	tst      *support.Integration
-	received int
+	mx           sync.Mutex
+	tst          *support.Integration
+	received     int
+	finished     chan struct{}
+	instComplete map[string]struct{}
 }
 
 func (x *testConcurrentMessagingHandlerDef) step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
@@ -98,15 +98,23 @@ func (x *testConcurrentMessagingHandlerDef) step1(_ context.Context, _ client.Jo
 func (x *testConcurrentMessagingHandlerDef) step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	assert.Equal(x.tst.Test, "carried1value", vars["carried"])
 	assert.Equal(x.tst.Test, "carried2value", vars["carried2"])
-	x.mx.Lock()
-	defer x.mx.Unlock()
-	x.received++
 	return model.Vars{}, nil
 }
 
 func (x *testConcurrentMessagingHandlerDef) sendMessage(ctx context.Context, cmd client.MessageClient, vars model.Vars) error {
-	if err := cmd.SendMessage(ctx, "continueMessage", 57, model.Vars{"carried": vars["carried"]}); err != nil {
-		return fmt.Errorf("failed to send continue message: %w", err)
+	if err := cmd.SendMessage(ctx, "continueMessage", vars["orderId"], model.Vars{"carried": vars["carried"]}); err != nil {
+		return fmt.Errorf("send continue message: %w", err)
 	}
 	return nil
+}
+
+func (x *testConcurrentMessagingHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	x.finished <- struct{}{}
+	x.mx.Lock()
+	if _, ok := x.instComplete[strconv.Itoa(vars["orderId"].(int))]; !ok {
+		panic("too many calls")
+	}
+	delete(x.instComplete, strconv.Itoa(vars["orderId"].(int)))
+	x.received++
+	x.mx.Unlock()
 }

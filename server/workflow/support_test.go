@@ -13,7 +13,7 @@ import (
 func setupTestWorkflow(t *testing.T, workflowName string) (*Engine, *MockNatsService, *model.Workflow) {
 	svc := &MockNatsService{}
 
-	eng, err := NewEngine(svc)
+	eng, err := New(svc)
 	require.NoError(t, err)
 	b, err := os.ReadFile("../../testdata/" + workflowName)
 	require.NoError(t, err)

@@ -32,12 +32,15 @@ func TestEmbargo(t *testing.T) {
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestEmbargo", b)
 	require.NoError(t, err)
 
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-	cl.RegisterWorkflowInstanceComplete(complete)
-
 	sw := time.Now().UnixNano()
+
+	finished := make(chan struct{})
+	err = cl.RegisterProcessComplete("Process_0cxoltv", func(ctx context.Context, vars model.Vars, wfError *model.Error, endState model.CancellationState) {
+		close(finished)
+	})
+	require.NoError(t, err)
 	// Launch the workflow
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "TestEmbargo", model.Vars{})
+	_, _, err = cl.LaunchWorkflow(ctx, "TestEmbargo", model.Vars{})
 	require.NoError(t, err)
 
 	// Listen for service tasks
@@ -46,8 +49,7 @@ func TestEmbargo(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	tst.AwaitWorkflowComplete(t, complete, wfiID)
-
+	support.WaitForChan(t, finished, 20*time.Second)
 	d := time.Duration(time.Now().UnixNano() - sw)
 	assert.Equal(t, 2, int(d.Seconds()))
 	tst.AssertCleanKV()

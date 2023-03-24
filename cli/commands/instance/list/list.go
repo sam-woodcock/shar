@@ -26,11 +26,11 @@ func run(cmd *cobra.Command, args []string) error {
 	wfName := args[0]
 	shar := client.New()
 	if err := shar.Dial(flag.Value.Server); err != nil {
-		return fmt.Errorf("error dialling server: %w", err)
+		return fmt.Errorf("dialling server: %w", err)
 	}
 	res, err := shar.ListWorkflowInstance(ctx, wfName)
 	if err != nil {
-		return fmt.Errorf("failed to list workflows: %w", err)
+		return fmt.Errorf("list workflows: %w", err)
 	}
 	output.Current.OutputListWorkflowInstance(res)
 	return nil

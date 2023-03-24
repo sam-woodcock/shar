@@ -10,6 +10,8 @@ import (
 	"os"
 )
 
+var finished = make(chan struct{})
+
 func main() {
 	// Create a starting context
 	ctx := context.Background()
@@ -34,13 +36,15 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	err = cl.RegisterProcessComplete("Process_03llwnm", processEnd)
+	if err != nil {
+		panic(err)
+	}
 
 	// A hook to watch for completion
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-	cl.RegisterWorkflowInstanceComplete(complete)
 
 	// Launch the workflow
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "SimpleWorkflowDemo", model.Vars{})
+	_, _, err = cl.LaunchWorkflow(ctx, "SimpleWorkflowDemo", model.Vars{})
 	if err != nil {
 		panic(err)
 	}
@@ -54,15 +58,15 @@ func main() {
 	}()
 
 	// wait for the workflow to complete
-	for i := range complete {
-		if i.WorkflowInstanceId == wfiID {
-			break
-		}
-	}
+	<-finished
 }
 
 // A "Hello World" service task
 func simpleProcess(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Hello World")
 	return model.Vars{}, nil
+}
+
+func processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	finished <- struct{}{}
 }

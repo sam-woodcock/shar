@@ -6,15 +6,24 @@ import (
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/client"
 	"gitlab.com/shar-workflow/shar/model"
+	"gitlab.com/shar-workflow/shar/server/tools/tracer"
+	zensvr "gitlab.com/shar-workflow/shar/zen-shar/server"
 	"os"
+	"time"
 )
 
 var cl *client.Client
 
+var finished = make(chan struct{})
+
 func main() {
+	ss, ns, err := zensvr.GetServers("127.0.0.1", 4222, 8, nil, nil)
+	defer ss.Shutdown()
+	defer ns.Shutdown()
 	// Create a starting context
 	ctx := context.Background()
-
+	sub := tracer.Trace("127.0.0.1:4222")
+	defer sub.Close()
 	// Dial shar
 	cl = client.New()
 	if err := cl.Dial(nats.DefaultURL); err != nil {
@@ -39,12 +48,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	// A hook to watch for completion
-	complete := make(chan *model.WorkflowInstanceComplete, 100)
-	cl.RegisterWorkflowInstanceComplete(complete)
+	err = cl.RegisterProcessComplete("Process_03llwnm", processEnd)
+	if err != nil {
+		panic(err)
+	}
 
 	// Launch the workflow
-	wfiID, _, err := cl.LaunchWorkflow(ctx, "MessageManualDemo", model.Vars{"orderId": 57})
+	_, _, err = cl.LaunchWorkflow(ctx, "MessageManualDemo", model.Vars{"orderId": 57, "carried": 128})
 	if err != nil {
 		panic(err)
 	}
@@ -58,17 +68,18 @@ func main() {
 	}()
 
 	// wait for the workflow to complete
-	for i := range complete {
-		if i.WorkflowInstanceId == wfiID {
-			break
-		}
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		panic("nope")
+
 	}
 }
 
 func step1(ctx context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	fmt.Println("Step 1")
 	fmt.Println("Sending Message...")
-	if err := cl.SendMessage(ctx, "", "continueMessage", 57, model.Vars{"success": 32768}); err != nil {
+	if err := cl.SendMessage(ctx, "continueMessage", 57, model.Vars{"success": 32768}); err != nil {
 		return nil, fmt.Errorf("send continue message failed: %w", err)
 	}
 	return model.Vars{}, nil
@@ -78,4 +89,8 @@ func step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, 
 	fmt.Println("Step 2")
 	fmt.Println(vars["success"])
 	return model.Vars{}, nil
+}
+
+func processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+	finished <- struct{}{}
 }
