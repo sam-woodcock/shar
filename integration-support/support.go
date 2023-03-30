@@ -143,6 +143,7 @@ func (s *Integration) checkCleanKV() error {
 			"WORKFLOW_OWNERNAME",
 			"WORKFLOW_OWNERID",
 			"WORKFLOW_USERTASK",
+			"WORKFLOW_MSGTYPES",
 			"WORKFLOW_HISTORY":
 			//noop
 		default:

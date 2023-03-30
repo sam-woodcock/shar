@@ -237,14 +237,9 @@ message MessageRecipient {
   string CorrelationKey = 3;
 }
 
-message MessageRecipients {
-  repeated MessageRecipient recipient = 1;
-}
-
 message UserTasks {
   repeated string id = 1;
 }
-
 
 message ApiAuthorizationRequest {
   map<string, string> Headers = 1;

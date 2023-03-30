@@ -16,7 +16,7 @@ import (
 )
 
 //goland:noinspection GoNilness
-func TestConcurrentMessaging(t *testing.T) {
+func TestConcurrentMessaging2(t *testing.T) {
 	tst := &support.Integration{
 		Cooldown: time.Second * 10,
 	}
@@ -25,7 +25,7 @@ func TestConcurrentMessaging(t *testing.T) {
 	defer tst.Teardown()
 	tst.Cooldown = 5 * time.Second
 
-	handlers := &testConcurrentMessagingHandlerDef{finished: make(chan struct{})}
+	handlers := &testConcurrentMessaging2HandlerDef{finished: make(chan struct{})}
 	handlers.tst = tst
 	// Create a starting context
 	ctx := context.Background()
@@ -36,7 +36,7 @@ func TestConcurrentMessaging(t *testing.T) {
 	require.NoError(t, err)
 
 	// Load BPMN workflow
-	b, err := os.ReadFile("../../testdata/message-workflow.bpmn")
+	b, err := os.ReadFile("../../testdata/message-workflow-2.bpmn")
 	require.NoError(t, err)
 
 	_, err = cl.LoadBPMNWorkflowFromBytes(ctx, "TestConcurrentMessaging", b)
@@ -83,7 +83,7 @@ func TestConcurrentMessaging(t *testing.T) {
 	assert.Equal(t, 0, len(handlers.instComplete))
 }
 
-type testConcurrentMessagingHandlerDef struct {
+type testConcurrentMessaging2HandlerDef struct {
 	mx           sync.Mutex
 	tst          *support.Integration
 	received     int
@@ -91,24 +91,24 @@ type testConcurrentMessagingHandlerDef struct {
 	instComplete map[string]struct{}
 }
 
-func (x *testConcurrentMessagingHandlerDef) step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
+func (x *testConcurrentMessaging2HandlerDef) step1(_ context.Context, _ client.JobClient, _ model.Vars) (model.Vars, error) {
 	return model.Vars{}, nil
 }
 
-func (x *testConcurrentMessagingHandlerDef) step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
+func (x *testConcurrentMessaging2HandlerDef) step2(_ context.Context, _ client.JobClient, vars model.Vars) (model.Vars, error) {
 	assert.Equal(x.tst.Test, "carried1value", vars["carried"])
 	assert.Equal(x.tst.Test, "carried2value", vars["carried2"])
 	return model.Vars{}, nil
 }
 
-func (x *testConcurrentMessagingHandlerDef) sendMessage(ctx context.Context, cmd client.MessageClient, vars model.Vars) error {
+func (x *testConcurrentMessaging2HandlerDef) sendMessage(ctx context.Context, cmd client.MessageClient, vars model.Vars) error {
 	if err := cmd.SendMessage(ctx, "continueMessage", vars["orderId"], model.Vars{"carried": vars["carried"]}); err != nil {
 		return fmt.Errorf("send continue message: %w", err)
 	}
 	return nil
 }
 
-func (x *testConcurrentMessagingHandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
+func (x *testConcurrentMessaging2HandlerDef) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
 	x.finished <- struct{}{}
 	x.mx.Lock()
 	if _, ok := x.instComplete[strconv.Itoa(vars["orderId"].(int))]; !ok {

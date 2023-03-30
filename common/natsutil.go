@@ -311,7 +311,7 @@ const jsErrCodeStreamWrongLastSequence = 10071
 
 var lockVal = make([]byte, 0)
 
-// Lock ensures a lock on a given ID.
+// Lock ensures a lock on a given ID, it returns true if a lock was granted.
 func Lock(kv nats.KeyValue, lockID string) (bool, error) {
 	_, err := kv.Create(lockID, lockVal)
 	if errors.Is(err, nats.ErrKeyExists) {
