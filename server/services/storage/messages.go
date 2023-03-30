@@ -20,28 +20,84 @@ import (
 	"time"
 )
 
-func (s *Nats) messageKick(ctx context.Context) error {
-	go func() {
-		select {
-		case <-s.closing:
-			return
-		default:
+func (s *Nats) ensureMessageBuckets(ctx context.Context, wf *model.Workflow) error {
+	for _, m := range wf.Messages {
+		if err := common.Save(ctx, s.wfMsgTypes, m.Name, []byte{}); err != nil {
+			return &errors.ErrWorkflowFatal{Err: err}
+		}
+		if err := common.EnsureBucket(s.js, s.storageType, msgTxBucket(ctx, m.Name), 0); err != nil {
+			return &errors.ErrWorkflowFatal{Err: err}
+		}
+		if err := common.EnsureBucket(s.js, s.storageType, msgRxBucket(ctx, m.Name), 0); err != nil {
+			return &errors.ErrWorkflowFatal{Err: err}
+		}
 
-			for {
-				time.Sleep(30 * time.Second)
-				keys, err := s.wfMessageInterest.Keys()
-				if err != nil {
+		ks := ksuid.New()
+
+		//TODO: this should only happen if there is a task associated with message send
+		if err := common.Save(ctx, s.wfClientTask, wf.Name+"_"+m.Name, []byte(ks.String())); err != nil {
+			return fmt.Errorf("create a client task during workflow creation: %w", err)
+		}
+
+		jxCfg := &nats.ConsumerConfig{
+			Durable:       "ServiceTask_" + ks.String(),
+			Description:   "",
+			FilterSubject: subj.NS(messages.WorkflowJobSendMessageExecute, "default") + "." + wf.Name + "_" + m.Name,
+			AckPolicy:     nats.AckExplicitPolicy,
+			MaxAckPending: 65536,
+		}
+		if err := ensureConsumer(s.js, "WORKFLOW", jxCfg); err != nil {
+			return fmt.Errorf("add service task consumer: %w", err)
+		}
+	}
+	return nil
+}
+
+var messageKickInterval = time.Second * 10
+
+func (s *Nats) messageKick(ctx context.Context) error {
+	sub, err := s.js.PullSubscribe(messages.WorkflowMessageKick, "MessageKick")
+	if err != nil {
+		return fmt.Errorf("creating message kick subscription: %w", err)
+	}
+	go func() {
+		for {
+			select {
+			case <-s.closing:
+				return
+			default:
+				pctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+				msgs, err := sub.Fetch(1, nats.Context(pctx))
+				if err != nil || len(msgs) == 0 {
+					slog.Warn("pulling kick message")
+					cancel()
+					time.Sleep(20 * time.Second)
 					continue
 				}
-				for _, k := range keys {
-					interest := &model.MessageRecipients{}
-					if err := common.LoadObj(ctx, s.wfMessageInterest, k, interest); err != nil {
-						continue
-					}
-					if err := s.deliverMessageToJobRecipient(ctx, interest.Recipient, k); err != nil {
-						continue
+				msg := msgs[0]
+				msgTypes, err := s.wfMsgTypes.Keys()
+				if err != nil {
+					goto continueLoop
+				}
+				for _, k := range msgTypes {
+					_, err := s.iterateRxMessages(ctx, k, "", func(k string, recipient *model.MessageRecipient) (bool, error) {
+						fmt.Println("dodeliver")
+						if delivered, err := s.deliverMessageToJobRecipient(ctx, recipient, k); err != nil {
+							return false, err
+						} else if !delivered {
+							return false, err
+						}
+						return true, nil
+					})
+					if err != nil {
+						slog.Warn(err.Error())
 					}
 				}
+			continueLoop:
+				if err := msg.NakWithDelay(messageKickInterval); err != nil {
+					slog.Warn("message nak: " + err.Error())
+				}
+				cancel()
 			}
 		}
 	}()
@@ -89,70 +145,51 @@ func (s *Nats) processMessage(ctx context.Context, log *slog.Logger, msg *nats.M
 	if err := proto.Unmarshal(msg.Data, instance); err != nil {
 		return false, fmt.Errorf("unmarshal message proto: %w", err)
 	}
-	if msgs, err := s.js.KeyValue(subj.NS("Message_%s_", "default") + instance.Name); err != nil {
+	if msgs, err := s.js.KeyValue(msgTxBucket(ctx, instance.Name)); err != nil {
 		return false, fmt.Errorf("process message getting message keys: %w", err)
 	} else {
 		if err := common.Save(ctx, msgs, ksuid.New().String(), msg.Data); err != nil {
-			return false, fmt.Errorf("process message saving messaGE: %w", err)
+			return false, fmt.Errorf("process message saving message: %w", err)
 		}
 	}
-	subs := &model.MessageRecipients{}
-	if err := common.LoadObj(ctx, s.wfMessageInterest, instance.Name, subs); errors2.Is(err, nats.ErrKeyNotFound) {
-		return true, nil
-	} else if err != nil {
-		return true, fmt.Errorf("loading message recipients: %w", err)
-	}
-	if err := s.deliverMessageToJobRecipient(ctx, subs.Recipient, instance.Name); err != nil {
-		return false, err
+	_, err := s.iterateRxMessages(ctx, instance.Name, instance.CorrelationKey, func(k string, recipient *model.MessageRecipient) (bool, error) {
+		if instance.CorrelationKey == recipient.CorrelationKey {
+			if delivered, err := s.deliverMessageToJobRecipient(ctx, recipient, instance.Name); err != nil {
+				return false, err
+			} else if delivered {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		slog.Warn("process message delivering message: " + err.Error())
 	}
 	return true, nil
 }
 
-func (s *Nats) deliverMessageToJobRecipient(ctx context.Context, recipients []*model.MessageRecipient, msgName string) error {
-	msgs, err := s.js.KeyValue(subj.NS("Message_%s_", "default") + msgName)
+func (s *Nats) deliverMessageToJobRecipient(ctx context.Context, recipient *model.MessageRecipient, msgName string) (bool, error) {
+	msgs, err := s.js.KeyValue(msgTxBucket(ctx, msgName))
 	if err != nil {
-		return fmt.Errorf("get message kv: %w", err)
+		return false, fmt.Errorf("get message kv: %w", err)
 	}
-	keys, err := msgs.Keys()
-	if err != nil {
-		if errors2.Is(err, nats.ErrNoKeysFound) {
-			return nil
-		}
-		return fmt.Errorf("get message keys: %w", err)
-	}
-	for _, k := range keys {
-		m := &model.MessageInstance{}
-		if err := common.LoadObj(ctx, msgs, k, m); errors2.Is(err, nats.ErrKeyNotFound) {
-			continue
-		} else if err != nil {
-			return fmt.Errorf("get message instance: %w", err)
-		}
-		for _, r := range recipients {
-			if r.Type == model.RecipientType_job && r.CorrelationKey == m.CorrelationKey {
-				if lck, err := common.Lock(s.wfLock, r.Id); err != nil {
-					slog.Error("delivery obtaining lock: %w", err)
-					continue
-				} else if !lck {
-					continue
-				}
-				if err := s.deliverMessageToJob(ctx, r.Id, m); errors2.Is(err, errors.ErrJobNotFound) {
-					goto releaseAndContinue
+	return s.iterateTxMessages(
+		ctx,
+		msgName,
+		recipient.CorrelationKey,
+		func(k string, m *model.MessageInstance) (bool, error) {
+			if recipient.Type == model.RecipientType_job {
+				if err := s.deliverMessageToJob(ctx, recipient.Id, m); errors2.Is(err, errors.ErrJobNotFound) {
+					return false, err
 				} else if err != nil {
-					slog.Error("delivering message", err)
-					goto releaseAndContinue
+					return false, err
 				}
 				if err := common.Delete(msgs, k); err != nil {
-					slog.Error("deleting message", err)
-					goto releaseAndContinue
-				}
-			releaseAndContinue:
-				if err := common.UnLock(s.wfLock, r.Id); err != nil {
-					return fmt.Errorf("delivery releasing lock: %w", err)
+					return false, fmt.Errorf("deleting message: %w", err)
 				}
 			}
-		}
-	}
-	return nil
+			return true, nil
+		})
 }
 
 func (s *Nats) deliverMessageToJob(ctx context.Context, jobID string, instance *model.MessageInstance) error {
@@ -166,19 +203,17 @@ func (s *Nats) deliverMessageToJob(ctx context.Context, jobID string, instance *
 	if err := s.PublishWorkflowState(ctx, messages.WorkflowJobAwaitMessageComplete, job); err != nil {
 		return fmt.Errorf("publising complete message job: %w", err)
 	}
-
-	if err := common.UpdateObj(ctx, s.wfMessageInterest, instance.Name, &model.MessageRecipients{}, func(v *model.MessageRecipients) (*model.MessageRecipients, error) {
-		removeWhere(v.Recipient, func(recipient *model.MessageRecipient) bool {
-			return recipient.Type == model.RecipientType_job && recipient.Id == jobID
-		})
-		return v, nil
-	}); err != nil {
+	rx, err := s.js.KeyValue(msgRxBucket(ctx, instance.Name))
+	if err != nil {
+		return fmt.Errorf("obtaining message recipient kv: %w", err)
+	}
+	if err := common.Delete(rx, jobID); err != nil {
 		return fmt.Errorf("updating message subscriptions: %w", err)
 	}
 	return nil
 }
 func (s *Nats) processAwaitMessageExecute(ctx context.Context) error {
-	if err := common.Process(ctx, s.js, "gatewayExecute", s.closing, subj.NS(messages.WorkflowJobAwaitMessageExecute, "*"), "AwaitMessageConsumer", s.concurrency, s.awaitMessageProcessor); err != nil {
+	if err := common.Process(ctx, s.js, "messageExecute", s.closing, subj.NS(messages.WorkflowJobAwaitMessageExecute, "*"), "AwaitMessageConsumer", s.concurrency, s.awaitMessageProcessor); err != nil {
 		return fmt.Errorf("start process launch processor: %w", err)
 	}
 	return nil
@@ -215,19 +250,96 @@ func (s *Nats) awaitMessageProcessor(ctx context.Context, log *slog.Logger, msg 
 		return false, errors.ErrWorkflowFatal{Err: fmt.Errorf("evaluating message correlation expression: %w", err)}
 	}
 	res := fmt.Sprintf("%+v", resAny)
-	interest := &model.MessageRecipients{}
-	if err := common.UpdateObj(ctx, s.wfMessageInterest, el.Msg, interest, func(v *model.MessageRecipients) (*model.MessageRecipients, error) {
-		v.Recipient = append(v.Recipient, &model.MessageRecipient{
-			Type:           model.RecipientType_job,
-			Id:             common.TrackingID(job.Id).ID(),
-			CorrelationKey: res,
-		})
-		return v, nil
-	}); err != nil {
+	recipient := &model.MessageRecipient{
+		Type:           model.RecipientType_job,
+		Id:             common.TrackingID(job.Id).ID(),
+		CorrelationKey: res,
+	}
+	rx, err := s.js.KeyValue(msgRxBucket(ctx, el.Msg))
+	if err != nil {
+		return false, fmt.Errorf("obtaining message recipient kv: %w", err)
+	}
+	if err := common.SaveObj(ctx, rx, common.TrackingID(job.Id).ID(), recipient); err != nil {
 		return false, fmt.Errorf("update the workflow message subscriptions during await message: %w", err)
 	}
-	if err := s.deliverMessageToJobRecipient(ctx, interest.Recipient, el.Msg); err != nil {
+	if _, err := s.deliverMessageToJobRecipient(ctx, recipient, el.Msg); err != nil {
 		return false, fmt.Errorf("attempting delivery: %w", err)
 	}
 	return true, nil
+}
+
+type correlatable interface {
+	proto.Message
+	GetCorrelationKey() string
+}
+
+func (s *Nats) iterateTxMessages(ctx context.Context, name string, correlationKey string, fn func(k string, m *model.MessageInstance) (bool, error)) (bool, error) {
+	tx, err := s.js.KeyValue(msgTxBucket(ctx, name))
+	if err != nil {
+		return false, fmt.Errorf("opening receive bucket: %w", err)
+	}
+	return lockedIterator(ctx, s, tx, correlationKey, "message", &model.MessageInstance{}, fn)
+}
+
+func (s *Nats) iterateRxMessages(ctx context.Context, name string, correlationKey string, fn func(k string, r *model.MessageRecipient) (bool, error)) (bool, error) {
+	rx, err := s.js.KeyValue(msgRxBucket(ctx, name))
+	if err != nil {
+		return false, fmt.Errorf("opening receive bucket: %w", err)
+	}
+	return lockedIterator(ctx, s, rx, correlationKey, "recipient", &model.MessageRecipient{}, fn)
+}
+
+func lockedIterator[T correlatable](ctx context.Context, s *Nats, rx nats.KeyValue, match string, iteratorType string, iterateValue T, fn func(k string, r T) (bool, error)) (bool, error) {
+	keys, err := rx.Keys()
+	if err != nil {
+		return false, fmt.Errorf("retrieving %s keys: %w", iteratorType, err)
+	}
+	return lockedIterate(ctx, s, rx, match, iteratorType, iterateValue, fn, keys)
+}
+
+func lockedIterate[T correlatable](ctx context.Context, s *Nats, rx nats.KeyValue, match string, iteratorType string, iterateValue T, fn func(k string, r T) (bool, error), keys []string) (bool, error) {
+	for _, k := range keys {
+		if err := common.LoadObj(ctx, rx, k, iterateValue); err != nil {
+			continue
+		}
+		if len(match) == 0 || iterateValue.GetCorrelationKey() != match {
+			continue
+		}
+		if lck, err := common.Lock(s.wfLock, k); err != nil {
+			slog.Error("%s iterator obtaining lock: %w", iteratorType, err)
+			if err := common.UnLock(s.wfLock, k); err != nil {
+				slog.Warn("unlocking " + iteratorType + ": " + err.Error())
+			}
+			continue
+		} else if !lck {
+			if err := common.UnLock(s.wfLock, k); err != nil {
+				slog.Warn("unlocking " + iteratorType + ": " + err.Error())
+			}
+			continue
+		}
+		if delivered, err := fn(k, iterateValue); err != nil {
+			slog.Warn("delivering to " + iteratorType + ": " + err.Error())
+			if err := common.UnLock(s.wfLock, k); err != nil {
+				slog.Warn("unlocking " + iteratorType + ": " + err.Error())
+			}
+			continue
+		} else if delivered {
+			if err := common.UnLock(s.wfLock, k); err != nil {
+				slog.Warn("unlocking " + iteratorType + ": " + err.Error())
+			}
+			return true, nil
+		}
+		if err := common.UnLock(s.wfLock, k); err != nil {
+			slog.Warn("unlocking " + iteratorType + ": " + err.Error())
+		}
+	}
+	return false, nil
+}
+
+func msgTxBucket(ctx context.Context, name string) string {
+	return subj.NS("MsgTx_%s_", "default") + name
+}
+
+func msgRxBucket(ctx context.Context, name string) string {
+	return subj.NS("MsgTx_%s_", "default") + name
 }

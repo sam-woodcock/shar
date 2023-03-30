@@ -145,6 +145,15 @@ func init() {
 			MaxAckPending:   65535,
 			MaxRequestBatch: 1,
 		},
+		{
+			Durable:         "MessageKickConsumer",
+			Description:     "Message processing consumer timer",
+			AckPolicy:       nats.AckExplicitPolicy,
+			AckWait:         120 * time.Second,
+			FilterSubject:   subj.NS(messages.WorkflowMessageKick, "*"),
+			MaxAckPending:   1,
+			MaxRequestBatch: 1,
+		},
 	}
 	ConsumerDurableNames = make(map[string]struct{}, len(consumerConfig))
 	for _, v := range consumerConfig {
@@ -182,7 +191,7 @@ func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig 
 	} else if err != nil {
 		return fmt.Errorf("ensure consumer: %w", err)
 	} else {
-		if ok := RequiresUpgrade(ci.Config.Description, sharVersion.Version); ok {
+		if ok := requiresUpgrade(ci.Config.Description, sharVersion.Version); ok {
 			consumerConfig.Description += " " + sharVersion.Version
 			_, err := js.UpdateConsumer(streamName, &consumerConfig)
 			if err != nil {
@@ -203,7 +212,7 @@ func EnsureStream(js nats.JetStreamContext, streamConfig nats.StreamConfig) erro
 	} else if err != nil {
 		return fmt.Errorf("ensure stream: %w", err)
 	} else {
-		if ok := RequiresUpgrade(si.Config.Description, sharVersion.Version); ok {
+		if ok := requiresUpgrade(si.Config.Description, sharVersion.Version); ok {
 			streamConfig.Description += " " + sharVersion.Version
 			_, err := js.UpdateStream(&streamConfig)
 			if err != nil {
@@ -214,11 +223,13 @@ func EnsureStream(js nats.JetStreamContext, streamConfig nats.StreamConfig) erro
 	return nil
 }
 
-// RequiresUpgrade reads the description on an existing SHAR JetStream object.  It compares this with the running version and returs true if an upgrade is needed.
-func RequiresUpgrade(description string, newVersion string) bool {
-	expr := regexp.MustCompilePOSIX(`([0-9])*\.([0-9])*\.([0-9])*$`)
+// upgradeExpr is the version check regex
+var upgradeExpr = regexp.MustCompilePOSIX(`([0-9])*\.([0-9])*\.([0-9])*$`)
 
-	if v := expr.FindString(description); len(v) == 0 {
+// requiresUpgrade reads the description on an existing SHAR JetStream object.  It compares this with the running version and returs true if an upgrade is needed.
+func requiresUpgrade(description string, newVersion string) bool {
+
+	if v := upgradeExpr.FindString(description); len(v) == 0 {
 		return true
 	} else {
 		v1, err := version.NewVersion(v)

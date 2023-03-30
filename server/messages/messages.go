@@ -54,6 +54,10 @@ const (
 	WorkflowTraversalExecute          = "WORKFLOW.%s.State.Traversal.Execute"         // WorkflowTraversalExecute is the state message subject for executing a new traversal.
 )
 
+const (
+	WorkflowMessageKick = "WORKFLOW.Message.Kick" // WorkflowMessageKick is the message subject for triggering delivery of missed messages.
+)
+
 // WorkflowLogLevel represents a subject suffox for logging levels
 type WorkflowLogLevel string
 
@@ -103,6 +107,7 @@ var AllMessages = []string{
 	subj.NS(WorkflowTraversalExecute, "*"),
 	subj.NS(WorkflowJobGatewayTaskActivate, "*"),
 	subj.NS(WorkflowJobGatewayTaskReEnter, "*"),
+	WorkflowMessageKick,
 }
 
 // WorkflowMessageFormat provides the template for sending workflow messages.
@@ -150,4 +155,5 @@ var (
 	KvGateway         = "WORKFLOW_GATEWAY"    // KvGateway is the name of the key value store holding gateway instances.
 	KvHistory         = "WORKFLOW_HISTORY"    // KvHistory is the name of the key value store holding process histories.
 	KvLock            = "WORKFLOW_GENLCK"     // KvLock is the name of the key value store holding locks.
+	KvMessageTypes    = "WORKFLOW_MSGTYPES"   // KvMessageTypes is the name of the key value store containing known message types.
 )
