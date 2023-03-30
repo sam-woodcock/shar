@@ -64,6 +64,7 @@ type Nats struct {
 	completeActivityFunc           services.CompleteActivityFunc
 	abortFunc                      services.AbortFunc
 	wfLock                         nats.KeyValue
+	wfMsgTypes                     nats.KeyValue
 }
 
 // WorkflowStats obtains the running counts for the engine
@@ -154,6 +155,7 @@ func New(conn common.NatsConn, txConn common.NatsConn, storageType nats.StorageT
 	kvs[messages.KvGateway] = &ms.wfGateway
 	kvs[messages.KvHistory] = &ms.wfHistory
 	kvs[messages.KvLock] = &ms.wfLock
+	kvs[messages.KvMessageTypes] = &ms.wfMsgTypes
 	ks := make([]string, 0, len(kvs))
 	for k := range kvs {
 		ks = append(ks, k)
@@ -168,6 +170,26 @@ func New(conn common.NatsConn, txConn common.NatsConn, storageType nats.StorageT
 			return nil, fmt.Errorf("open %s KV: %w", k, err)
 		}
 		*v = kv
+	}
+
+	kickConsumer, err := js.ConsumerInfo("WORKFLOW", "MessageKickConsumer")
+	if err != nil {
+		return nil, fmt.Errorf("obtaining message kick consumer information: %w", err)
+	}
+	if int(kickConsumer.NumPending)+kickConsumer.NumAckPending+kickConsumer.NumWaiting == 0 {
+		if lock, err := common.Lock(ms.wfLock, "MessageKick"); err != nil {
+			return nil, fmt.Errorf("obtaining lock for message kick consumer: %w", err)
+		} else if lock {
+			defer func() {
+				// clear the lock out of courtesy
+				if err := common.UnLock(ms.wfLock, "MessageKick"); err != nil {
+					slog.Warn("releasing lock for message kick consumer")
+				}
+			}()
+			if _, err := ms.js.Publish(messages.WorkflowMessageKick, []byte{}); err != nil {
+				return nil, fmt.Errorf("starting message kick timer: %w", err)
+			}
+		}
 	}
 
 	return ms, nil
@@ -274,29 +296,10 @@ func (s *Nats) StoreWorkflow(ctx context.Context, wf *model.Workflow) (string, e
 		return wfID, nil
 	}
 
-	for _, m := range wf.Messages {
-		ks := ksuid.New()
-
-		if err := common.EnsureBucket(s.js, s.storageType, subj.NS("Message_%s_", "default")+m.Name, 0); err != nil {
-			return "", &errors.ErrWorkflowFatal{Err: err}
-		}
-		//TODO: this should only happen if there is a task associated with message send
-		if err := common.Save(ctx, s.wfClientTask, wf.Name+"_"+m.Name, []byte(ks.String())); err != nil {
-			return "", fmt.Errorf("create a client task during workflow creation: %w", err)
-		}
-
-		jxCfg := &nats.ConsumerConfig{
-			Durable:       "ServiceTask_" + ks.String(),
-			Description:   "",
-			FilterSubject: subj.NS(messages.WorkflowJobSendMessageExecute, "default") + "." + wf.Name + "_" + m.Name,
-			AckPolicy:     nats.AckExplicitPolicy,
-			MaxAckPending: 65536,
-		}
-		if err = ensureConsumer(s.js, "WORKFLOW", jxCfg); err != nil {
-			return "", fmt.Errorf("add service task consumer: %w", err)
-		}
-
+	if err := s.ensureMessageBuckets(ctx, wf); err != nil {
+		return "", fmt.Errorf("create workflow message buckets: %w", err)
 	}
+
 	for _, i := range wf.Process {
 		for _, j := range i.Elements {
 			if j.Type == element.ServiceTask {
@@ -379,7 +382,7 @@ func (s *Nats) CreateWorkflowInstance(ctx context.Context, wfInstance *model.Wor
 		return nil, fmt.Errorf("save workflow instance object to KV: %w", err)
 	}
 	for _, m := range wf.Messages {
-		if err := common.EnsureBucket(s.js, s.storageType, subj.NS("Message_%s_", "default")+m.Name, 0); err != nil {
+		if err := common.EnsureBucket(s.js, s.storageType, subj.NS("MsgTx_%s_", "default")+m.Name, 0); err != nil {
 			return nil, fmt.Errorf("ensuring bucket '%s':%w", m.Name, err)
 		}
 	}
@@ -413,19 +416,6 @@ func (s *Nats) GetServiceTaskRoutingKey(ctx context.Context, taskName string) (s
 		}
 		return id, nil
 	} else if err != nil {
-		return "", fmt.Errorf("get service task key: %w", err)
-	}
-	return string(b), nil
-}
-
-// GetMessageSenderRoutingKey gets an ID used to listen for workflow message instances.
-func (s *Nats) GetMessageSenderRoutingKey(ctx context.Context, workflowName string, messageName string) (string, error) {
-	_, err := s.wfName.Get(workflowName)
-	if err != nil {
-		return "", fmt.Errorf("cannot locate workflow: %w", err)
-	}
-	var b []byte
-	if b, err = common.Load(ctx, s.wfClientTask, workflowName+"_"+messageName); err != nil {
 		return "", fmt.Errorf("get service task key: %w", err)
 	}
 	return string(b), nil
@@ -465,24 +455,6 @@ func (s *Nats) XDestroyWorkflowInstance(ctx context.Context, state *model.Workfl
 			)
 		}
 	}
-	/*
-		// Loop through all messages checking for process subscription and remove
-		if wfi.WorkflowInstanceId != "" {
-			for _, p := range wfi.ProcessInstanceId {
-				for _, m := range wf.Messages {
-					t := &model.MessageRecipients{}
-					if err := common.UpdateObj(ctx, s.wfMessageInterest, m.Name, t, func(v *model.MessageRecipients) (*model.MessageRecipients, error) {
-						v.Recipient = removeWhere(v.Recipient, func(x *model.MessageRecipient) bool {
-							return x.Type == model.RecipientType_job && x.Id == p
-						})
-						return v, nil
-					}); err != nil {
-
-					}
-				}
-			}
-		}
-	*/
 	tState := common.CopyWorkflowState(state)
 
 	if tState.Error != nil {
@@ -851,16 +823,6 @@ func (s *Nats) Conn() common.NatsConn { //nolint:ireturn
 func remove[T comparable](slice []T, member T) []T {
 	for i, v := range slice {
 		if v == member {
-			slice = append(slice[:i], slice[i+1:]...)
-			break
-		}
-	}
-	return slice
-}
-
-func removeWhere[T comparable](slice []T, fn func(T) bool) []T {
-	for i, v := range slice {
-		if fn(v) {
 			slice = append(slice[:i], slice[i+1:]...)
 			break
 		}
