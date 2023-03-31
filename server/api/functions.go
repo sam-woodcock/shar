@@ -22,7 +22,7 @@ func (s *SharServer) getProcessInstanceStatus(ctx context.Context, req *model.Ge
 	if err != nil {
 		return nil, fmt.Errorf("getProcessInstanceStatus failed with: %w", err)
 	}
-	return &model.GetProcessInstanceStatusResult{ProcessState: ps}, fmt.Errorf("getProcessinstace status failed with: %w", err)
+	return &model.GetProcessInstanceStatusResult{ProcessState: ps}, nil
 }
 
 func (s *SharServer) listWorkflowInstanceProcesses(ctx context.Context, req *model.ListWorkflowInstanceProcessesRequest) (*model.ListWorkflowInstanceProcessesResult, error) {

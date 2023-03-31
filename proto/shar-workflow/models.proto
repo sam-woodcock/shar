@@ -57,6 +57,21 @@ message Element {
   WorkflowTimerDefinition timer = 16; // Timer - a time to wait before execution for timer tasks.
   repeated Timer boundaryTimer = 17; // BoundaryTimer - a number of timed transitions between this and another state.
   optional GatewaySpec gateway = 18; // GatewaySpec - if this element is a gateway, this contains the type specification for it.
+  optional Iteration iteration = 19; // Iteration - gives any instructions for multi instance execution.
+}
+
+enum ThreadingType {
+  Sequential = 0;
+  Parallel = 2;
+}
+
+message Iteration {
+  string collection = 1;
+  string iterator = 2;
+  string collateAs = 3;
+  string collateFrom = 4;
+  optional string until = 5;
+  ThreadingType execute = 6;
 }
 
 enum GatewayType {
