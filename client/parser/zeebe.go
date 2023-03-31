@@ -61,6 +61,29 @@ func parseZeebeExtensions(doc *xmlquery.Node, modelElement interface{}, i *xmlqu
 					}
 				}
 			}
+			//<zeebe:loopCharacteristics inputCollection="=a" inputElement="b" outputCollection="c" outputElement="=d" />
+			if e := x.SelectElement("zeebe:loopCharacteristics"); e != nil {
+				el.Iteration = &model.Iteration{}
+				if e := x.SelectElement("zeebe:loopCharacteristics/@inputCollection"); e != nil {
+					el.Iteration.Collection = e.InnerText()
+				}
+				if e := x.SelectElement("zeebe:loopCharacteristics/@inputElement"); e != nil {
+					el.Iteration.Iterator = e.InnerText()
+				}
+				if e := x.SelectElement("zeebe:loopCharacteristics/@outputCollection"); e != nil {
+					el.Iteration.CollateAs = e.InnerText()
+				}
+				if e := x.SelectElement("zeebe:loopCharacteristics/@outputElement"); e != nil {
+					el.Iteration.CollateFrom = e.InnerText()
+				}
+				if e := x.SelectElement("zeebe:loopCharacteristics/@outputElement"); e != nil {
+					el.Iteration.CollateFrom = e.InnerText()
+				}
+				if e := x.SelectElement("../bpmn:completionCondition"); e != nil {
+					el.Iteration.CollateFrom = e.InnerText()
+				}
+			}
+
 		}
 	case *model.CatchError:
 		if x := i.SelectElement("bpmn:extensionElements"); x != nil {
