@@ -74,12 +74,6 @@ message Iteration {
   ThreadingType execute = 6;
 }
 
-message Iterator {
-  string id = 1;
-  repeated bytes value = 2;
-  repeated bytes collated = 3;
-}
-
 enum GatewayType {
   exclusive = 0; // Exclusive - When splitting, it routes the sequence flow to exactly one of the outgoing branches. When merging, it awaits one incoming branch to complete before triggering the outgoing flow.
   inclusive = 1; // Inclusive - When splitting, one or more branches are activated. All active incoming branches must complete before merging.
