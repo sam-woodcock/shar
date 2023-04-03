@@ -356,3 +356,151 @@ func UnLock(kv nats.KeyValue, lockID string) error {
 	}
 	return nil
 }
+
+func largeObjlock(ctx context.Context, lockKV nats.KeyValue, key string) error {
+	for {
+		if cerr := ctx.Err(); cerr != nil {
+			switch cerr {
+			case context.DeadlineExceeded:
+				return fmt.Errorf("load large timeout: %w", cerr)
+			case context.Canceled:
+				return fmt.Errorf("load large cancelled: %w", cerr)
+			default:
+				return fmt.Errorf("load large: %w", cerr)
+			}
+		}
+
+		lock, err := Lock(lockKV, key)
+		if err != nil {
+			return fmt.Errorf("load large locking: %w", err)
+		}
+		if !lock {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		break
+	}
+	return nil
+}
+
+func LoadLarge(ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, key string, opt ...nats.GetObjectOpt) ([]byte, error) {
+	if err := largeObjlock(ctx, mutex, key); err != nil {
+		return nil, fmt.Errorf("load large locking: %w", err)
+	}
+	defer func() {
+		if err := UnLock(mutex, key); err != nil {
+			slog.Error("load large unlocking", "error", err.Error())
+		}
+	}()
+	ret, err := ds.GetBytes(key, opt...)
+	if err != nil {
+		return nil, fmt.Errorf("load large get: %w", err)
+	}
+	return ret, nil
+}
+
+func SaveLarge(ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, key string, data []byte, opt ...nats.ObjectOpt) error {
+	opt = append(opt, nats.Context(ctx))
+	if err := largeObjlock(ctx, mutex, key); err != nil {
+		return fmt.Errorf("save large locking: %w", err)
+	}
+	defer func() {
+		if err := UnLock(mutex, key); err != nil {
+			slog.Error("save large unlocking", "error", err.Error())
+		}
+	}()
+	if _, err := ds.PutBytes(key, data, opt...); err != nil {
+
+		return fmt.Errorf("save large put: %w", err)
+	}
+	return nil
+}
+
+func updateLarge(ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, key string, updateFn func(v []byte) ([]byte, error), opt ...nats.ObjectOpt) error {
+	opt = append(opt, nats.Context(ctx))
+	if err := largeObjlock(ctx, mutex, key); err != nil {
+		return fmt.Errorf("load large locking: %w", err)
+	}
+	defer func() {
+		if err := UnLock(mutex, key); err != nil {
+			slog.Error("load large unlocking", "error", err.Error())
+		}
+	}()
+	b, err := ds.GetBytes(key, nats.Context(ctx))
+	if err != nil {
+		return fmt.Errorf("large update: load: %w", err)
+	}
+	data, err := updateFn(b)
+	if err != nil {
+		return fmt.Errorf("large update: update function: %w", err)
+	}
+	if _, err := ds.PutBytes(key, data, opt...); err != nil {
+
+		return fmt.Errorf("large update: save: %w", err)
+	}
+	return nil
+}
+
+// SaveLargeObj save an protobuf message to a document store
+func SaveLargeObj(ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, k string, v proto.Message, opt ...nats.ObjectOpt) error {
+	log := logx.FromContext(ctx)
+	if log.Enabled(ctx, errors2.TraceLevel) {
+		log.Log(ctx, errors2.TraceLevel, "save object", slog.String("key", k), slog.Any("val", v))
+	}
+	b, err := proto.Marshal(v)
+	if err == nil {
+		return SaveLarge(ctx, ds, mutex, k, b, opt...)
+	}
+	return fmt.Errorf("save object into KV: %w", err)
+}
+
+// LoadLargeObj loads a protobuf message from a key value store
+func LoadLargeObj(ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, k string, v proto.Message, opt ...nats.GetObjectOpt) error {
+	log := logx.FromContext(ctx)
+	if log.Enabled(ctx, errors2.TraceLevel) {
+		log.Log(ctx, errors2.TraceLevel, "load object", slog.String("key", k), slog.Any("val", v))
+	}
+	doc, err := LoadLarge(ctx, ds, mutex, k, opt...)
+	if err != nil {
+		return fmt.Errorf("load object %s: %w", k, err)
+	}
+	if err := proto.Unmarshal(doc, v); err != nil {
+		return fmt.Errorf("load large object unmarshal: %w", err)
+	}
+	return nil
+}
+
+// UpdateLargeObj saves an protobuf message to a document store after using updateFN to update the message.
+func UpdateLargeObj[T proto.Message](ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) (T, error) {
+	log := logx.FromContext(ctx)
+	if log.Enabled(ctx, errors2.TraceLevel) {
+		log.Log(ctx, errors2.TraceLevel, "update object", slog.String("key", k), slog.Any("fn", reflect.TypeOf(updateFn)))
+	}
+
+	if err := LoadLargeObj(ctx, ds, mutex, k, msg); err != nil {
+		return msg, fmt.Errorf("update large object load: %w", err)
+	}
+	nw, err := updateFn(msg)
+	if err != nil {
+		return msg, fmt.Errorf("update large object updateFn: %w", err)
+	}
+	if err := SaveLargeObj(ctx, ds, mutex, k, msg); err != nil {
+		return msg, fmt.Errorf("update large object save: %w", err)
+	}
+	return nw, nil
+}
+
+func DeleteLarge(ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, k string) error {
+	if err := largeObjlock(ctx, mutex, k); err != nil {
+		return fmt.Errorf("delete large locking: %w", err)
+	}
+	defer func() {
+		if err := UnLock(mutex, k); err != nil {
+			slog.Error("load large unlocking", "error", err.Error())
+		}
+	}()
+	if err := ds.Delete(k); err != nil && err != nats.ErrNoObjectsFound && err != nats.ErrKeyNotFound {
+		return fmt.Errorf("delete large removing: %w", err)
+	}
+	return nil
+}
