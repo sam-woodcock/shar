@@ -383,6 +383,7 @@ func largeObjlock(ctx context.Context, lockKV nats.KeyValue, key string) error {
 	return nil
 }
 
+// LoadLarge load a large binary from the object store
 func LoadLarge(ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, key string, opt ...nats.GetObjectOpt) ([]byte, error) {
 	if err := largeObjlock(ctx, mutex, key); err != nil {
 		return nil, fmt.Errorf("load large locking: %w", err)
@@ -399,6 +400,7 @@ func LoadLarge(ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, ke
 	return ret, nil
 }
 
+// SaveLarge saves a large binary from the object store
 func SaveLarge(ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, key string, data []byte, opt ...nats.ObjectOpt) error {
 	opt = append(opt, nats.Context(ctx))
 	if err := largeObjlock(ctx, mutex, key); err != nil {
@@ -412,31 +414,6 @@ func SaveLarge(ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, ke
 	if _, err := ds.PutBytes(key, data, opt...); err != nil {
 
 		return fmt.Errorf("save large put: %w", err)
-	}
-	return nil
-}
-
-func updateLarge(ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, key string, updateFn func(v []byte) ([]byte, error), opt ...nats.ObjectOpt) error {
-	opt = append(opt, nats.Context(ctx))
-	if err := largeObjlock(ctx, mutex, key); err != nil {
-		return fmt.Errorf("load large locking: %w", err)
-	}
-	defer func() {
-		if err := UnLock(mutex, key); err != nil {
-			slog.Error("load large unlocking", "error", err.Error())
-		}
-	}()
-	b, err := ds.GetBytes(key, nats.Context(ctx))
-	if err != nil {
-		return fmt.Errorf("large update: load: %w", err)
-	}
-	data, err := updateFn(b)
-	if err != nil {
-		return fmt.Errorf("large update: update function: %w", err)
-	}
-	if _, err := ds.PutBytes(key, data, opt...); err != nil {
-
-		return fmt.Errorf("large update: save: %w", err)
 	}
 	return nil
 }
@@ -471,7 +448,7 @@ func LoadLargeObj(ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue,
 }
 
 // UpdateLargeObj saves an protobuf message to a document store after using updateFN to update the message.
-func UpdateLargeObj[T proto.Message](ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) (T, error) {
+func UpdateLargeObj[T proto.Message](ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, k string, msg T, updateFn func(v T) (T, error)) (T, error) { //nolint
 	log := logx.FromContext(ctx)
 	if log.Enabled(ctx, errors2.TraceLevel) {
 		log.Log(ctx, errors2.TraceLevel, "update object", slog.String("key", k), slog.Any("fn", reflect.TypeOf(updateFn)))
@@ -490,6 +467,7 @@ func UpdateLargeObj[T proto.Message](ctx context.Context, ds nats.ObjectStore, m
 	return nw, nil
 }
 
+// DeleteLarge deletes a large binary from the object store
 func DeleteLarge(ctx context.Context, ds nats.ObjectStore, mutex nats.KeyValue, k string) error {
 	if err := largeObjlock(ctx, mutex, k); err != nil {
 		return fmt.Errorf("delete large locking: %w", err)
