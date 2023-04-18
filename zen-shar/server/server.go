@@ -113,11 +113,11 @@ func GetServers(natsHost string, natsPort int, sharConcurrency int, apiAuth auth
 		return nil, nil, fmt.Errorf("create a new server instance: %w", err)
 	}
 	//nl := &NatsLogger{}
-	//nsvr.SetLogger(nl, false, false)
+	//nsvr.SetLogger(nl, true, true)
 
 	go nsvr.Start()
 	if !nsvr.ReadyForConnections(5 * time.Second) {
-		panic("start NATS")
+		panic("start NATS ")
 	}
 	slog.Info("NATS started")
 
