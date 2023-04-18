@@ -749,23 +749,23 @@ func (c *Engine) startJob(ctx context.Context, subject string, job *model.Workfl
 	if el.Type != element.MessageIntermediateCatchEvent {
 		job.Vars = nil
 		if err := vars.InputVars(ctx, v, &job.Vars, el); err != nil {
-			return fmt.Errorf("start job failed to get input variables: %w", err)
+			return errors.ErrWorkflowFatal{Err: fmt.Errorf("start job failed to get input variables: %w", err)}
 		}
 	}
 	// if this is a user task, find out who can perfoem it
 	if el.Type == element.UserTask {
 		vx, err := vars.Decode(ctx, v)
 		if err != nil {
-			return fmt.Errorf("start job failed to decode input variables: %w", err)
+			return errors.ErrWorkflowFatal{Err: fmt.Errorf("start job failed to decode input variables: %w", err)}
 		}
 
 		owners, err := c.evaluateOwners(ctx, el.Candidates, vx)
 		if err != nil {
-			return fmt.Errorf("start job failed to evaluate owners: %w", err)
+			return errors.ErrWorkflowFatal{Err: fmt.Errorf("start job failed to evaluate owners: %w", err)}
 		}
 		groups, err := c.evaluateOwners(ctx, el.CandidateGroups, vx)
 		if err != nil {
-			return fmt.Errorf("start job failed to evaluate groups: %w", err)
+			return errors.ErrWorkflowFatal{Err: fmt.Errorf("start job failed to evaluate groups: %w", err)}
 		}
 
 		job.Owners = owners
@@ -784,10 +784,37 @@ func (c *Engine) startJob(ctx context.Context, subject string, job *model.Workfl
 			slog.String(keys.WorkflowInstanceID, job.WorkflowInstanceId),
 		)
 	}
-	if err := c.ns.PublishWorkflowState(ctx, subj.NS(subject, "default"), job, opts...); err != nil {
-		return fmt.Errorf("start job failed to publish: %w", err)
+	/*
+		//Save Iterator State
+		common.SaveLargeObj
+
+		// Multi-instance
+		if el.Iteration != nil {
+			if el.Iteration.Execute == model.ThreadingType_Sequential {
+				// Launch as usual, just with iteration parameters
+				seqVars, err := vars.Decode(ctx, job.Vars)
+				if err != nil {
+					return errors.ErrWorkflowFatal{Err: fmt.Errorf("start job failed to decode input variables: %w", err)}
+				}
+				collection, ok := seqVars[el.Iteration.Collection]
+				if !ok {
+					return errors.ErrWorkflowFatal{Err: fmt.Errorf("start job failed to decode input variables: %w", err)}
+				}
+				seqVars[el.Iteration.Iterator] = getCollectionIndex[collection]
+			} else if model.ThreadingType_Parallel {
+
+			}
+		}
+	*/
+	// Single instance launch
+	if el.Iteration == nil {
+
+		if err := c.ns.PublishWorkflowState(ctx, subj.NS(subject, "default"), job, opts...); err != nil {
+			return fmt.Errorf("start job failed to publish: %w", err)
+		}
+		// finally tell the engine that the job is ready for a client
+		return nil
 	}
-	// finally tell the engine that the job is ready for a client
 	return nil
 }
 

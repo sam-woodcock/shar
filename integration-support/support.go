@@ -2,6 +2,7 @@ package integration_support
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
@@ -17,9 +18,9 @@ import (
 	"gitlab.com/shar-workflow/shar/server/tools/tracer"
 	server2 "gitlab.com/shar-workflow/shar/telemetry/server"
 	zensvr "gitlab.com/shar-workflow/shar/zen-shar/server"
-	rand2 "golang.org/x/exp/rand"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
+	"math/big"
 	"sync"
 	"testing"
 	"time"
@@ -47,7 +48,11 @@ type Integration struct {
 // Setup - sets up the test NATS and SHAR servers.
 func (s *Integration) Setup(t *testing.T, authZFn authz.APIFunc, authNFn authn.Check) {
 	s.NatsHost = "127.0.0.1"
-	s.NatsPort = 4459 + rand2.Intn(500)
+	v, e := rand.Int(rand.Reader, big.NewInt(500))
+	if e != nil {
+		panic("no crypto:" + e.Error())
+	}
+	s.NatsPort = 4459 + int(v.Int64())
 	s.NatsURL = fmt.Sprintf("nats://%s:%v", s.NatsHost, s.NatsPort)
 	logx.SetDefault(slog.LevelDebug, true, "shar-Integration-tests")
 	s.Cooldown = 4 * time.Second
