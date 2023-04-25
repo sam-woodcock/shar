@@ -62,6 +62,30 @@ func (vars Vars) GetInt64(key string) (int64, error) {
 	return Get[int64](vars, key)
 }
 
+// GetUint8 validates that a key has an underlying value in the map[int]interface{} vars
+// and safely returns the result.
+func (vars Vars) GetUint8(key string) (uint8, error) {
+	return Get[uint8](vars, key)
+}
+
+// GetUint16 validates that a key has an underlying value in the map[int]interface{} vars
+// and safely returns the result.
+func (vars Vars) GetUint16(key string) (uint16, error) {
+	return Get[uint16](vars, key)
+}
+
+// GetUint32 validates that a key has an underlying value in the map[int]interface{} vars
+// and safely returns the result.
+func (vars Vars) GetUint32(key string) (uint32, error) {
+	return Get[uint32](vars, key)
+}
+
+// GetUint64 validates that a key has an underlying value in the map[int]interface{} vars
+// and safely returns the result.
+func (vars Vars) GetUint64(key string) (uint64, error) {
+	return Get[uint64](vars, key)
+}
+
 // GetByte validates that a key has an underlying value in the map[int]interface{} vars
 // and safely returns the result.
 func (vars Vars) GetByte(key string) ([]byte, error) {
