@@ -138,6 +138,8 @@ const (
 	APIGetProcessHistory             = "WORKFLOW.Api.GetProcessHistory"             // APIGetProcessHistory is the get process history API message subject.
 )
 
+const APISpoolWorkflowEvents = "WORKFLOW.Api.SpoolWorkflowEvents" // APISpoolWorkflowEvents returns the latest workflow events from SHAR for export.  Event spooling must be enabled on the server.
+
 var (
 	KvJob             = "WORKFLOW_JOB"        // KvJob is the name of the key value store that holds workflow jobs.
 	KvVersion         = "WORKFLOW_VERSION"    // KvVersion is the name of the key value store that holds an ordered list of workflow version IDs for a given workflow
