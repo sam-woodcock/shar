@@ -57,7 +57,7 @@ clean: .FORCE
 	rm -f model/*.pb.go
 generated-code: configure .FORCE
 	go generate server/workflow/nats-service.go
-test: configure generated-code proto server tracing .FORCE
+test: configure generated-code proto server tracing examples .FORCE
 	golangci-lint cache clean
 	@echo "\033[92mLinting\033[0m"
 	golangci-lint run -v -E gosec -E revive -E ireturn --timeout 5m0s
@@ -70,10 +70,16 @@ race: proto server tracing .FORCE
 	go clean -testcache
 	@echo "\033[92mRunning tests\033[0m"
 	CGO_ENABLED=0 go test ./... --race
-mod-upgrade:
+mod-upgrade: .FORCE
 	#go list -u -m $(go list -m -f '{{.Indirect}} {{.}}' all | grep '^false' | cut -d ' ' -f2) | grep '\['
 	go get -u ./...
 	go mod tidy
-wasm:
+wasm: .FORCE
 	cd validator && GOOS=js GOARCH=wasm go CGO_ENABLED=0 build -o json.wasm
+examples: .FORCE
+	cd examples/message && go build  -o ../../build/examples/message main.go
+	cd examples/message-manual && go build  -o ../../build/examples/message-manual main.go
+	cd examples/sub-workflow && go build  -o ../../build/examples/sub-workflow main.go
+	cd examples/simple && go build  -o ../../build/examples/simple main.go
+	cd examples/usertask && go build  -o ../../build/examples/usertask main.go
 .FORCE:
