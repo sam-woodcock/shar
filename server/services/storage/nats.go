@@ -132,8 +132,8 @@ func New(conn common.NatsConn, txConn common.NatsConn, storageType nats.StorageT
 		publishTimeout:          time.Second * 30,
 		allowOrphanServiceTasks: allowOrphanServiceTasks,
 	}
-
-	if err := setup.EnsureWorkflowStream(js, storageType); err != nil {
+	ctx := context.Background()
+	if err := setup.EnsureWorkflowStream(ctx, conn, js, storageType); err != nil {
 		return nil, fmt.Errorf("set up nats queue insfrastructure: %w", err)
 	}
 
@@ -402,14 +402,19 @@ func (s *Nats) GetWorkflowInstance(ctx context.Context, workflowInstanceID strin
 }
 
 // GetServiceTaskRoutingKey gets a unique ID for a service task that can be used to listen for its activation.
-func (s *Nats) GetServiceTaskRoutingKey(ctx context.Context, taskName string) (string, error) {
+func (s *Nats) GetServiceTaskRoutingKey(ctx context.Context, taskName string, requestedId string) (string, error) {
 	var b []byte
 	var err error
 	if b, err = common.Load(ctx, s.wfClientTask, taskName); err != nil && errors2.Is(err, nats.ErrKeyNotFound) {
 		if !s.allowOrphanServiceTasks {
 			return "", fmt.Errorf("get service task key. key not present: %w", err)
 		}
-		id := ksuid.New().String()
+		var id string
+		if requestedId == "" {
+			id = ksuid.New().String()
+		} else {
+			id = requestedId
+		}
 		_, err := s.wfClientTask.Put(taskName, []byte(id))
 		if err != nil {
 			return "", fmt.Errorf("register service task key: %w", err)

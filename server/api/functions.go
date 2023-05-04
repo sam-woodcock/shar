@@ -125,16 +125,16 @@ func (s *SharServer) storeWorkflow(ctx context.Context, wf *model.Workflow) (*wr
 	return &wrapperspb.StringValue{Value: res}, nil
 }
 
-func (s *SharServer) getServiceTaskRoutingID(ctx context.Context, taskName *wrapperspb.StringValue) (*wrapperspb.StringValue, error) {
+func (s *SharServer) getServiceTaskRoutingID(ctx context.Context, req *model.GetServiceTaskRoutingIDRequest) (*model.GetServiceTaskRoutingIDResponse, error) {
 	ctx, err2 := s.authForNonWorkflow(ctx)
 	if err2 != nil {
 		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
-	res, err := s.ns.GetServiceTaskRoutingKey(ctx, taskName.Value)
+	res, err := s.ns.GetServiceTaskRoutingKey(ctx, req.Name, req.RequestedId)
 	if err != nil {
 		return nil, fmt.Errorf("get service task routing id: %w", err)
 	}
-	return &wrapperspb.StringValue{Value: res}, nil
+	return &model.GetServiceTaskRoutingIDResponse{Id: res}, nil
 }
 
 func (s *SharServer) launchWorkflow(ctx context.Context, req *model.LaunchWorkflowRequest) (*model.LaunchWorkflowResponse, error) {

@@ -1,6 +1,7 @@
 package intTest
 
 import (
+	"context"
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
@@ -31,8 +32,8 @@ func TestUpgradeNATSObjects(t *testing.T) {
 	require.NoError(t, err)
 
 	sharVersion.Version = "v1.0.1"
-
-	err = setup.EnsureStream(js, nats.StreamConfig{
+	ctx := context.Background()
+	err = setup.EnsureStream(ctx, nc, js, nats.StreamConfig{
 		Name:        "TestStream",
 		Description: "SHAR",
 		Subjects:    []string{"TestStream.*.State.Job.Activate.Gateway"},
@@ -61,7 +62,7 @@ func TestUpgradeNATSObjects(t *testing.T) {
 
 	sharVersion.Version = "v1.0.2"
 
-	err = setup.EnsureStream(js, nats.StreamConfig{
+	err = setup.EnsureStream(ctx, nc, js, nats.StreamConfig{
 		Name:        "TestStream",
 		Description: "SHAR",
 		Subjects:    []string{"TestStream.*.State.Job.Activate.Gateway", "TestStream.*.State.Job.Abort.Gateway"},
@@ -90,8 +91,7 @@ func TestUpgradeNATSObjects(t *testing.T) {
 	assert.Equal(t, 2, ci.Config.MaxRequestBatch)
 
 	sharVersion.Version = "v1.0.1"
-
-	err = setup.EnsureStream(js, nats.StreamConfig{
+	err = setup.EnsureStream(ctx, nc, js, nats.StreamConfig{
 		Name:        "TestStream",
 		Description: "SHAR",
 		Subjects:    []string{"TestStream.*.State.Job.Abort.Gateway"},

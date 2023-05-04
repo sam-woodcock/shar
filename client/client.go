@@ -178,8 +178,12 @@ func (c *Client) Dial(natsURL string, opts ...nats.Option) error {
 }
 
 // RegisterServiceTask adds a new service task to listen for to the client.
-func (c *Client) RegisterServiceTask(ctx context.Context, taskName string, fn ServiceFn) error {
-	id, err := c.getServiceTaskRoutingID(ctx, taskName)
+func (c *Client) RegisterServiceTask(ctx context.Context, taskName string, fn ServiceFn, opts ...RegOpt) error {
+	opt := &registerTaskOptions{}
+	for _, o := range opts {
+		o.apply(opt)
+	}
+	id, err := c.getServiceTaskRoutingID(ctx, taskName, opt.id)
 	if err != nil {
 		return fmt.Errorf("get service task routing: %w", err)
 	}
@@ -563,13 +567,13 @@ func (c *Client) GetProcessInstanceStatus(ctx context.Context, id string) (*mode
 	return res, nil
 }
 
-func (c *Client) getServiceTaskRoutingID(ctx context.Context, id string) (string, error) {
-	req := &wrapperspb.StringValue{Value: id}
-	res := &wrapperspb.StringValue{}
+func (c *Client) getServiceTaskRoutingID(ctx context.Context, name string, requestedId string) (string, error) {
+	req := &model.GetServiceTaskRoutingIDRequest{Name: name, RequestedId: requestedId}
+	res := &model.GetServiceTaskRoutingIDResponse{}
 	if err := callAPI(ctx, c.txCon, messages.APIGetServiceTaskRoutingID, req, res); err != nil {
 		return "", c.clientErr(ctx, err)
 	}
-	return res.Value, nil
+	return res.Id, nil
 }
 
 // GetUserTask fetches details for a user task based upon an ID obtained from, ListUserTasks

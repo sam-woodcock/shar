@@ -366,23 +366,23 @@ func (_m *MockNatsService) GetProcessInstance(ctx context.Context, processInstan
 	return r0, r1
 }
 
-// GetServiceTaskRoutingKey provides a mock function with given fields: ctx, taskName
-func (_m *MockNatsService) GetServiceTaskRoutingKey(ctx context.Context, taskName string) (string, error) {
-	ret := _m.Called(ctx, taskName)
+// GetServiceTaskRoutingKey provides a mock function with given fields: ctx, taskName, requiredId
+func (_m *MockNatsService) GetServiceTaskRoutingKey(ctx context.Context, taskName string, requiredId string) (string, error) {
+	ret := _m.Called(ctx, taskName, requiredId)
 
 	var r0 string
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (string, error)); ok {
-		return rf(ctx, taskName)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (string, error)); ok {
+		return rf(ctx, taskName, requiredId)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) string); ok {
-		r0 = rf(ctx, taskName)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) string); ok {
+		r0 = rf(ctx, taskName, requiredId)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, taskName)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, taskName, requiredId)
 	} else {
 		r1 = ret.Error(1)
 	}

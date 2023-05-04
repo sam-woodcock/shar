@@ -21,7 +21,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // SharServer provides API endpoints for SHAR
@@ -118,7 +117,7 @@ func (s *SharServer) Listen() error {
 		return fmt.Errorf("APIGetServerInstanceStats failed: %w", err)
 	}
 
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetServiceTaskRoutingID, &wrapperspb.StringValue{}, s.getServiceTaskRoutingID); err != nil {
+	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetServiceTaskRoutingID, &model.GetServiceTaskRoutingIDRequest{}, s.getServiceTaskRoutingID); err != nil {
 		return fmt.Errorf("APIGetServiceTaskRoutingID failed: %w", err)
 	}
 
