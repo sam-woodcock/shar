@@ -75,70 +75,75 @@ func (s *SharServer) Shutdown() {
 // Listen starts the SHAR API server listening to incoming requests
 func (s *SharServer) Listen() error {
 	con := s.ns.Conn()
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
+
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIStoreWorkflow, &model.Workflow{}, s.storeWorkflow); err != nil {
 		return fmt.Errorf("APIStoreWorkflow failed: %w", err)
 	}
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APICancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APICancelWorkflowInstance, &model.CancelWorkflowInstanceRequest{}, s.cancelWorkflowInstance); err != nil {
 		return fmt.Errorf("APICancelWorkflowInstance failed: %w", err)
 	}
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APILaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APILaunchWorkflow, &model.LaunchWorkflowRequest{}, s.launchWorkflow); err != nil {
 		return fmt.Errorf("APILaunchWorkflow failed: %w", err)
 	}
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIListWorkflows, &emptypb.Empty{}, s.listWorkflows); err != nil {
 		return fmt.Errorf("APIListWorkflows failed: %w", err)
 	}
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIListWorkflowInstanceProcesses, &model.ListWorkflowInstanceProcessesRequest{}, s.listWorkflowInstanceProcesses); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIListWorkflowInstanceProcesses, &model.ListWorkflowInstanceProcessesRequest{}, s.listWorkflowInstanceProcesses); err != nil {
 		return fmt.Errorf("APIListWorkflowInstanceProcesses failed: %w", err)
 	}
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIListWorkflowInstance, &model.ListWorkflowInstanceRequest{}, s.listWorkflowInstance); err != nil {
 		return fmt.Errorf("APIListWorkflowInstance failed: %w", err)
 	}
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APISendMessage, &model.SendMessageRequest{}, s.sendMessage); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APISendMessage, &model.SendMessageRequest{}, s.sendMessage); err != nil {
 		return fmt.Errorf("APISendMessage failed: %w", err)
 	}
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APICompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APICompleteManualTask, &model.CompleteManualTaskRequest{}, s.completeManualTask); err != nil {
 		return fmt.Errorf("APICompleteManualTask failed: %w", err)
 	}
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APICompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APICompleteServiceTask, &model.CompleteServiceTaskRequest{}, s.completeServiceTask); err != nil {
 		return fmt.Errorf("APICompleteServiceTask failed: %w", err)
 	}
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APICompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APICompleteUserTask, &model.CompleteUserTaskRequest{}, s.completeUserTask); err != nil {
 		return fmt.Errorf("APICompleteUserTask failed: %w", err)
 	}
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIListUserTaskIDs, &model.ListUserTasksRequest{}, s.listUserTaskIDs); err != nil {
 		return fmt.Errorf("APIListUserTaskIDs failed: %w", err)
 	}
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIGetUserTask, &model.GetUserTaskRequest{}, s.getUserTask); err != nil {
 		return fmt.Errorf("APIGetUserTask failed: %w", err)
 	}
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIHandleWorkflowError, &model.HandleWorkflowErrorRequest{}, s.handleWorkflowError); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIHandleWorkflowError, &model.HandleWorkflowErrorRequest{}, s.handleWorkflowError); err != nil {
 		return fmt.Errorf("APIHandleWorkflowError failed: %w", err)
 	}
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIGetServerInstanceStats, &emptypb.Empty{}, s.getServerInstanceStats); err != nil {
 		return fmt.Errorf("APIGetServerInstanceStats failed: %w", err)
 	}
 
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetServiceTaskRoutingID, &wrapperspb.StringValue{}, s.getServiceTaskRoutingID); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIGetServiceTaskRoutingID, &wrapperspb.StringValue{}, s.getServiceTaskRoutingID); err != nil {
 		return fmt.Errorf("APIGetServiceTaskRoutingID failed: %w", err)
 	}
 
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APICompleteSendMessageTask, &model.CompleteSendMessageRequest{}, s.completeSendMessageTask); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APICompleteSendMessageTask, &model.CompleteSendMessageRequest{}, s.completeSendMessageTask); err != nil {
 		return fmt.Errorf("APICompleteSendMessageTask failed: %w", err)
 	}
 
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetWorkflowVersions, &model.GetWorkflowVersionsRequest{}, s.getWorkflowVersions); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIGetWorkflowVersions, &model.GetWorkflowVersionsRequest{}, s.getWorkflowVersions); err != nil {
 		return fmt.Errorf("APIGetWorkflowVersions failed: %w", err)
 	}
 
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetWorkflow, &model.GetWorkflowRequest{}, s.getWorkflow); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIGetWorkflow, &model.GetWorkflowRequest{}, s.getWorkflow); err != nil {
 		return fmt.Errorf("APIGetWorkflow failed: %w", err)
 	}
 
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetProcessInstanceStatus, &model.GetProcessInstanceStatusRequest{}, s.getProcessInstanceStatus); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIGetProcessInstanceStatus, &model.GetProcessInstanceStatusRequest{}, s.getProcessInstanceStatus); err != nil {
 		return fmt.Errorf("APIGetProcessInstanceStatus failed: %w", err)
 	}
 
-	if _, err := listen(con, s.panicRecovery, s.subs, messages.APIGetProcessHistory, &model.GetProcessHistoryRequest{}, s.getProcessHistory); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIGetProcessHistory, &model.GetProcessHistoryRequest{}, s.getProcessHistory); err != nil {
+		return fmt.Errorf("APIGetProcessHistory failed: %w", err)
+	}
+
+	if err := listen(con, s.panicRecovery, s.subs, messages.APISpoolWorkflowEvents, &model.SpoolWorkflowEventsRequest{}, s.spoolWorkflowEvents); err != nil {
 		return fmt.Errorf("APIGetProcessHistory failed: %w", err)
 	}
 
@@ -146,7 +151,7 @@ func (s *SharServer) Listen() error {
 	return nil
 }
 
-func listen[T proto.Message, U proto.Message](con common.NatsConn, panicRecovery bool, subList *sync.Map, subject string, req T, fn func(ctx context.Context, req T) (U, error)) (*nats.Subscription, error) {
+func listen[T proto.Message, U proto.Message](con common.NatsConn, panicRecovery bool, subList *sync.Map, subject string, req T, fn func(ctx context.Context, req T) (U, error)) error {
 	sub, err := con.QueueSubscribe(subject, subject, func(msg *nats.Msg) {
 		ctx, log := logx.NatsMessageLoggingEntrypoint(context.Background(), "server", msg.Header)
 		if err := callAPI(ctx, panicRecovery, req, msg, fn); err != nil {
@@ -154,10 +159,10 @@ func listen[T proto.Message, U proto.Message](con common.NatsConn, panicRecovery
 		}
 	})
 	if err != nil {
-		return nil, fmt.Errorf("subscribe to %s: %w", subject, err)
+		return fmt.Errorf("subscribe to %s: %w", subject, err)
 	}
 	subList.Store(sub, struct{}{})
-	return sub, nil
+	return nil
 }
 
 func callAPI[T proto.Message, U proto.Message](ctx context.Context, panicRecovery bool, container T, msg *nats.Msg, fn func(ctx context.Context, req T) (U, error)) error {
@@ -209,81 +214,4 @@ func errorResponse(m *nats.Msg, code codes.Code, msg any) {
 
 func apiError(code codes.Code, msg any) []byte {
 	return []byte(fmt.Sprintf("ERR_%d|%+v", code, msg))
-}
-
-func (s *SharServer) authorize(ctx context.Context, workflowName string) (context.Context, error) {
-	vals := ctx.Value(header.ContextKey).(header.Values)
-	res, authErr := s.apiAuthNFn(ctx, &model.ApiAuthenticationRequest{Headers: vals})
-	if authErr != nil || !res.Authenticated {
-		return ctx, fmt.Errorf("authenticate: %w", errors2.ErrApiAuthNFail)
-	}
-	ctx = context.WithValue(ctx, ctxkey.SharUser, res.User)
-	if s.apiAuthZFn == nil {
-		return ctx, nil
-	}
-	if authRes, err := s.apiAuthZFn(ctx, &model.ApiAuthorizationRequest{
-		Headers:      vals,
-		Function:     ctx.Value(ctxkey.APIFunc).(string),
-		WorkflowName: workflowName,
-		User:         res.User,
-	}); err != nil || !authRes.Authorized {
-		return ctx, fmt.Errorf("authorize: %w", errors2.ErrApiAuthZFail)
-	}
-	return ctx, nil
-}
-
-func (s *SharServer) authFromJobID(ctx context.Context, trackingID string) (context.Context, *model.WorkflowState, error) {
-	job, err := s.ns.GetJob(ctx, trackingID)
-	if err != nil {
-		return ctx, nil, fmt.Errorf("get job for authorization: %w", err)
-	}
-	wi, err := s.ns.GetWorkflowInstance(ctx, job.WorkflowInstanceId)
-	if err != nil {
-		return ctx, nil, fmt.Errorf("get workflow instance for authorization: %w", err)
-	}
-	ctx, auth := s.authorize(ctx, wi.WorkflowName)
-	if auth != nil {
-		return ctx, nil, fmt.Errorf("authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
-	}
-	return ctx, job, nil
-}
-
-func (s *SharServer) authFromInstanceID(ctx context.Context, instanceID string) (context.Context, *model.WorkflowInstance, error) {
-	wi, err := s.ns.GetWorkflowInstance(ctx, instanceID)
-	if err != nil {
-		return ctx, nil, fmt.Errorf("get workflow instance for authorization: %w", err)
-	}
-	ctx, auth := s.authorize(ctx, wi.WorkflowName)
-	if auth != nil {
-		return ctx, nil, fmt.Errorf("authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
-	}
-	return ctx, wi, nil
-}
-
-func (s *SharServer) authFromProcessInstanceID(ctx context.Context, instanceID string) (context.Context, *model.ProcessInstance, error) {
-	pi, err := s.ns.GetProcessInstance(ctx, instanceID)
-	if err != nil {
-		return ctx, nil, fmt.Errorf("get workflow instance for authorization: %w", err)
-	}
-	ctx, auth := s.authorize(ctx, pi.WorkflowName)
-	if auth != nil {
-		return ctx, nil, fmt.Errorf("authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
-	}
-	return ctx, pi, nil
-}
-
-func (s *SharServer) authForNonWorkflow(ctx context.Context) (context.Context, error) {
-	ctx, auth := s.authorize(ctx, "")
-	if auth != nil {
-		return ctx, fmt.Errorf("authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
-	}
-	return ctx, nil
-}
-
-func (s *SharServer) authForNamedWorkflow(ctx context.Context, name string) (context.Context, error) {
-	ctx, auth := s.authorize(ctx, name)
-	if auth != nil {
-		return ctx, fmt.Errorf("authorize: %w", &errors2.ErrWorkflowFatal{Err: auth})
-	}
-	return ctx, nil
 }
