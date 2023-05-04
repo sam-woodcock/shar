@@ -5,6 +5,12 @@
 # Container Scanning customization: https://docs.gitlab.com/ee/user/application_security/container_scanning/#customizing-the-container-scanning-settings
 # Note that environment variables can be set in several places
 # See https://docs.gitlab.com/ee/ci/variables/#cicd-variable-precedence
+
+# container_scanning:
+#   variables:
+#     DOCKER_IMAGE: ...
+#     DOCKER_USER: ...
+#     DOCKER_PASSWORD: ...
 variables:
   VER: '1.0'
   PROJECT_NAME: shar
@@ -24,6 +30,7 @@ include:
 - template: Security/SAST.gitlab-ci.yml
 - template: Security/Dependency-Scanning.gitlab-ci.yml
 - template: Security/License-Scanning.gitlab-ci.yml
+- template: Jobs/Container-Scanning.gitlab-ci.yml
 build_stage:
   image: registry.gitlab.com/shar-workflow/build-go/build-go:1.0.8
   stage: build
@@ -80,7 +87,7 @@ tag_stage:
   - git push -f -o ci.skip
   - git commit --amend --no-edit
   - git tag $tag
-  - git push -f origin $tag 
+  - git push -f origin $tag
 package_stage:
   stage: package
   rules:
@@ -104,13 +111,15 @@ package_stage:
 package2_stage:
   stage: package
   rules:
-    - if: "$CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH"
-      when: never
-    - if: "$CI_COMMIT_TAG"
-      when: never
-    - if: "$CI_PIPELINE_IID"
+  - if: "$CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH"
+    when: never
+  - if: "$CI_COMMIT_TAG"
+    when: never
+  - if: "$CI_PIPELINE_IID"
   script:
-    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file build/cli/shar "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/shar/${VER}.$CI_VERSION/shar-cli-linux-amd64"'
-    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file build/zen-shar/zen-shar "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/shar/${VER}.$CI_VERSION/zen-shar-linux-amd64"'
-    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file build/server/shar "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/shar/${VER}.$CI_VERSION/shar-server-linux-amd64"'
-    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file build/telemetry/shar-telemetry "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/shar/${VER}.$CI_VERSION/shar-telemetry-linux-amd64"'
+  - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file build/cli/shar "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/shar/${VER}.$CI_VERSION/shar-cli-linux-amd64"'
+  - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file build/zen-shar/zen-shar
+    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/shar/${VER}.$CI_VERSION/zen-shar-linux-amd64"'
+  - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file build/server/shar "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/shar/${VER}.$CI_VERSION/shar-server-linux-amd64"'
+  - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file build/telemetry/shar-telemetry
+    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/shar/${VER}.$CI_VERSION/shar-telemetry-linux-amd64"'
