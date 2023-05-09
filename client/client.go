@@ -6,8 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-version"
 	"github.com/nats-io/nats.go"
-	"github.com/segmentio/ksuid"
+	"gitlab.com/shar-workflow/shar/client/api"
 	"gitlab.com/shar-workflow/shar/client/parser"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/ctxkey"
@@ -15,8 +16,11 @@ import (
 	"gitlab.com/shar-workflow/shar/common/header"
 	"gitlab.com/shar-workflow/shar/common/logx"
 	"gitlab.com/shar-workflow/shar/common/setup"
+	"gitlab.com/shar-workflow/shar/common/setup/upgrader"
 	"gitlab.com/shar-workflow/shar/common/subj"
+	version2 "gitlab.com/shar-workflow/shar/common/version"
 	"gitlab.com/shar-workflow/shar/common/workflow"
+	api2 "gitlab.com/shar-workflow/shar/internal/client/api"
 	"gitlab.com/shar-workflow/shar/model"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/errors/keys"
@@ -88,21 +92,24 @@ type SenderFn func(ctx context.Context, client MessageClient, vars model.Vars) e
 
 // Client implements a SHAR client capable of listening for service task activations, listening for Workflow Messages, and interating with the API
 type Client struct {
-	js               nats.JetStreamContext
-	SvcTasks         map[string]ServiceFn
-	con              *nats.Conn
-	MsgSender        map[string]SenderFn
-	storageType      nats.StorageType
-	ns               string
-	listenTasks      map[string]struct{}
-	msgListenTasks   map[string]struct{}
-	proCompleteTasks map[string]ProcessTerminateFn
-	txJS             nats.JetStreamContext
-	txCon            *nats.Conn
-	wfInstance       nats.KeyValue
-	wf               nats.KeyValue
-	job              nats.KeyValue
-	concurrency      int
+	js                              nats.JetStreamContext
+	SvcTasks                        map[string]ServiceFn
+	con                             *nats.Conn
+	MsgSender                       map[string]SenderFn
+	storageType                     nats.StorageType
+	ns                              string
+	listenTasks                     map[string]struct{}
+	msgListenTasks                  map[string]struct{}
+	proCompleteTasks                map[string]ProcessTerminateFn
+	txJS                            nats.JetStreamContext
+	txCon                           *nats.Conn
+	wfInstance                      nats.KeyValue
+	wf                              nats.KeyValue
+	job                             nats.KeyValue
+	concurrency                     int
+	ExpectedCompatibleServerVersion *version.Version
+	ExpectedServerVersion           *version.Version
+	version                         *version.Version
 }
 
 // Option represents a configuration changer for the client.
@@ -150,6 +157,12 @@ func (c *Client) Dial(natsURL string, opts ...nats.Option) error {
 	c.txJS = txJS
 	c.con = n
 	c.txCon = txnc
+
+	ctx := context.Background()
+	_, err = c.GetServerVersion(ctx)
+	if err != nil {
+		return fmt.Errorf("server version: %w", err)
+	}
 
 	if c.wfInstance, err = js.KeyValue("WORKFLOW_INSTANCE"); err != nil {
 		return fmt.Errorf("connect to workflow instance kv: %w", err)
@@ -276,7 +289,7 @@ func (c *Client) listen(ctx context.Context) error {
 						}
 						res := &model.HandleWorkflowErrorResponse{}
 						req := &model.HandleWorkflowErrorRequest{TrackingId: trackingID, ErrorCode: wfe.Code, Vars: v}
-						if err2 := callAPI(ctx, c.txCon, messages.APIHandleWorkflowError, req, res); err2 != nil {
+						if err2 := api2.Call(ctx, c.txCon, messages.APIHandleWorkflowError, c.ExpectedCompatibleServerVersion, req, res); err2 != nil {
 							// TODO: This isn't right.  If this call fails it assumes it is handled!
 							reterr := fmt.Errorf("handle workflow error: %w", err2)
 							return true, logx.Err(ctx, "handle a workflow error", reterr, slog.Any("workflowError", wfe))
@@ -289,7 +302,7 @@ func (c *Client) listen(ctx context.Context) error {
 					return wfe.Code != "", err
 				}
 				err = c.completeServiceTask(ctx, trackingID, newVars)
-				ae := &apiError{}
+				ae := &api.Error{}
 				if errors.As(err, &ae) {
 					if codes.Code(ae.Code) == codes.Internal {
 						log.Error("complete service task", err)
@@ -379,7 +392,7 @@ func (c *Client) listenProcessTerminate(ctx context.Context) error {
 func (c *Client) ListUserTaskIDs(ctx context.Context, owner string) (*model.UserTasks, error) {
 	res := &model.UserTasks{}
 	req := &model.ListUserTasksRequest{Owner: owner}
-	if err := callAPI(ctx, c.txCon, messages.APIListUserTaskIDs, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APIListUserTaskIDs, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return nil, c.clientErr(ctx, err)
 	}
 	return res, nil
@@ -393,7 +406,7 @@ func (c *Client) CompleteUserTask(ctx context.Context, owner string, trackingID 
 	}
 	res := &emptypb.Empty{}
 	req := &model.CompleteUserTaskRequest{Owner: owner, TrackingId: trackingID, Vars: ev}
-	if err := callAPI(ctx, c.txCon, messages.APICompleteUserTask, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APICompleteUserTask, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return c.clientErr(ctx, err)
 	}
 	return nil
@@ -406,7 +419,7 @@ func (c *Client) completeServiceTask(ctx context.Context, trackingID string, new
 	}
 	res := &emptypb.Empty{}
 	req := &model.CompleteServiceTaskRequest{TrackingId: trackingID, Vars: ev}
-	if err := callAPI(ctx, c.txCon, messages.APICompleteServiceTask, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APICompleteServiceTask, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return c.clientErr(ctx, err)
 	}
 	return nil
@@ -419,7 +432,7 @@ func (c *Client) completeSendMessage(ctx context.Context, trackingID string, new
 	}
 	res := &emptypb.Empty{}
 	req := &model.CompleteSendMessageRequest{TrackingId: trackingID, Vars: ev}
-	if err := callAPI(ctx, c.txCon, messages.APICompleteSendMessageTask, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APICompleteSendMessageTask, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return c.clientErr(ctx, err)
 	}
 	return nil
@@ -444,7 +457,7 @@ func (c *Client) LoadBPMNWorkflowFromBytes(ctx context.Context, name string, b [
 	wf.GzipSource = compressed.Bytes()
 
 	res := &wrapperspb.StringValue{}
-	if err := callAPI(ctx, c.txCon, messages.APIStoreWorkflow, wf, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APIStoreWorkflow, c.ExpectedCompatibleServerVersion, wf, res); err != nil {
 		return "", c.clientErr(ctx, err)
 	}
 	return res.Value, nil
@@ -477,7 +490,7 @@ func (c *Client) GetWorkflowVersions(ctx context.Context, name string) (*model.W
 		Name: name,
 	}
 	res := &model.GetWorkflowVersionsResponse{}
-	if err := callAPI(ctx, c.txCon, messages.APIGetWorkflowVersions, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APIGetWorkflowVersions, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return nil, c.clientErr(ctx, err)
 	}
 	return res.Versions, nil
@@ -489,7 +502,7 @@ func (c *Client) GetWorkflow(ctx context.Context, id string) (*model.Workflow, e
 		Id: id,
 	}
 	res := &model.GetWorkflowResponse{}
-	if err := callAPI(ctx, c.txCon, messages.APIGetWorkflow, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APIGetWorkflow, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return nil, c.clientErr(ctx, err)
 	}
 	return res.Definition, nil
@@ -507,7 +520,7 @@ func (c *Client) cancelWorkflowInstanceWithError(ctx context.Context, instanceID
 		State: model.CancellationState_errored,
 		Error: wfe,
 	}
-	if err := callAPI(ctx, c.txCon, messages.APICancelWorkflowInstance, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APICancelWorkflowInstance, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return c.clientErr(ctx, err)
 	}
 	return nil
@@ -521,7 +534,7 @@ func (c *Client) LaunchWorkflow(ctx context.Context, workflowName string, mvars 
 	}
 	req := &model.LaunchWorkflowRequest{Name: workflowName, Vars: ev}
 	res := &model.LaunchWorkflowResponse{}
-	if err := callAPI(ctx, c.txCon, messages.APILaunchWorkflow, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APILaunchWorkflow, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return "", "", c.clientErr(ctx, err)
 	}
 	return res.InstanceId, res.WorkflowId, nil
@@ -531,7 +544,7 @@ func (c *Client) LaunchWorkflow(ctx context.Context, workflowName string, mvars 
 func (c *Client) ListWorkflowInstance(ctx context.Context, name string) ([]*model.ListWorkflowInstanceResult, error) {
 	req := &model.ListWorkflowInstanceRequest{WorkflowName: name}
 	res := &model.ListWorkflowInstanceResponse{}
-	if err := callAPI(ctx, c.txCon, messages.APIListWorkflowInstance, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APIListWorkflowInstance, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return nil, c.clientErr(ctx, err)
 	}
 	return res.Result, nil
@@ -541,7 +554,7 @@ func (c *Client) ListWorkflowInstance(ctx context.Context, name string) ([]*mode
 func (c *Client) ListWorkflows(ctx context.Context) ([]*model.ListWorkflowResult, error) {
 	req := &emptypb.Empty{}
 	res := &model.ListWorkflowsResponse{}
-	if err := callAPI(ctx, c.txCon, messages.APIListWorkflows, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APIListWorkflows, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return nil, c.clientErr(ctx, err)
 	}
 	return res.Result, nil
@@ -551,7 +564,7 @@ func (c *Client) ListWorkflows(ctx context.Context) ([]*model.ListWorkflowResult
 func (c *Client) ListWorkflowInstanceProcesses(ctx context.Context, id string) (*model.ListWorkflowInstanceProcessesResult, error) {
 	req := &model.ListWorkflowInstanceProcessesRequest{Id: id}
 	res := &model.ListWorkflowInstanceProcessesResult{}
-	if err := callAPI(ctx, c.txCon, messages.APIListWorkflowInstanceProcesses, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APIListWorkflowInstanceProcesses, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return nil, c.clientErr(ctx, err)
 	}
 	return res, nil
@@ -561,7 +574,7 @@ func (c *Client) ListWorkflowInstanceProcesses(ctx context.Context, id string) (
 func (c *Client) GetProcessInstanceStatus(ctx context.Context, id string) (*model.GetProcessInstanceStatusResult, error) {
 	req := &model.GetProcessInstanceStatusRequest{Id: id}
 	res := &model.GetProcessInstanceStatusResult{}
-	if err := callAPI(ctx, c.txCon, messages.APIGetProcessInstanceStatus, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APIGetProcessInstanceStatus, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return nil, c.clientErr(ctx, err)
 	}
 	return res, nil
@@ -570,7 +583,7 @@ func (c *Client) GetProcessInstanceStatus(ctx context.Context, id string) (*mode
 func (c *Client) getServiceTaskRoutingID(ctx context.Context, name string, requestedId string) (string, error) {
 	req := &model.GetServiceTaskRoutingIDRequest{Name: name, RequestedId: requestedId}
 	res := &model.GetServiceTaskRoutingIDResponse{}
-	if err := callAPI(ctx, c.txCon, messages.APIGetServiceTaskRoutingID, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APIGetServiceTaskRoutingID, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return "", c.clientErr(ctx, err)
 	}
 	return res.Id, nil
@@ -580,7 +593,7 @@ func (c *Client) getServiceTaskRoutingID(ctx context.Context, name string, reque
 func (c *Client) GetUserTask(ctx context.Context, owner string, trackingID string) (*model.GetUserTaskResponse, model.Vars, error) {
 	req := &model.GetUserTaskRequest{Owner: owner, TrackingId: trackingID}
 	res := &model.GetUserTaskResponse{}
-	if err := callAPI(ctx, c.txCon, messages.APIGetUserTask, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APIGetUserTask, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return nil, nil, c.clientErr(ctx, err)
 	}
 	v, err := vars.Decode(ctx, res.Vars)
@@ -605,7 +618,7 @@ func (c *Client) SendMessage(ctx context.Context, name string, key any, mvars mo
 	}
 	req := &model.SendMessageRequest{Name: name, CorrelationKey: skey, Vars: b}
 	res := &emptypb.Empty{}
-	if err := callAPI(ctx, c.txCon, messages.APISendMessage, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APISendMessage, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return c.clientErr(ctx, err)
 	}
 	return nil
@@ -625,7 +638,7 @@ func (c *Client) RegisterProcessComplete(processId string, fn ProcessTerminateFn
 func (c *Client) GetServerInstanceStats(ctx context.Context) (*model.WorkflowStats, error) {
 	req := &emptypb.Empty{}
 	res := &model.WorkflowStats{}
-	if err := callAPI(ctx, c.txCon, messages.APIGetServerInstanceStats, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APIGetServerInstanceStats, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return nil, c.clientErr(ctx, err)
 	}
 	return res, nil
@@ -635,7 +648,7 @@ func (c *Client) GetServerInstanceStats(ctx context.Context) (*model.WorkflowSta
 func (c *Client) GetProcessHistory(ctx context.Context, processInstanceId string) (*model.GetProcessHistoryResponse, error) {
 	req := &model.GetProcessHistoryRequest{Id: processInstanceId}
 	res := &model.GetProcessHistoryResponse{}
-	if err := callAPI(ctx, c.txCon, messages.APIGetProcessHistory, req, res); err != nil {
+	if err := api2.Call(ctx, c.txCon, messages.APIGetProcessHistory, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return nil, c.clientErr(ctx, err)
 	}
 	return res, nil
@@ -658,40 +671,41 @@ func (c *Client) GetJob(ctx context.Context, id string) (*model.WorkflowState, e
 	return job, nil
 }
 
-func callAPI[T proto.Message, U proto.Message](ctx context.Context, con *nats.Conn, subject string, command T, ret U) error {
-
-	b, err := proto.Marshal(command)
-	if err != nil {
-		return fmt.Errorf("marshal proto for call API: %w", err)
-	}
-	msg := nats.NewMsg(subject)
-	ctx = context.WithValue(ctx, logx.CorrelationContextKey, ksuid.New().String())
-	if err := header.FromCtxToMsgHeader(ctx, &msg.Header); err != nil {
-		return fmt.Errorf("attach headers to outgoing API message: %w", err)
-	}
-	msg.Data = b
-	res, err := con.RequestMsg(msg, time.Second*60)
-	if err != nil {
-		if errors.Is(err, nats.ErrNoResponders) {
-			err = fmt.Errorf("shar-client: shar server is offline or missing from the current nats server")
-		}
-		return fmt.Errorf("API call: %w", err)
-	}
-	if len(res.Data) > 4 && string(res.Data[0:4]) == "ERR_" {
-		em := strings.Split(string(res.Data), "_")
-		e := strings.Split(em[1], "|")
-		i, err := strconv.Atoi(e[0])
+// GetServerVersion returns the current server version
+func (c *Client) GetServerVersion(ctx context.Context) (*version.Version, error) {
+	if c.version == nil {
+		v, err := version.NewVersion(version2.Version)
 		if err != nil {
-			i = 0
+			return nil, fmt.Errorf("getting client version: %w", err)
 		}
-		ae := &apiError{Code: i, Message: e[1]}
-		if codes.Code(i) == codes.Internal {
-			return &errors2.ErrWorkflowFatal{Err: ae}
-		}
-		return ae
+		c.version = v
 	}
-	if err := proto.Unmarshal(res.Data, ret); err != nil {
-		return fmt.Errorf("unmarshal proto for call API: %w", err)
+	req := &model.GetVersionInfoRequest{
+		ClientVersion: c.version.String(),
 	}
-	return nil
+	res := &model.GetVersionInfoResponse{}
+	if err := api2.Call(ctx, c.con, messages.APIGetVersionInfo, c.ExpectedCompatibleServerVersion, req, res); err != nil {
+		return nil, fmt.Errorf("get version info: %w", err)
+	}
+
+	sv, err := version.NewVersion(res.ServerVersion)
+	if err != nil {
+		return nil, fmt.Errorf("get server version info: %w", err)
+	}
+	cv, err := version.NewVersion(res.MinCompatibleVersion)
+	if err != nil {
+		return nil, fmt.Errorf("get server version info: %w", err)
+	}
+	c.ExpectedServerVersion = sv
+	c.ExpectedCompatibleServerVersion = cv
+
+	if !res.Connect {
+		return sv, fmt.Errorf("incompatible client version: client must be " + cv.String())
+	}
+
+	ok, cv2 := upgrader.IsCompatible(sv)
+	if !ok {
+		return sv, fmt.Errorf("incompatible server version: " + sv.String() + " server must be " + cv2.String())
+	}
+	return sv, nil
 }

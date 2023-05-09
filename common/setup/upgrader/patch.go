@@ -24,6 +24,40 @@ var list = []patch{
 	v1_0_503,
 }
 
+var nver int
+var versions = make([]*version.Version, 0, len(list))
+
+func init() {
+	for _, i := range list {
+		f := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+		v := strings.Replace(f[strings.LastIndex(f, ".")+1:], "_", ".", -1)
+		ver, err := version.NewVersion(v)
+		if err != nil {
+			panic(fmt.Errorf("broken version descriptor %s: %w", v, err))
+		}
+		versions = append(versions, ver)
+	}
+	nver = len(list)
+}
+
+// IsCompatible returns true if the server version is compatible with a client expected compatible version.
+func IsCompatible(v *version.Version) (bool, *version.Version) {
+	var minVersion *version.Version
+	lastv := nver - 1
+	for i := 0; i < len(versions); i++ {
+		test := versions[lastv-i]
+		if minVersion == nil || test.GreaterThan(v) {
+			minVersion = test
+		} else if test.LessThan(v) {
+			break
+		}
+	}
+	if minVersion == nil {
+		minVersion = v
+	}
+	return minVersion.Equal(v), minVersion
+}
+
 // Patch cycles through all available upgrades and applies them in order.  Only the upgrades greater than the deployed version will be executed.
 func Patch(ctx context.Context, fromVersion string, n common.NatsConn, j nats.JetStreamContext) error {
 	v1, err := version.NewVersion(fromVersion)
@@ -39,9 +73,9 @@ func Patch(ctx context.Context, fromVersion string, n common.NatsConn, j nats.Je
 		}
 		if v2.GreaterThan(v1) {
 			slog.Info("Patching SHAR data to v" + v2.String())
-		}
-		if err := i(ctx, n, j); err != nil {
-			return fmt.Errorf("patching %s: %w", v2.String(), err)
+			if err := i(ctx, n, j); err != nil {
+				return fmt.Errorf("patching %s: %w", v2.String(), err)
+			}
 		}
 	}
 	return nil

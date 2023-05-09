@@ -1267,3 +1267,38 @@ func (s *Nats) SatisfyProcess(ctx context.Context, workflowInstance *model.Workf
 	}
 	return nil
 }
+
+// SpoolWorkflowEvents provides an interface to a datawarehousing application to recieve a stream of workflow events through polling.
+func (s *Nats) SpoolWorkflowEvents(ctx context.Context, maxResult int) ([]*model.WorkflowState, error) {
+	sub, err := s.js.PullSubscribe(subj.NS(messages.WorkflowStateAll, "*"), "ExportConsumer")
+	if err != nil {
+		return nil, fmt.Errorf("spooling workflow events: %w", err)
+	}
+	msgs := make([]*nats.Msg, 0, maxResult)
+	ret := make([]*model.WorkflowState, 0, maxResult)
+	for i := 0; i < maxResult; i++ {
+		rctx, cancel := context.WithTimeout(ctx, time.Second*10)
+		rMsgs, err := sub.Fetch(1, nats.Context(rctx))
+		defer cancel()
+		if ctx.Err() != nil {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("spooling workflow events, fetching from NATS: %w", err)
+		}
+		msgs = append(msgs, rMsgs[0])
+	}
+	for _, m := range msgs {
+		res := &model.WorkflowState{}
+		if err := proto.Unmarshal(m.Data, res); err != nil {
+			if err := m.Nak(); err != nil {
+				slog.Error("spool workflow events NAK: %w", err)
+			}
+		}
+		ret = append(ret, res)
+		if err := m.Ack(); err != nil {
+			continue
+		}
+	}
+	return ret, nil
+}

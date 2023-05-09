@@ -157,6 +157,22 @@ message WorkflowState {
   map<string,GatewayExpectations> gatewayExpectations = 21; // GatewayExpectations - a list of dynamic gateway expectations set during traversing from a divergent gateway with a reciprocal.
 }
 
+message WorkflowStateSummary {
+  string workflowId = 1; // WorkflowId - the ID of the workflow version that provides the template for execution.
+  string workflowInstanceId = 2; // WorkflowInstanceId - the workflow instance that this state belongs to.
+  string elementId = 3; // ElementId - the currently executing element withing the workflow state machine.
+  string elementType = 4; // ElementType - the currently executing element type, cached here to reduce lookups.
+  repeated string id = 5; // Id - a stack of IDs that descibe the state and its parents up to the original workflow instance ID.
+  optional string execute = 7; // Execute - additional information required to execute depending on the element type.
+  CancellationState state = 8; // State - the current execution state of the state machine.
+  optional string condition = 9; // Condition - a message condition that needs to be fulfilled before proceeding.
+  int64 unixTimeNano = 10; // UnixTimeNano - the time this state was observed.
+  bytes vars = 11; // Vars - A go binary encoded map[string]interface{} of variables.
+  Error error = 14; // Error - an error being carried by the state if it has faulted.
+  WorkflowTimer timer = 16; // Timer - a time needed to transition to the next state.
+  string processInstanceId = 19; // ProcessInstanceId - the unique ID for the process instance.
+}
+
 enum ProcessHistoryType {
   processExecute = 0;
   activityExecute = 1;
@@ -456,6 +472,24 @@ message GetServiceTaskRoutingIDResponse {
   string id = 1;
 }
 
+message SpoolWorkflowEventsRequest {
+
+}
+
+message SpoolWorkflowEventsResponse {
+  repeated WorkflowStateSummary state = 1;
+}
+
+message GetVersionInfoRequest {
+  string clientVersion = 1;
+}
+
+message GetVersionInfoResponse {
+  string serverVersion = 1;
+  string minCompatibleVersion = 2;
+  bool connect = 3;
+}
+
 message WorkflowStats {
   int64 Workflows = 1;
   int64 InstancesStarted = 2;
@@ -483,12 +517,62 @@ enum LogSource {
 }
 
 // Task specification
-message TaskInfo {
-  string id = 1;
-  TaskSpec spec = 2;
+message TaskSpec {
+  string version = 1;
+  string kind = 2;
+  TaskMetadata metadata = 3;
+  TaskBehaviour behaviour = 4;
+  TaskParameters parameters = 5;
+  TaskEvents events = 6;
 }
 
+message TaskMetadata {
+  string uid = 1;
+  string type = 2;
+  string version = 3;
+  string short = 4;
+  string description = 5;
+  repeated string labels = 6;
+  uint64 estimatedMaxDuration = 7;
+}
 
-message TaskSpec {
+message TaskParameters {
+  repeated ParameterGroup parameterGroup = 1;
+  repeated Parameter input = 2;
+  repeated Parameter output = 3;
+}
 
+message TaskEvents {
+  repeated Error error = 1;
+  repeated Message Message = 2;
+}
+
+message TaskBehaviour {
+  uint32 retry = 1;
+  bool unsafe = 2;
+}
+
+message ParameterGroup {
+  string name = 1;
+  string short = 2;
+  string description= 3;
+}
+
+message Parameter {
+  string name = 1;
+  string short = 2;
+  string description = 3;
+  string type = 4;
+  optional string group = 5;
+}
+
+message Message {
+  string name = 1;
+  string correlationKey = 2;
+}
+
+// Error represents a known error name and code which may be thrown by the state machine.
+message TaskError {
+  string name = 2; // Name - the error unique name.
+  string code = 3; // Code - the unique code for the error.
 }

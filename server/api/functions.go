@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-version"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common"
 	"gitlab.com/shar-workflow/shar/common/ctxkey"
 	"gitlab.com/shar-workflow/shar/common/logx"
+	"gitlab.com/shar-workflow/shar/common/setup/upgrader"
 	"gitlab.com/shar-workflow/shar/common/subj"
+	version2 "gitlab.com/shar-workflow/shar/common/version"
 	"gitlab.com/shar-workflow/shar/model"
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 	"gitlab.com/shar-workflow/shar/server/messages"
@@ -388,4 +391,25 @@ func (s *SharServer) getProcessHistory(ctx context.Context, req *model.GetProces
 		return nil, fmt.Errorf("get process history: %w", err)
 	}
 	return &model.GetProcessHistoryResponse{Entry: ret}, nil
+}
+
+func (s *SharServer) versionInfo(ctx context.Context, req *model.GetVersionInfoRequest) (*model.GetVersionInfoResponse, error) {
+	ctx, err2 := s.authForNonWorkflow(ctx)
+	if err2 != nil {
+		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
+	}
+	v, err := version.NewVersion(req.ClientVersion)
+	if err != nil {
+		return nil, fmt.Errorf("parsing client version '%s': %w", req.ClientVersion, err)
+	}
+	ok, ver := upgrader.IsCompatible(v)
+	ret := &model.GetVersionInfoResponse{
+		ServerVersion:        version2.Version,
+		MinCompatibleVersion: ver.String(),
+		Connect:              ok,
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get version: %w", err)
+	}
+	return ret, nil
 }
