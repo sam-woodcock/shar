@@ -12,7 +12,7 @@ func main() {
 		Version: "1.0",
 		Kind:    "ServiceTask",
 		Metadata: &model.TaskMetadata{
-			Uid:
+			Uid:                  "LookupAddressV1",
 			Type:                 "LookupAddress",
 			Version:              "0.1",
 			Short:                "Look up address",
