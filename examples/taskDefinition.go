@@ -12,6 +12,7 @@ func main() {
 		Version: "1.0",
 		Kind:    "ServiceTask",
 		Metadata: &model.TaskMetadata{
+			Uid:
 			Type:                 "LookupAddress",
 			Version:              "0.1",
 			Short:                "Look up address",
@@ -28,7 +29,7 @@ func main() {
 				{Name: grp1, Short: "Address parameters", Description: "Address parameters"},
 			},
 			Input: []*model.Parameter{
-				{Name: "number", Short: "House", Description: "House number", Type: "int", Group: &grp1},
+				{Name: "number", Short: "House", Description: "House number", Type: "int", Group: &grp1, ExtensionData: map[string]string{"name1": "value1"}},
 				{Name: "postcode", Short: "Postal code", Description: "UK postal code", Type: "string", Group: &grp1},
 			},
 			Output: []*model.Parameter{

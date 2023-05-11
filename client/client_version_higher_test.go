@@ -28,7 +28,7 @@ func TestHigherClientVersion(t *testing.T) {
 	require.NoError(t, err)
 	cl := New(forceVersion{ver: forcedVersion})
 	err = cl.Dial(natsURL)
-	require.NoError(t, err)
+	require.Error(t, err)
 }
 
 type forceVersion struct {

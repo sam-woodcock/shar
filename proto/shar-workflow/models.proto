@@ -564,6 +564,7 @@ message Parameter {
   string description = 3;
   string type = 4;
   optional string group = 5;
+  map<string,string> extensionData = 6;
 }
 
 message Message {
