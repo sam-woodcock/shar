@@ -1,6 +1,7 @@
 package server
 
 import (
+	version2 "github.com/hashicorp/go-version"
 	"gitlab.com/shar-workflow/shar/common/authn"
 	"gitlab.com/shar-workflow/shar/common/authz"
 )
@@ -88,4 +89,18 @@ type noHealthServerOption struct{}
 
 func (o noHealthServerOption) configure(server *Server) {
 	server.healthServiceEnabled = false
+}
+
+// WithSharVersion instructs SHAR to claim it is a specific version.
+// This is highly inadvisable as datalos may occur.
+func WithSharVersion(version *version2.Version) sharVersionOption { //nolint
+	return sharVersionOption{version: version}
+}
+
+type sharVersionOption struct {
+	version *version2.Version
+}
+
+func (o sharVersionOption) configure(server *Server) {
+	server.setSharVersion(o.version)
 }

@@ -5,14 +5,34 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"gitlab.com/shar-workflow/shar/common/authn"
 	"gitlab.com/shar-workflow/shar/common/authz"
+	version2 "gitlab.com/shar-workflow/shar/common/version"
 	sharsvr "gitlab.com/shar-workflow/shar/server/server"
 	"golang.org/x/exp/slog"
 	"strconv"
 	"time"
 )
 
+type zenOpts struct {
+	sharVersion string
+}
+
+// ZenSharOptionApplyFn represents a SHAR Zen Server configuration function
+type ZenSharOptionApplyFn func(cfg *zenOpts)
+
+// WithSharVersion artificially sets the reported server version.
+func WithSharVersion(ver string) ZenSharOptionApplyFn {
+	return func(cfg *zenOpts) {
+		cfg.sharVersion = ver
+	}
+}
+
 // GetServers returns a test NATS and SHAR server.
-func GetServers(natsHost string, natsPort int, sharConcurrency int, apiAuth authz.APIFunc, authN authn.Check) (*sharsvr.Server, *server.Server, error) {
+func GetServers(natsHost string, natsPort int, sharConcurrency int, apiAuth authz.APIFunc, authN authn.Check, option ...ZenSharOptionApplyFn) (*sharsvr.Server, *server.Server, error) {
+
+	defaults := &zenOpts{sharVersion: version2.Version}
+	for _, i := range option {
+		i(defaults)
+	}
 	nsvr, err := server.NewServer(&server.Options{
 		ConfigFile:            "",
 		ServerName:            "TestNatsServer",

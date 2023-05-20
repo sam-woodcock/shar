@@ -24,7 +24,7 @@ func TestHigherClientVersion(t *testing.T) {
 	go ns.Start()
 	ns.ReadyForConnections(5 * time.Second)
 	go ss.Listen(natsURL, 5050)
-	forcedVersion, err := version2.NewVersion("v1.0.800")
+	forcedVersion, err := version2.NewVersion("v99.0.0")
 	require.NoError(t, err)
 	cl := New(forceVersion{ver: forcedVersion})
 	err = cl.Dial(natsURL)

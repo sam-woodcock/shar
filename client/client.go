@@ -119,6 +119,10 @@ type Option interface {
 
 // New creates a new SHAR client instance
 func New(option ...Option) *Client {
+	ver, err := version.NewVersion(version2.Version)
+	if err != nil {
+		panic(err)
+	}
 	client := &Client{
 		storageType:      nats.FileStorage,
 		SvcTasks:         make(map[string]ServiceFn),
@@ -128,6 +132,7 @@ func New(option ...Option) *Client {
 		proCompleteTasks: make(map[string]ProcessTerminateFn),
 		ns:               "default",
 		concurrency:      10,
+		version:          ver,
 	}
 	for _, i := range option {
 		i.configure(client)
@@ -196,7 +201,7 @@ func (c *Client) RegisterServiceTask(ctx context.Context, taskName string, fn Se
 	for _, o := range opts {
 		o.apply(opt)
 	}
-	id, err := c.getServiceTaskRoutingID(ctx, taskName, opt.id)
+	id, err := c.getServiceTaskRoutingID(ctx, taskName)
 	if err != nil {
 		return fmt.Errorf("get service task routing: %w", err)
 	}
@@ -580,8 +585,8 @@ func (c *Client) GetProcessInstanceStatus(ctx context.Context, id string) (*mode
 	return res, nil
 }
 
-func (c *Client) getServiceTaskRoutingID(ctx context.Context, name string, requestedId string) (string, error) {
-	req := &model.GetServiceTaskRoutingIDRequest{Name: name, RequestedId: requestedId}
+func (c *Client) getServiceTaskRoutingID(ctx context.Context, name string) (string, error) {
+	req := &model.GetServiceTaskRoutingIDRequest{Name: name}
 	res := &model.GetServiceTaskRoutingIDResponse{}
 	if err := api2.Call(ctx, c.txCon, messages.APIGetServiceTaskRoutingID, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return "", c.clientErr(ctx, err)
@@ -673,17 +678,11 @@ func (c *Client) GetJob(ctx context.Context, id string) (*model.WorkflowState, e
 
 // GetServerVersion returns the current server version
 func (c *Client) GetServerVersion(ctx context.Context) (*version.Version, error) {
-	if c.version == nil {
-		v, err := version.NewVersion(version2.Version)
-		if err != nil {
-			return nil, fmt.Errorf("getting client version: %w", err)
-		}
-		c.version = v
-	}
 	req := &model.GetVersionInfoRequest{
 		ClientVersion: c.version.String(),
 	}
 	res := &model.GetVersionInfoResponse{}
+	fmt.Println(c.version, c.ExpectedServerVersion)
 	if err := api2.Call(ctx, c.con, messages.APIGetVersionInfo, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return nil, fmt.Errorf("get version info: %w", err)
 	}

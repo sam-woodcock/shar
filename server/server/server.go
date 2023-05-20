@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-version"
 	"github.com/nats-io/nats.go"
 	"gitlab.com/shar-workflow/shar/common/authn"
 	"gitlab.com/shar-workflow/shar/common/authz"
+	version2 "gitlab.com/shar-workflow/shar/common/version"
 	"gitlab.com/shar-workflow/shar/model"
 	"gitlab.com/shar-workflow/shar/server/api"
 	"gitlab.com/shar-workflow/shar/server/health"
@@ -33,12 +35,18 @@ type Server struct {
 	concurrency             int
 	apiAuthorizer           authz.APIFunc
 	apiAuthenticator        authn.Check
+	SharVersion             *version.Version
 }
 
 // New creates a new SHAR server.
 // Leave the exporter nil if telemetry is not required
 func New(options ...Option) *Server {
+	currentVer, err := version.NewVersion(version2.Version)
+	if err != nil {
+		panic(err)
+	}
 	s := &Server{
+		SharVersion:             currentVer,
 		sig:                     make(chan os.Signal, 10),
 		healthService:           health.New(),
 		panicRecovery:           true,
@@ -182,6 +190,10 @@ func (s *Server) Ready() bool {
 	} else {
 		return false
 	}
+}
+
+func (s *Server) setSharVersion(version *version.Version) {
+	s.SharVersion = version
 }
 
 func registerServer(s *gogrpc.Server, hs *health.Checker) error {

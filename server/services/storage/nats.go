@@ -402,19 +402,14 @@ func (s *Nats) GetWorkflowInstance(ctx context.Context, workflowInstanceID strin
 }
 
 // GetServiceTaskRoutingKey gets a unique ID for a service task that can be used to listen for its activation.
-func (s *Nats) GetServiceTaskRoutingKey(ctx context.Context, taskName string, requestedId string) (string, error) {
+func (s *Nats) GetServiceTaskRoutingKey(ctx context.Context, taskName string) (string, error) {
 	var b []byte
 	var err error
 	if b, err = common.Load(ctx, s.wfClientTask, taskName); err != nil && errors2.Is(err, nats.ErrKeyNotFound) {
 		if !s.allowOrphanServiceTasks {
 			return "", fmt.Errorf("get service task key. key not present: %w", err)
 		}
-		var id string
-		if requestedId == "" {
-			id = ksuid.New().String()
-		} else {
-			id = requestedId
-		}
+		var id = ksuid.New().String()
 		_, err := s.wfClientTask.Put(taskName, []byte(id))
 		if err != nil {
 			return "", fmt.Errorf("register service task key: %w", err)

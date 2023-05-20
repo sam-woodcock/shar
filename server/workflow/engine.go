@@ -530,7 +530,7 @@ func (c *Engine) activityStartProcessor(ctx context.Context, newActivityID strin
 			}
 		}
 	case element.ServiceTask:
-		stID, err := c.ns.GetServiceTaskRoutingKey(ctx, el.Execute, "")
+		stID, err := c.ns.GetServiceTaskRoutingKey(ctx, el.Execute)
 		if err != nil {
 			return fmt.Errorf("get service task routing key during activity start processor: %w", err)
 		}

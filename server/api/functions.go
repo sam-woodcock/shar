@@ -133,7 +133,7 @@ func (s *SharServer) getServiceTaskRoutingID(ctx context.Context, req *model.Get
 	if err2 != nil {
 		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}
-	res, err := s.ns.GetServiceTaskRoutingKey(ctx, req.Name, req.RequestedId)
+	res, err := s.ns.GetServiceTaskRoutingKey(ctx, req.Name)
 	if err != nil {
 		return nil, fmt.Errorf("get service task routing id: %w", err)
 	}
