@@ -21,7 +21,7 @@ func TestRegisterOrphanServiceTask(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(tst.NatsURL)
+	err := cl.Dial(ctx, tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow

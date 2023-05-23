@@ -394,7 +394,7 @@ func (s *SharServer) getProcessHistory(ctx context.Context, req *model.GetProces
 }
 
 func (s *SharServer) versionInfo(ctx context.Context, req *model.GetVersionInfoRequest) (*model.GetVersionInfoResponse, error) {
-	ctx, err2 := s.authForNonWorkflow(ctx)
+	ctx, _, err2 := s.authenticate(ctx)
 	if err2 != nil {
 		return nil, fmt.Errorf("authorize %v: %w", ctx.Value(ctxkey.APIFunc), err2)
 	}

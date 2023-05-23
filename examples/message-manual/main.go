@@ -26,7 +26,7 @@ func main() {
 	defer sub.Close()
 	// Dial shar
 	cl = client.New()
-	if err := cl.Dial(nats.DefaultURL); err != nil {
+	if err := cl.Dial(ctx, nats.DefaultURL); err != nil {
 		panic(err)
 	}
 

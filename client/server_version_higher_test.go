@@ -1,11 +1,12 @@
 package client
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	version2 "github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/require"
-	zensvr "gitlab.com/shar-workflow/shar/zen-shar/server"
+	zenSvr "gitlab.com/shar-workflow/shar/zen-shar/server"
 	"math/big"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ func TestHigherServerVersion(t *testing.T) {
 	natsPort := 4459 + int(v.Int64())
 	natsURL := fmt.Sprintf("nats://%s:%v", natsHost, natsPort)
 
-	ss, ns, err := zensvr.GetServers(natsHost, natsPort, 4, nil, nil)
+	ss, ns, err := zenSvr.GetServers(natsHost, natsPort, 4, nil, nil)
 	require.NoError(t, err)
 	go ns.Start()
 	ns.ReadyForConnections(5 * time.Second)
@@ -26,6 +27,7 @@ func TestHigherServerVersion(t *testing.T) {
 	forcedVersion, err := version2.NewVersion("v1.0.100")
 	require.NoError(t, err)
 	cl := New(forceVersion{ver: forcedVersion})
-	err = cl.Dial(natsURL)
+	ctx := context.Background()
+	err = cl.Dial(ctx, natsURL)
 	require.Error(t, err)
 }

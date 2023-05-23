@@ -141,7 +141,7 @@ func New(option ...Option) *Client {
 }
 
 // Dial instructs the client to connect to a NATS server.
-func (c *Client) Dial(natsURL string, opts ...nats.Option) error {
+func (c *Client) Dial(ctx context.Context, natsURL string, opts ...nats.Option) error {
 	n, err := nats.Connect(natsURL, opts...)
 	if err != nil {
 		return c.clientErr(context.Background(), err)
@@ -163,7 +163,6 @@ func (c *Client) Dial(natsURL string, opts ...nats.Option) error {
 	c.con = n
 	c.txCon = txnc
 
-	ctx := context.Background()
 	_, err = c.GetServerVersion(ctx)
 	if err != nil {
 		return fmt.Errorf("server version: %w", err)
@@ -244,7 +243,14 @@ func (c *Client) listen(ctx context.Context) error {
 		tasks[i] = subj.NS(messages.WorkflowJobSendMessageExecute+"."+i, c.ns)
 	}
 	for k, v := range tasks {
-		err := common.Process(ctx, c.js, "jobExecute", closer, v, "ServiceTask_"+k, c.concurrency, func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
+		cName := "ServiceTask_" + k
+		/*cInf, err := c.js.ConsumerInfo("WORKFLOW", cName)
+		if err != nil {
+			return fmt.Errorf("listen obtaining consumer info for %s: %w", cName, err)
+		}
+
+		*/
+		err := common.Process(ctx, c.js, "jobExecute", closer, v, cName, c.concurrency, func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
 			ut := &model.WorkflowState{}
 			if err := proto.Unmarshal(msg.Data, ut); err != nil {
 				log.Error("unmarshaling", err)
@@ -682,7 +688,6 @@ func (c *Client) GetServerVersion(ctx context.Context) (*version.Version, error)
 		ClientVersion: c.version.String(),
 	}
 	res := &model.GetVersionInfoResponse{}
-	fmt.Println(c.version, c.ExpectedServerVersion)
 	if err := api2.Call(ctx, c.con, messages.APIGetVersionInfo, c.ExpectedCompatibleServerVersion, req, res); err != nil {
 		return nil, fmt.Errorf("get version info: %w", err)
 	}

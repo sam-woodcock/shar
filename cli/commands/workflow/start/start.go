@@ -44,7 +44,7 @@ func run(cmd *cobra.Command, args []string) error {
 
 	ctx := context.Background()
 	shar := client.New()
-	if err := shar.Dial(flag.Value.Server); err != nil {
+	if err := shar.Dial(ctx, flag.Value.Server); err != nil {
 		return fmt.Errorf("dialling server: %w", err)
 	}
 	wfiID, wfID, err := shar.LaunchWorkflow(ctx, args[0], *vars)

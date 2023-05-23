@@ -82,7 +82,7 @@ func executeBoundaryTimerHeaderTest(t *testing.T, complete chan *model.WorkflowI
 	ctx = header.Set(ctx, "sample", "ok")
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(d.tst.NatsURL)
+	err := cl.Dial(ctx, d.tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow

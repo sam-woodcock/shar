@@ -26,9 +26,9 @@ func TestSimplePollData(t *testing.T) {
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
 	dcl := dclient.New(dclient.WithEphemeralStorage())
-	err := cl.Dial(tst.NatsURL)
+	err := cl.Dial(ctx, tst.NatsURL)
 	require.NoError(t, err)
-	err = dcl.Dial(tst.NatsURL)
+	err = dcl.Dial(ctx, tst.NatsURL)
 	require.NoError(t, err)
 	trace := make([]*model.WorkflowStateSummary, 0)
 	go func() {

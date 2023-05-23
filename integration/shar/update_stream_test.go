@@ -20,7 +20,7 @@ func TestUpgradeNATSObjects(t *testing.T) {
 	NatsPort := 4459 + rand2.Intn(500)
 	NatsURL := fmt.Sprintf("nats://%s:%v", NatsHost, NatsPort)
 
-	ss, ns, err := zensvr.GetServers(NatsHost, NatsPort, 8, nil, nil))
+	ss, ns, err := zensvr.GetServers(NatsHost, NatsPort, 8, nil, nil, zensvr.WithSharVersion("v1.0.0"))
 	require.NoError(t, err)
 	defer func() {
 		ss.Shutdown()

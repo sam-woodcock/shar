@@ -41,14 +41,13 @@ func New(option ...Option) *Client {
 }
 
 // Dial instructs the client to connect to a NATS server.
-func (c *Client) Dial(natsURL string, opts ...nats.Option) error {
+func (c *Client) Dial(ctx context.Context, natsURL string, opts ...nats.Option) error {
 	n, err := nats.Connect(natsURL, opts...)
 	if err != nil {
 		return fmt.Errorf("data client dial: %w", err)
 	}
 	c.con = n
 
-	ctx := context.Background()
 	_, err = c.GetServerVersion(ctx)
 	if err != nil {
 		return fmt.Errorf("server version: %w", err)

@@ -15,7 +15,7 @@ import (
 
 func TestBoundaryTimer(t *testing.T) {
 	tst := &support.Integration{}
-	tst.WithTrace = true
+	//tst.WithTrace = true
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
@@ -82,7 +82,7 @@ func executeBoundaryTimerTest(t *testing.T, d *testBoundaryTimerDef) string {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(d.tst.NatsURL)
+	err := cl.Dial(ctx, d.tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
