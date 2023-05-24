@@ -18,7 +18,7 @@ import (
 //goland:noinspection GoNilness
 func TestConcurrentMessaging(t *testing.T) {
 	tst := &support.Integration{
-		Cooldown: time.Second * 10,
+		Cooldown: time.Second * 20,
 	}
 	//tst.WithTrace = true
 	tst.Setup(t, nil, nil)
