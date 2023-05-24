@@ -64,7 +64,7 @@ test: configure generated-code proto server tracing examples .FORCE
 	@echo "\033[92mCleaning test cache\033[0m"
 	go clean -testcache
 	@echo "\033[92mRunning tests\033[0m"
-	CGO_ENABLED=0 go test ./...
+	CGO_ENABLED=0 go test -v ./...
 race: proto server tracing .FORCE
 	@echo "\033[92mCleaning test cache\033[0m"
 	go clean -testcache
