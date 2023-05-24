@@ -15,7 +15,7 @@ import (
 
 func TestUnhandledError(t *testing.T) {
 	tst := &support.Integration{}
-	tst.WithTrace = true
+	//tst.WithTrace = true
 	tst.Setup(t, nil, nil)
 	defer tst.Teardown()
 
@@ -27,7 +27,7 @@ func TestUnhandledError(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	if err := cl.Dial(tst.NatsURL); err != nil {
+	if err := cl.Dial(ctx, tst.NatsURL); err != nil {
 		panic(err)
 	}
 

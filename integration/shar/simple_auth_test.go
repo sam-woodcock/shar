@@ -38,7 +38,7 @@ func TestSimpleAuthZ(t *testing.T) {
 	ctx = header.Set(ctx, "JWT", testUserSimpleWorkflowJWT)
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(tst.NatsURL)
+	err := cl.Dial(ctx, tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow
@@ -79,8 +79,8 @@ func TestNoAuthN(t *testing.T) {
 	ctx = header.Set(ctx, "JWT", randomUserJWT)
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(tst.NatsURL)
-	require.NoError(t, err)
+	err := cl.Dial(ctx, tst.NatsURL)
+	assert.ErrorContains(t, err, "authenticate")
 
 	// Load BPMN workflow
 	b, err := os.ReadFile("../../testdata/simple-workflow.bpmn")
@@ -103,7 +103,7 @@ func TestSimpleNoAuthZ(t *testing.T) {
 	ctx = header.Set(ctx, "JWT", testUserReadOnlyJWT)
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(tst.NatsURL)
+	err := cl.Dial(ctx, tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow

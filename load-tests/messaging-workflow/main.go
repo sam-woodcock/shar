@@ -21,7 +21,7 @@ func main() {
 	// Dial shar
 	cl1 := client.New()
 
-	if err := cl1.Dial(nats.DefaultURL); err != nil {
+	if err := cl1.Dial(ctx, nats.DefaultURL); err != nil {
 		panic(err)
 	}
 

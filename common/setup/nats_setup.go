@@ -1,10 +1,13 @@
 package setup
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-version"
 	"github.com/nats-io/nats.go"
+	"gitlab.com/shar-workflow/shar/common"
+	"gitlab.com/shar-workflow/shar/common/setup/upgrader"
 	"gitlab.com/shar-workflow/shar/common/subj"
 	sharVersion "gitlab.com/shar-workflow/shar/common/version"
 	"gitlab.com/shar-workflow/shar/server/messages"
@@ -162,7 +165,7 @@ func init() {
 }
 
 // EnsureWorkflowStream ensures that the workflow stream exists
-func EnsureWorkflowStream(js nats.JetStreamContext, storageType nats.StorageType) error {
+func EnsureWorkflowStream(ctx context.Context, nc common.NatsConn, js nats.JetStreamContext, storageType nats.StorageType) error {
 	scfg := &nats.StreamConfig{
 		Name:      "WORKFLOW",
 		Subjects:  messages.AllMessages,
@@ -170,7 +173,7 @@ func EnsureWorkflowStream(js nats.JetStreamContext, storageType nats.StorageType
 		Retention: nats.InterestPolicy,
 	}
 
-	if err := EnsureStream(js, *scfg); err != nil {
+	if err := EnsureStream(ctx, nc, js, *scfg); err != nil {
 		return fmt.Errorf("ensure workflow stream: %w", err)
 	}
 	for _, ccfg := range consumerConfig {
@@ -181,7 +184,7 @@ func EnsureWorkflowStream(js nats.JetStreamContext, storageType nats.StorageType
 	return nil
 }
 
-// EnsureConsumer creates a new consumer appending the current semantic version number to the description.  If the consumer exists and has a previous version, it upgrades it.
+// EnsureConsumer creates a new consumer appending the current semantic version number to the description.  If the consumer exists and has a previous version, it upgrader it.
 func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig nats.ConsumerConfig) error {
 	if ci, err := js.ConsumerInfo(streamName, consumerConfig.Durable); errors.Is(err, nats.ErrConsumerNotFound) {
 		consumerConfig.Description += " " + sharVersion.Version
@@ -202,8 +205,8 @@ func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig 
 	return nil
 }
 
-// EnsureStream creates a new stream appending the current semantic version number to the description.  If the stream exists and has a previous version, it upgrades it.
-func EnsureStream(js nats.JetStreamContext, streamConfig nats.StreamConfig) error {
+// EnsureStream creates a new stream appending the current semantic version number to the description.  If the stream exists and has a previous version, it upgrader it.
+func EnsureStream(ctx context.Context, nc common.NatsConn, js nats.JetStreamContext, streamConfig nats.StreamConfig) error {
 	if si, err := js.StreamInfo(streamConfig.Name); errors.Is(err, nats.ErrStreamNotFound) {
 		streamConfig.Description += " " + sharVersion.Version
 		if _, err := js.AddStream(&streamConfig); err != nil {
@@ -213,10 +216,17 @@ func EnsureStream(js nats.JetStreamContext, streamConfig nats.StreamConfig) erro
 		return fmt.Errorf("ensure stream: %w", err)
 	} else {
 		if ok := requiresUpgrade(si.Config.Description, sharVersion.Version); ok {
+			existingVer := upgradeExpr.FindString(si.Config.Description)
+			if existingVer == "" {
+				existingVer = sharVersion.Version
+			}
+			if err := upgrader.Patch(ctx, existingVer, nc, js); err != nil {
+				return fmt.Errorf("ensure stream: %w", err)
+			}
 			streamConfig.Description += " " + sharVersion.Version
 			_, err := js.UpdateStream(&streamConfig)
 			if err != nil {
-				return fmt.Errorf("ensure stream couldn't update the stream configuration: %w", err)
+				return fmt.Errorf("ensure stream updating stream configuration: %w", err)
 			}
 		}
 	}

@@ -16,6 +16,12 @@ type Values map[string]string
 
 const natsSharHeader = "Shar-Header"
 
+// NatsVersionHeader is the name of the header used to pass the SHAR client version.
+const NatsVersionHeader = "Shar-Version"
+
+// NatsCompatHeader is the name of the header used to pass the compatible version of SHAR.
+const NatsCompatHeader = "Shar-Compat"
+
 type contextKey string
 
 // ContextKey is the key for SHAR header values in the context.

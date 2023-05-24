@@ -9,21 +9,29 @@ import (
 	errors2 "gitlab.com/shar-workflow/shar/server/errors"
 )
 
-func (s *SharServer) authorize(ctx context.Context, workflowName string) (context.Context, error) {
-	vals := ctx.Value(header.ContextKey).(header.Values)
-	res, authErr := s.apiAuthNFn(ctx, &model.ApiAuthenticationRequest{Headers: vals})
+func (s *SharServer) authenticate(ctx context.Context) (context.Context, header.Values, error) {
+	val := ctx.Value(header.ContextKey).(header.Values)
+	res, authErr := s.apiAuthNFn(ctx, &model.ApiAuthenticationRequest{Headers: val})
 	if authErr != nil || !res.Authenticated {
-		return ctx, fmt.Errorf("authenticate: %w", errors2.ErrApiAuthNFail)
+		return context.Background(), header.Values{}, fmt.Errorf("authenticate: %w", errors2.ErrApiAuthNFail)
 	}
 	ctx = context.WithValue(ctx, ctxkey.SharUser, res.User)
+	return ctx, val, nil
+}
+
+func (s *SharServer) authorize(ctx context.Context, workflowName string) (context.Context, error) {
+	ctx, val, err := s.authenticate(ctx)
+	if err != nil {
+		return ctx, fmt.Errorf("authenticate: %w", errors2.ErrApiAuthNFail)
+	}
 	if s.apiAuthZFn == nil {
 		return ctx, nil
 	}
 	if authRes, err := s.apiAuthZFn(ctx, &model.ApiAuthorizationRequest{
-		Headers:      vals,
+		Headers:      val,
 		Function:     ctx.Value(ctxkey.APIFunc).(string),
 		WorkflowName: workflowName,
-		User:         res.User,
+		User:         ctx.Value(ctxkey.SharUser).(string),
 	}); err != nil || !authRes.Authorized {
 		return ctx, fmt.Errorf("authorize: %w", errors2.ErrApiAuthZFail)
 	}

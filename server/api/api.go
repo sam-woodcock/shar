@@ -3,11 +3,13 @@ package api
 import (
 	"context"
 	"fmt"
+	version2 "github.com/hashicorp/go-version"
 	"gitlab.com/shar-workflow/shar/common/authn"
 	"gitlab.com/shar-workflow/shar/common/authz"
 	"gitlab.com/shar-workflow/shar/common/ctxkey"
 	"gitlab.com/shar-workflow/shar/common/header"
 	"gitlab.com/shar-workflow/shar/common/logx"
+	"gitlab.com/shar-workflow/shar/common/setup/upgrader"
 	"gitlab.com/shar-workflow/shar/server/services/storage"
 	"golang.org/x/exp/slog"
 	"sync"
@@ -21,7 +23,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // SharServer provides API endpoints for SHAR
@@ -119,7 +120,7 @@ func (s *SharServer) Listen() error {
 		return fmt.Errorf("APIGetServerInstanceStats failed: %w", err)
 	}
 
-	if err := listen(con, s.panicRecovery, s.subs, messages.APIGetServiceTaskRoutingID, &wrapperspb.StringValue{}, s.getServiceTaskRoutingID); err != nil {
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIGetServiceTaskRoutingID, &model.GetServiceTaskRoutingIDRequest{}, s.getServiceTaskRoutingID); err != nil {
 		return fmt.Errorf("APIGetServiceTaskRoutingID failed: %w", err)
 	}
 
@@ -147,12 +148,28 @@ func (s *SharServer) Listen() error {
 		return fmt.Errorf("APIGetProcessHistory failed: %w", err)
 	}
 
+	if err := listen(con, s.panicRecovery, s.subs, messages.APIGetVersionInfo, &model.GetVersionInfoRequest{}, s.versionInfo); err != nil {
+		return fmt.Errorf("APIGetProcessHistory failed: %w", err)
+	}
+
 	slog.Info("shar api listener started")
 	return nil
 }
 
 func listen[T proto.Message, U proto.Message](con common.NatsConn, panicRecovery bool, subList *sync.Map, subject string, req T, fn func(ctx context.Context, req T) (U, error)) error {
 	sub, err := con.QueueSubscribe(subject, subject, func(msg *nats.Msg) {
+		if msg.Subject != messages.APIGetVersionInfo {
+			callerVersion, err := version2.NewVersion(msg.Header.Get(header.NatsVersionHeader))
+			if err != nil {
+				errorResponse(msg, codes.PermissionDenied, "version: client version invalid")
+				return
+			} else {
+				if ok, ver := upgrader.IsCompatible(callerVersion); !ok {
+					errorResponse(msg, codes.PermissionDenied, "version: client version >= "+ver.String()+" required")
+					return
+				}
+			}
+		}
 		ctx, log := logx.NatsMessageLoggingEntrypoint(context.Background(), "server", msg.Header)
 		if err := callAPI(ctx, panicRecovery, req, msg, fn); err != nil {
 			log.Error("API call for "+subject+" failed", err)

@@ -14,7 +14,7 @@ func main() {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage())
-	err := cl.Dial("nats://127.0.0.1:4222")
+	err := cl.Dial(ctx, "nats://127.0.0.1:4222")
 	if err != nil {
 		panic(err)
 	}

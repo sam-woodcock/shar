@@ -132,8 +132,8 @@ func New(conn common.NatsConn, txConn common.NatsConn, storageType nats.StorageT
 		publishTimeout:          time.Second * 30,
 		allowOrphanServiceTasks: allowOrphanServiceTasks,
 	}
-
-	if err := setup.EnsureWorkflowStream(js, storageType); err != nil {
+	ctx := context.Background()
+	if err := setup.EnsureWorkflowStream(ctx, conn, js, storageType); err != nil {
 		return nil, fmt.Errorf("set up nats queue insfrastructure: %w", err)
 	}
 
@@ -409,7 +409,7 @@ func (s *Nats) GetServiceTaskRoutingKey(ctx context.Context, taskName string) (s
 		if !s.allowOrphanServiceTasks {
 			return "", fmt.Errorf("get service task key. key not present: %w", err)
 		}
-		id := ksuid.New().String()
+		var id = ksuid.New().String()
 		_, err := s.wfClientTask.Put(taskName, []byte(id))
 		if err != nil {
 			return "", fmt.Errorf("register service task key: %w", err)

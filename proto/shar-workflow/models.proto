@@ -463,12 +463,31 @@ message GetProcessHistoryResponse {
   repeated ProcessHistoryEntry entry = 1;
 }
 
+message GetServiceTaskRoutingIDRequest {
+  string name = 1;
+  string requestedId = 2;
+}
+
+message GetServiceTaskRoutingIDResponse {
+  string id = 1;
+}
+
 message SpoolWorkflowEventsRequest {
 
 }
 
 message SpoolWorkflowEventsResponse {
   repeated WorkflowStateSummary state = 1;
+}
+
+message GetVersionInfoRequest {
+  string clientVersion = 1;
+}
+
+message GetVersionInfoResponse {
+  string serverVersion = 1;
+  string minCompatibleVersion = 2;
+  bool connect = 3;
 }
 
 message WorkflowStats {
@@ -497,4 +516,64 @@ enum LogSource {
   logSourceJob = 4;
 }
 
-//* Service Task Definition *//
+// Task specification
+message TaskSpec {
+  string version = 1;
+  string kind = 2;
+  TaskMetadata metadata = 3;
+  TaskBehaviour behaviour = 4;
+  TaskParameters parameters = 5;
+  TaskEvents events = 6;
+}
+
+message TaskMetadata {
+  string uid = 1;
+  string type = 2;
+  string version = 3;
+  string short = 4;
+  string description = 5;
+  repeated string labels = 6;
+  uint64 estimatedMaxDuration = 7;
+}
+
+message TaskParameters {
+  repeated ParameterGroup parameterGroup = 1;
+  repeated Parameter input = 2;
+  repeated Parameter output = 3;
+}
+
+message TaskEvents {
+  repeated Error error = 1;
+  repeated Message Message = 2;
+}
+
+message TaskBehaviour {
+  uint32 retry = 1;
+  bool unsafe = 2;
+}
+
+message ParameterGroup {
+  string name = 1;
+  string short = 2;
+  string description= 3;
+}
+
+message Parameter {
+  string name = 1;
+  string short = 2;
+  string description = 3;
+  string type = 4;
+  optional string group = 5;
+  map<string,string> extensionData = 6;
+}
+
+message Message {
+  string name = 1;
+  string correlationKey = 2;
+}
+
+// Error represents a known error name and code which may be thrown by the state machine.
+message TaskError {
+  string name = 2; // Name - the error unique name.
+  string code = 3; // Code - the unique code for the error.
+}

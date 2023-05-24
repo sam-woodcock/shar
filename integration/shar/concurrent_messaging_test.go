@@ -18,7 +18,7 @@ import (
 //goland:noinspection GoNilness
 func TestConcurrentMessaging(t *testing.T) {
 	tst := &support.Integration{
-		Cooldown: time.Second * 10,
+		Cooldown: time.Second * 20,
 	}
 	//tst.WithTrace = true
 	tst.Setup(t, nil, nil)
@@ -32,7 +32,7 @@ func TestConcurrentMessaging(t *testing.T) {
 
 	// Dial shar
 	cl := client.New(client.WithEphemeralStorage(), client.WithConcurrency(10))
-	err := cl.Dial(tst.NatsURL)
+	err := cl.Dial(ctx, tst.NatsURL)
 	require.NoError(t, err)
 
 	// Load BPMN workflow

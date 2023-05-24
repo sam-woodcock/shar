@@ -31,7 +31,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	shar := client.New()
-	if err := shar.Dial(flag.Value.Server); err != nil {
+	if err := shar.Dial(ctx, flag.Value.Server); err != nil {
 		return fmt.Errorf("dialling server: %w", err)
 	}
 	wn, err := shar.LoadBPMNWorkflowFromBytes(ctx, args[0], b)

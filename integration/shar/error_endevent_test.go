@@ -24,7 +24,7 @@ func TestEndEventError(t *testing.T) {
 
 	// Dial shar
 	cl := client.New()
-	if err := cl.Dial(tst.NatsURL); err != nil {
+	if err := cl.Dial(ctx, tst.NatsURL); err != nil {
 		panic(err)
 	}
 

@@ -136,6 +136,7 @@ const (
 	APIGetWorkflowVersions           = "WORKFLOW.Api.GetWorkflowVersions"           // APIGetWorkflowVersions is the get workflow versions API message subject.
 	APIGetWorkflow                   = "WORKFLOW.Api.GetWorkflow"                   // APIGetWorkflow is the get workflow API message subject.
 	APIGetProcessHistory             = "WORKFLOW.Api.GetProcessHistory"             // APIGetProcessHistory is the get process history API message subject.
+	APIGetVersionInfo                = "WORKFLOW.API.GetVersionInfo"                // APIGetVersionInfo is the get server version information API message subject.
 )
 
 const APISpoolWorkflowEvents = "WORKFLOW.Api.SpoolWorkflowEvents" // APISpoolWorkflowEvents returns the latest workflow events from SHAR for export.  Event spooling must be enabled on the server.
