@@ -124,10 +124,12 @@ package2_stage:
   - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file build/telemetry/shar-telemetry
     "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/shar/${VER}.$CI_VERSION/shar-telemetry-linux-amd64"'
 
-before_script:
-  - docker info
-
 package_multiplatform_stage:
+  before_script:
+  - docker info
+  image: docker:20.10.16
+  services:
+    - registry.hub.docker.com/library/docker:20.10.16-dind
   stage: package
   rules:
    - if: "$CI_COMMIT_TAG"
