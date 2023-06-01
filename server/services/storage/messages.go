@@ -40,7 +40,7 @@ func (s *Nats) ensureMessageBuckets(ctx context.Context, wf *model.Workflow) err
 		}
 
 		jxCfg := &nats.ConsumerConfig{
-			Durable:       "ServiceTask_" + ks.String(),
+			Durable:       "ServiceTask_" + wf.Name + "_" + m.Name,
 			Description:   "",
 			FilterSubject: subj.NS(messages.WorkflowJobSendMessageExecute, "default") + "." + wf.Name + "_" + m.Name,
 			AckPolicy:     nats.AckExplicitPolicy,

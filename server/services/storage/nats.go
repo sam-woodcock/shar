@@ -133,7 +133,7 @@ func New(conn common.NatsConn, txConn common.NatsConn, storageType nats.StorageT
 		allowOrphanServiceTasks: allowOrphanServiceTasks,
 	}
 	ctx := context.Background()
-	if err := setup.EnsureWorkflowStream(ctx, conn, js, storageType); err != nil {
+	if err := setup.EnsureWorkflowStream(ctx, conn, js, storageType, true); err != nil {
 		return nil, fmt.Errorf("set up nats queue insfrastructure: %w", err)
 	}
 

@@ -34,6 +34,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -187,7 +188,7 @@ func (c *Client) Dial(ctx context.Context, natsURL string, opts ...nats.Option) 
 		MaxAckPending:   65535,
 		MaxRequestBatch: 1,
 	}
-	if err := setup.EnsureConsumer(js, "WORKFLOW", *cdef); err != nil {
+	if err := setup.EnsureConsumer(js, "WORKFLOW", *cdef, false); err != nil {
 		return fmt.Errorf("setting up end event queue")
 	}
 
@@ -244,13 +245,56 @@ func (c *Client) listen(ctx context.Context) error {
 	}
 	for k, v := range tasks {
 		cName := "ServiceTask_" + k
-		/*cInf, err := c.js.ConsumerInfo("WORKFLOW", cName)
+		cInf, err := c.js.ConsumerInfo("WORKFLOW", cName)
 		if err != nil {
 			return fmt.Errorf("listen obtaining consumer info for %s: %w", cName, err)
 		}
+		ackTimeout := cInf.Config.AckWait
+		err = common.Process(ctx, c.js, "jobExecute", closer, v, cName, c.concurrency, func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
+			// Check version compatibility of incoming call.
+			sharCompat := msg.Header.Get(header.NatsCompatHeader)
+			if sharCompat != "" {
+				sVer, err := version.NewVersion(sharCompat)
+				if err != nil {
+					return false, fmt.Errorf("compatibility issue: shar server version corrupt %s: %w", sVer, err)
+				}
 
-		*/
-		err := common.Process(ctx, c.js, "jobExecute", closer, v, cName, c.concurrency, func(ctx context.Context, log *slog.Logger, msg *nats.Msg) (bool, error) {
+				if compat, ver := upgrader.IsCompatible(sVer); !compat {
+					return false, fmt.Errorf("compatibility issue: shar server level %s, client version level: %s: %w", sVer, ver, err)
+				}
+			}
+
+			// Start a loop keeping this connection alive.
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			var fnMx sync.Mutex
+			waitCancelSig := make(chan struct{})
+
+			// Acknowledge until waitCancel is closed
+			go func(ctx context.Context) {
+				select {
+				case <-time.After(ackTimeout / 2):
+
+				case <-waitCancelSig:
+					cancel()
+					return
+				}
+				fmt.Println("Waiting...")
+				fnMx.Lock()
+				select {
+				case <-waitCancelSig:
+					cancel()
+					return
+				default:
+				}
+				if err := msg.InProgress(nats.Context(ctx)); err != nil {
+					cancel()
+					fnMx.Unlock()
+					return
+				}
+				fnMx.Unlock()
+			}(ctx)
+
 			ut := &model.WorkflowState{}
 			if err := proto.Unmarshal(msg.Data, ut); err != nil {
 				log.Error("unmarshaling", err)
@@ -287,7 +331,10 @@ func (c *Client) listen(ctx context.Context) error {
 							e = &errors2.ErrWorkflowFatal{Err: fmt.Errorf("call to service task \"%s\" terminated in panic: %w", *ut.Execute, r.(error))}
 						}
 					}()
+					fnMx.Lock()
 					v, e = svcFn(ctx, &jobClient{cl: c, trackingID: trackingID}, dv)
+					close(waitCancelSig)
+					fnMx.Unlock()
 					return
 				}()
 				if err != nil {
@@ -308,7 +355,7 @@ func (c *Client) listen(ctx context.Context) error {
 						handled = res.Handled
 					}
 					if !handled {
-						log.Warn("execution of service task function", err)
+						log.Warn("execution of service task function", "error", err)
 					}
 					return wfe.Code != "", err
 				}

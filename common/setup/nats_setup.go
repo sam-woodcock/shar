@@ -165,7 +165,7 @@ func init() {
 }
 
 // EnsureWorkflowStream ensures that the workflow stream exists
-func EnsureWorkflowStream(ctx context.Context, nc common.NatsConn, js nats.JetStreamContext, storageType nats.StorageType) error {
+func EnsureWorkflowStream(ctx context.Context, nc common.NatsConn, js nats.JetStreamContext, storageType nats.StorageType, update bool) error {
 	scfg := &nats.StreamConfig{
 		Name:      "WORKFLOW",
 		Subjects:  messages.AllMessages,
@@ -177,7 +177,7 @@ func EnsureWorkflowStream(ctx context.Context, nc common.NatsConn, js nats.JetSt
 		return fmt.Errorf("ensure workflow stream: %w", err)
 	}
 	for _, ccfg := range consumerConfig {
-		if err := EnsureConsumer(js, "WORKFLOW", *ccfg); err != nil {
+		if err := EnsureConsumer(js, "WORKFLOW", *ccfg, update); err != nil {
 			return fmt.Errorf("ensure consumer during ensure workflow stream: %w", err)
 		}
 	}
@@ -185,7 +185,7 @@ func EnsureWorkflowStream(ctx context.Context, nc common.NatsConn, js nats.JetSt
 }
 
 // EnsureConsumer creates a new consumer appending the current semantic version number to the description.  If the consumer exists and has a previous version, it upgrader it.
-func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig nats.ConsumerConfig) error {
+func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig nats.ConsumerConfig, update bool) error {
 	if ci, err := js.ConsumerInfo(streamName, consumerConfig.Durable); errors.Is(err, nats.ErrConsumerNotFound) {
 		consumerConfig.Description += " " + sharVersion.Version
 		if _, err := js.AddConsumer(streamName, &consumerConfig); err != nil {
@@ -194,6 +194,9 @@ func EnsureConsumer(js nats.JetStreamContext, streamName string, consumerConfig 
 	} else if err != nil {
 		return fmt.Errorf("ensure consumer: %w", err)
 	} else {
+		if !update {
+			return nil
+		}
 		if ok := requiresUpgrade(ci.Config.Description, sharVersion.Version); ok {
 			consumerConfig.Description += " " + sharVersion.Version
 			_, err := js.UpdateConsumer(streamName, &consumerConfig)
