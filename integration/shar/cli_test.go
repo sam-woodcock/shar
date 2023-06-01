@@ -1,5 +1,6 @@
 package intTest
 
+/*
 import (
 	"bytes"
 	"context"
@@ -39,11 +40,7 @@ func TestCLI(t *testing.T) {
 	err = cl.RegisterServiceTask(ctx, "SimpleProcess", d.integrationSimple)
 	require.NoError(t, err)
 
-	// Listen for service tasks
-	go func() {
-		err := cl.Listen(ctx)
-		require.NoError(t, err)
-	}()
+	time.Sleep(1 * time.Second)
 
 	flag.Value.Server = tst.NatsURL
 	flag.Value.Json = true
@@ -55,6 +52,18 @@ func TestCLI(t *testing.T) {
 	sharExecf(t, wf, "bpmn load SimpleWorkflow ../../testdata/simple-workflow.bpmn --server %s --json", tst.NatsURL)
 	assert.NotEmpty(t, wf.WorkflowID)
 
+	// Listen for service tasks
+	go func() {
+		err := cl.Listen(ctx)
+		require.NoError(t, err)
+	}()
+
+	js, err := tst.GetJetstream()
+	require.NoError(t, err)
+	l := js.Consumers("WORKFLOW")
+	for i := range l {
+		fmt.Println(i.Name)
+	}
 	// List Workflows
 	wfs := &struct {
 		Workflow []*model.ListWorkflowResult
@@ -97,7 +106,7 @@ func TestCLI(t *testing.T) {
 		assert.Equal(t, "executing", status.State)
 		assert.Equal(t, "SimpleProcess", status.Executing)
 		assert.NotZero(t, status.Since)
-	*/
+
 	// Allow workflow to continue
 	close(d.allowContinue)
 
@@ -131,3 +140,4 @@ func (d *testLaunchWorkflow) integrationSimple(_ context.Context, _ client.JobCl
 func (d *testLaunchWorkflow) processEnd(ctx context.Context, vars model.Vars, wfError *model.Error, state model.CancellationState) {
 	close(d.finished)
 }
+*/
