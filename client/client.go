@@ -38,7 +38,9 @@ import (
 	"time"
 )
 
-const internalProcessInstanceId = "__INTERNAL_PIID"
+type contextKey string
+
+const internalProcessInstanceId contextKey = "__INTERNAL_PIID"
 
 // LogClient represents a client which is capable of logging to the SHAR infrastructure.
 type LogClient interface {

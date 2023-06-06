@@ -20,12 +20,16 @@ const bpmnNS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 
 // Parse parses BPMN, and turns it into a SHAR state machine
 func Parse(name string, rdr io.Reader) (*model.Workflow, error) {
+
 	msgs := make(map[string]string)
 	errs := make(map[string]string)
 	doc, err := xmlquery.Parse(rdr)
 	if err != nil {
 		return nil, fmt.Errorf("parse xml: %w", err)
 	}
+
+	///TODO: Align namespace for the parse (the aliases are used in the XML navigation instead of the namespaces)
+
 	prXmls := doc.SelectElements("//bpmn:process")
 	wf := &model.Workflow{
 		Name:    name,

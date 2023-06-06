@@ -29,7 +29,7 @@ func main() {
 				{Name: grp1, Short: "Address parameters", Description: "Address parameters"},
 			},
 			Input: []*model.Parameter{
-				{Name: "number", Short: "House", Description: "House number", Type: "int", Group: &grp1, ExtensionData: map[string]string{"name1": "value1"}},
+				{Name: "number", Short: "House", Description: "House number", Type: "int", Group: &grp1, ExtensionData: map[string]string{"name1": "value1"}, Mandatory: true, ValidateRegEx: "[0-9]*"},
 				{Name: "postcode", Short: "Postal code", Description: "UK postal code", Type: "string", Group: &grp1},
 			},
 			Output: []*model.Parameter{

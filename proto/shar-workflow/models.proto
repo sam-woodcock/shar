@@ -565,6 +565,8 @@ message Parameter {
   string type = 4;
   optional string group = 5;
   map<string,string> extensionData = 6;
+  bool Mandatory = 7;
+  string ValidateRegEx = 8;
 }
 
 message Message {

@@ -35,12 +35,12 @@ func Err(ctx context.Context, message string, err error, atts ...any) error {
 
 // SetDefault sets the default logger for an application.  This should be done in tha application's main.go before and call to slog to prevent race conditions.
 func SetDefault(level slog.Level, addSource bool, ecosystem string) {
-	o := slog.HandlerOptions{
+	o := &slog.HandlerOptions{
 		AddSource:   addSource,
 		Level:       level,
 		ReplaceAttr: nil,
 	}
-	h := o.NewTextHandler(os.Stdout)
+	h := slog.NewTextHandler(os.Stdout, o)
 	slog.SetDefault(slog.New(h).With(slog.String(EcoSystemLoggingKey, ecosystem)))
 }
 
