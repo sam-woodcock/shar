@@ -38,6 +38,10 @@ import (
 	"time"
 )
 
+type contextKey string
+
+const internalProcessInstanceId contextKey = "__INTERNAL_PIID"
+
 // LogClient represents a client which is capable of logging to the SHAR infrastructure.
 type LogClient interface {
 	// Log logs to the underlying SHAR infrastructure.
@@ -332,7 +336,8 @@ func (c *Client) listen(ctx context.Context) error {
 						}
 					}()
 					fnMx.Lock()
-					v, e = svcFn(ctx, &jobClient{cl: c, trackingID: trackingID}, dv)
+					pidCtx := context.WithValue(ctx, internalProcessInstanceId, job.ProcessInstanceId)
+					v, e = svcFn(pidCtx, &jobClient{cl: c, trackingID: trackingID}, dv)
 					close(waitCancelSig)
 					fnMx.Unlock()
 					return
@@ -401,7 +406,8 @@ func (c *Client) listen(ctx context.Context) error {
 					return false, &errors2.ErrWorkflowFatal{Err: fmt.Errorf("decode send message variables: %w", err)}
 				}
 				ctx = context.WithValue(ctx, ctxkey.TrackingID, trackingID)
-				if err := sendFn(ctx, &messageClient{cl: c, trackingID: trackingID, wfiID: job.WorkflowInstanceId}, dv); err != nil {
+				pidCtx := context.WithValue(ctx, internalProcessInstanceId, job.ProcessInstanceId)
+				if err := sendFn(pidCtx, &messageClient{cl: c, trackingID: trackingID, wfiID: job.WorkflowInstanceId}, dv); err != nil {
 					log.Warn("nats listener", err)
 					return false, err
 				}
